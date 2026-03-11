@@ -93,7 +93,7 @@ pub fn handle_whoami(args: &[String]) {
     }
 }
 
-fn mask_api_key(key: &str) -> String {
+
 fn mask_api_key(key: &str) -> String {
     let chars: Vec<char> = key.chars().collect();
     if chars.len() <= 8 {

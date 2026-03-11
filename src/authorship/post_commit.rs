@@ -153,7 +153,7 @@ pub fn post_commit(
         PromptStorageMode::Default => {
             // "default" - attempt CAS upload, NEVER keep messages in notes
             // Check conditions for CAS upload:
-            // - user is logged in OR using custom API URL
+            // - user is logged in OR has API key OR using custom API URL
             let context = ApiContext::new(None);
             let client = ApiClient::new(context);
             let using_custom_api =
