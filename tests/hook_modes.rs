@@ -5,7 +5,9 @@ use repos::test_repo::TestRepo;
 use serial_test::serial;
 use std::fs;
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
+#[cfg(unix)]
+use std::path::Path;
 
 struct EnvVarGuard {
     key: &'static str,

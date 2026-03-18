@@ -1255,8 +1255,10 @@ mod tests {
 
     #[test]
     fn test_resolve_editor_cli_finds_cli_js_fallback() {
-        // Create a fake editor installation directory structure
+        // Create a fake editor installation directory structure (unix only)
+        #[cfg(unix)]
         let temp_dir = TempDir::new().unwrap();
+        #[cfg(unix)]
         let base = temp_dir.path().join("FakeEditor.app");
 
         #[cfg(target_os = "macos")]
