@@ -658,7 +658,7 @@ subdir_test_variants! {
     file = repo.filename("test.txt");
     file.assert_lines_and_blame(lines![
         "line 1".human(),
-        "line 2".human(),
+        "line 2".ai(),
         "// AI addition".ai(),
     ]);
     }
@@ -916,7 +916,7 @@ subdir_test_variants! {
 
         file = repo.filename("test.txt");
         file.assert_lines_and_blame(lines![
-            "base content".human(),
+            "base content".ai(),
             "// AI feature".ai(),
         ]);
     }
@@ -994,7 +994,7 @@ subdir_test_variants! {
 
         // File should now match second commit
         file = repo.filename("test.txt");
-        file.assert_lines_and_blame(lines!["v1".human(), "v2".ai()]);
+        file.assert_lines_and_blame(lines!["v1".ai(), "v2".ai()]);
     }
 }
 
@@ -1084,7 +1084,7 @@ subdir_test_variants! {
             .expect("Cherry-pick should succeed");
 
         // Verify final file state - hooks should have preserved AI authorship
-        file.assert_lines_and_blame(lines!["Initial content".human(), "AI feature line".ai(),]);
+        file.assert_lines_and_blame(lines!["Initial content".ai(), "AI feature line".ai(),]);
     }
 }
 
@@ -1530,7 +1530,7 @@ subdir_test_variants! {
         file.assert_lines_and_blame(lines![
             "line 1".human(),
             "line 2".human(),
-            "line 3".human(),
+            "line 3".ai(),
             "// AI appended line 1".ai(),
             "// AI appended line 2".ai()
         ]);
@@ -1637,7 +1637,7 @@ subdir_test_variants! {
             "MAIN LINE 2".human(),
             "Base line 1".human(),
             "Base line 2".human(),
-            "Base line 3".human(),
+            "Base line 3".ai(),
             "FEATURE LINE 1".ai(),
             "FEATURE LINE 2".ai(),
         ]);

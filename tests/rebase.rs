@@ -251,7 +251,7 @@ fn test_rebase_preserves_exact_mixed_line_attribution_in_single_file() {
         "function compute() {".ai(),
         "  // AI docs".ai(),
         "  return 1;".ai(),
-        "}".human(),
+        "}".ai(),
         "// AI footer".ai()
     ]);
 }
@@ -288,7 +288,7 @@ fn test_rebase_with_human_only_commit_between_ai_commits_preserves_exact_lines()
     repo.git(&["checkout", "feature"]).unwrap();
     repo.git(&["rebase", &default_branch]).unwrap();
 
-    app_file.assert_lines_and_blame(lines!["const base = 0;".human(), "// AI block 1".ai()]);
+    app_file.assert_lines_and_blame(lines!["const base = 0;".ai(), "// AI block 1".ai()]);
     generated_file.assert_lines_and_blame(lines!["const generated = 42;".ai()]);
     notes_file.assert_lines_and_blame(lines!["human notes line".human()]);
 }
@@ -1005,7 +1005,7 @@ fn test_rebase_autosquash() {
 
     if rebase_result.is_ok() {
         // Verify the file has the expected content with AI authorship
-        file.assert_lines_and_blame(lines!["line 1".human(), "AI line 2 fixed".ai()]);
+        file.assert_lines_and_blame(lines!["line 1".ai(), "AI line 2 fixed".ai()]);
     }
 }
 

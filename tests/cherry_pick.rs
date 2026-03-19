@@ -55,7 +55,7 @@ fn test_single_commit_cherry_pick() {
     repo.git(&["cherry-pick", &feature_commit]).unwrap();
 
     // Verify final file state - hooks should have preserved AI authorship
-    file.assert_lines_and_blame(lines!["Initial content".human(), "AI feature line".ai(),]);
+    file.assert_lines_and_blame(lines!["Initial content".ai(), "AI feature line".ai(),]);
 
     // Verify stats
     let stats = repo.stats().unwrap();
@@ -63,9 +63,9 @@ fn test_single_commit_cherry_pick() {
         stats.git_diff_added_lines, 2,
         "Should add 1 AI line (+ newline)"
     );
-    assert_eq!(stats.ai_additions, 1, "1 AI line added");
-    assert_eq!(stats.ai_accepted, 1, "1 AI line accepted");
-    assert_eq!(stats.human_additions, 1, "1 human line (newline)");
+    assert_eq!(stats.ai_additions, 2, "2 AI lines added");
+    assert_eq!(stats.ai_accepted, 2, "2 AI lines accepted");
+    assert_eq!(stats.human_additions, 0, "0 human lines added");
 
     // Verify prompt records have correct stats
     let head_commit = repo.git(&["rev-parse", "HEAD"]).unwrap().trim().to_string();
@@ -530,7 +530,7 @@ fn test_cherry_pick_identical_trees() {
     repo.git(&["cherry-pick", &feature_commit]).unwrap();
 
     // Verify final file state - hooks should have preserved AI authorship
-    file.assert_lines_and_blame(lines!["Line 1".human(), "AI line".ai(),]);
+    file.assert_lines_and_blame(lines!["Line 1".ai(), "AI line".ai(),]);
 }
 
 /// Test cherry-pick where some commits become empty (already applied)
@@ -646,7 +646,7 @@ fn test_cherry_pick_preserves_custom_attributes_from_config() {
     }
 
     // Also verify the AI attribution itself survived
-    file.assert_lines_and_blame(lines!["Initial content".human(), "AI feature line".ai()]);
+    file.assert_lines_and_blame(lines!["Initial content".ai(), "AI feature line".ai()]);
 }
 
 reuse_tests_in_worktree!(

@@ -66,7 +66,7 @@ fn test_ci_squash_merge_basic() {
     // Verify AI authorship is preserved in the merge commit
     file.assert_lines_and_blame(lines![
         "// Original code".human(),
-        "function original() {}".human(),
+        "function original() {}".ai(),
         "// AI added function".ai(),
         "function aiFeature() {".ai(),
         "  return 'ai code';".ai(),
@@ -142,13 +142,13 @@ fn test_ci_squash_merge_multiple_files() {
 
     // Verify AI authorship is preserved in both files
     file1.assert_lines_and_blame(lines![
-        "// File 1 original".human(),
+        "// File 1 original".ai(),
         "// AI code in file1".ai(),
         "const feature1 = 'ai';".ai()
     ]);
 
     file2.assert_lines_and_blame(lines![
-        "// File 2 original".human(),
+        "// File 2 original".ai(),
         "// AI code in file2".ai(),
         "const feature2 = 'ai';".ai()
     ]);

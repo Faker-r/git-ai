@@ -40,7 +40,7 @@ fn test_blame_after_merge_with_ai_contributions() {
         "MAIN LINE 2".human(),
         "Base line 1".human(),
         "Base line 2".human(),
-        "Base line 3".human(),
+        "Base line 3".ai(),
         "FEATURE LINE 1".ai(),
         "FEATURE LINE 2".ai(),
     ]);

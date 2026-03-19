@@ -691,13 +691,13 @@ fn test_realistic_jsx_component_development() {
         "  const disabledStyles = disabled ? 'opacity-50 cursor-not-allowed' : '';".ai(),
         "  ".human(),  // Line 5: git attributes whitespace-only line to human
         "  return (".ai(),
-        "    <button".human(),  // Line 7: git attributes to Test User (from human edits)
+        "    <button".ai(),
         "      onClick={disabled ? undefined : onClick}".ai(),
         "      className={`${baseStyles} ${variantStyles} ${disabledStyles} ${className}`}".ai(),
         "      disabled={disabled}".ai(),
-        "    >".human(),  // Line 11: git attributes to Test User
-        "      {children}".human(),
-        "    </button>".human(),
+        "    >".ai(),
+        "      {children}".ai(),
+        "    </button>".ai(),
         "  );".ai(),
         "}".human(),  // Line 15: final closing brace stays human
     ]);

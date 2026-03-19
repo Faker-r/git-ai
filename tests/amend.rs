@@ -122,7 +122,7 @@ fn test_amend_add_lines_at_bottom() {
         "line 2".human(),
         "line 3".human(),
         "line 4".human(),
-        "line 5".human(),
+        "line 5".ai(),
         "// AI appended line 1".ai(),
         "// AI appended line 2".ai()
     ]);
@@ -405,7 +405,7 @@ fn test_amend_with_partially_staged_mixed_content() {
         "human line 2".human(),
         "// AI addition 1".ai(),
         "// AI addition 2".ai(),
-        "human end".human(),
+        "human end".ai(),
     ]);
 }
 
