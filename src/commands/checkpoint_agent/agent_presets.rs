@@ -217,6 +217,7 @@ impl ClaudePreset {
                                 transcript.add_message(Message::User {
                                     text: content.to_string(),
                                     timestamp: timestamp.clone(),
+                                    id: None,
                                 });
                             }
                         } else if let Some(content_array) =
@@ -236,6 +237,7 @@ impl ClaudePreset {
                                     transcript.add_message(Message::User {
                                         text: text.to_string(),
                                         timestamp: timestamp.clone(),
+                                        id: None,
                                     });
                                 }
                             }
@@ -253,6 +255,7 @@ impl ClaudePreset {
                                             transcript.add_message(Message::Assistant {
                                                 text: text.to_string(),
                                                 timestamp: timestamp.clone(),
+                                                id: None,
                                             });
                                         }
                                     }
@@ -263,6 +266,7 @@ impl ClaudePreset {
                                             transcript.add_message(Message::Assistant {
                                                 text: thinking.to_string(),
                                                 timestamp: timestamp.clone(),
+                                                id: None,
                                             });
                                         }
                                     }
@@ -279,12 +283,14 @@ impl ClaudePreset {
                                                 transcript.add_message(Message::Plan {
                                                     text: plan_text,
                                                     timestamp: timestamp.clone(),
+                                                    id: None,
                                                 });
                                             } else {
                                                 transcript.add_message(Message::ToolUse {
                                                     name: name.to_string(),
                                                     input: item["input"].clone(),
                                                     timestamp: timestamp.clone(),
+                                                    id: None,
                                                 });
                                             }
                                         }
@@ -532,6 +538,7 @@ impl GeminiPreset {
                             transcript.add_message(Message::User {
                                 text: trimmed.to_string(),
                                 timestamp: timestamp.clone(),
+                                id: None,
                             });
                         }
                     }
@@ -551,6 +558,7 @@ impl GeminiPreset {
                             transcript.add_message(Message::Assistant {
                                 text: trimmed.to_string(),
                                 timestamp: timestamp.clone(),
+                                id: None,
                             });
                         }
                     }
@@ -573,6 +581,7 @@ impl GeminiPreset {
                                     name: name.to_string(),
                                     input: args,
                                     timestamp: tool_timestamp,
+                                    id: None,
                                 });
                             }
                         }
@@ -737,6 +746,7 @@ impl WindsurfPreset {
                             transcript.add_message(Message::User {
                                 text: trimmed.to_string(),
                                 timestamp,
+                                id: None,
                             });
                         }
                     }
@@ -751,6 +761,7 @@ impl WindsurfPreset {
                             transcript.add_message(Message::Assistant {
                                 text: trimmed.to_string(),
                                 timestamp,
+                                id: None,
                             });
                         }
                     }
@@ -773,6 +784,7 @@ impl WindsurfPreset {
                                 "new_content": new_content,
                             }),
                             timestamp,
+                            id: None,
                         });
                     }
                 }
@@ -784,6 +796,7 @@ impl WindsurfPreset {
                         name: entry_type.to_string(),
                         input,
                         timestamp,
+                        id: None,
                     });
                 }
                 _ => {
@@ -952,6 +965,7 @@ impl ContinueCliPreset {
                             transcript.add_message(Message::User {
                                 text: trimmed.to_string(),
                                 timestamp: timestamp.clone(),
+                                id: None,
                             });
                         }
                     }
@@ -964,6 +978,7 @@ impl ContinueCliPreset {
                             transcript.add_message(Message::Assistant {
                                 text: trimmed.to_string(),
                                 timestamp: timestamp.clone(),
+                                id: None,
                             });
                         }
                     }
@@ -998,6 +1013,7 @@ impl ContinueCliPreset {
                                     name: tool_name.to_string(),
                                     input: args,
                                     timestamp: tool_timestamp,
+                                    id: None,
                                 });
                             }
                         }
@@ -1253,11 +1269,13 @@ impl CodexPreset {
                                     transcript.add_message(Message::User {
                                         text: joined,
                                         timestamp: timestamp.clone(),
+                                        id: None,
                                     });
                                 } else if role == "assistant" {
                                     transcript.add_message(Message::Assistant {
                                         text: joined,
                                         timestamp: timestamp.clone(),
+                                        id: None,
                                     });
                                 }
                             }
@@ -1295,6 +1313,7 @@ impl CodexPreset {
                                 name,
                                 input,
                                 timestamp: timestamp.clone(),
+                                id: None,
                             });
                         }
                         _ => {}
@@ -1328,6 +1347,7 @@ impl CodexPreset {
                             transcript.add_message(Message::User {
                                 text: trimmed.to_string(),
                                 timestamp: timestamp.clone(),
+                                id: None,
                             });
                         }
                     }
@@ -1339,6 +1359,7 @@ impl CodexPreset {
                         transcript.add_message(Message::Assistant {
                             text: trimmed.to_string(),
                             timestamp: timestamp.clone(),
+                            id: None,
                         });
                     }
                 }
@@ -2875,6 +2896,7 @@ impl DroidPreset {
                                 transcript.add_message(Message::User {
                                     text: text.to_string(),
                                     timestamp: timestamp.clone(),
+                                    id: None,
                                 });
                             }
                         }
@@ -2884,6 +2906,7 @@ impl DroidPreset {
                         transcript.add_message(Message::User {
                             text: content.to_string(),
                             timestamp: timestamp.clone(),
+                            id: None,
                         });
                     }
                 }
@@ -2898,6 +2921,7 @@ impl DroidPreset {
                                         transcript.add_message(Message::Assistant {
                                             text: text.to_string(),
                                             timestamp: timestamp.clone(),
+                                            id: None,
                                         });
                                     }
                                 }
@@ -2908,6 +2932,7 @@ impl DroidPreset {
                                         transcript.add_message(Message::Assistant {
                                             text: thinking.to_string(),
                                             timestamp: timestamp.clone(),
+                                            id: None,
                                         });
                                     }
                                 }
@@ -2924,12 +2949,14 @@ impl DroidPreset {
                                             transcript.add_message(Message::Plan {
                                                 text: plan_text,
                                                 timestamp: timestamp.clone(),
+                                                id: None,
                                             });
                                         } else {
                                             transcript.add_message(Message::ToolUse {
                                                 name: name.to_string(),
                                                 input: item["input"].clone(),
                                                 timestamp: timestamp.clone(),
+                                                id: None,
                                             });
                                         }
                                     }
@@ -3109,6 +3136,7 @@ impl GithubCopilotPreset {
                     transcript.add_message(Message::User {
                         text: trimmed.to_string(),
                         timestamp: user_ts_rfc3339.clone(),
+                        id: None,
                     });
                 }
             }
@@ -3274,6 +3302,7 @@ impl GithubCopilotPreset {
                     transcript.add_message(Message::Assistant {
                         text: assistant_text_accumulator.trim().to_string(),
                         timestamp: assistant_ts,
+                        id: None,
                     });
                 }
             }
@@ -3352,6 +3381,7 @@ impl GithubCopilotPreset {
                         transcript.add_message(Message::User {
                             text: text.to_string(),
                             timestamp: timestamp.clone(),
+                            id: None,
                         });
                     }
                 }
@@ -3375,6 +3405,7 @@ impl GithubCopilotPreset {
                         transcript.add_message(Message::Assistant {
                             text,
                             timestamp: timestamp.clone(),
+                            id: None,
                         });
                     }
 

@@ -512,11 +512,13 @@ impl OpenCodePreset {
                                 transcript.add_message(Message::User {
                                     text: trimmed.to_string(),
                                     timestamp: timestamp.clone(),
+                                    id: None,
                                 });
                             } else if message.role == "assistant" {
                                 transcript.add_message(Message::Assistant {
                                     text: trimmed.to_string(),
                                     timestamp: timestamp.clone(),
+                                    id: None,
                                 });
                             }
                         }
@@ -534,6 +536,7 @@ impl OpenCodePreset {
                                 name: tool,
                                 input: tool_input,
                                 timestamp: timestamp.clone(),
+                                id: None,
                             });
                         }
                     }

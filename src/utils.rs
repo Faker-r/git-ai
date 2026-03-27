@@ -62,15 +62,16 @@ pub fn debug_log(msg: &str) {
 
 /// Append a timestamped line to `<your_path>/research_logs/research.log`.
 /// Failures are silently ignored so research logging never breaks normal operation.
-///
-/// TODO: Set `dir` below to your local research_logs directory before using.
+/// TODO: Set `dir` below to your local research_logs directory before using
+/// TODO: other stuff
+
+
 pub fn research_log(_ai_dir: &Path, msg: &str) {
     use std::fs::{OpenOptions, create_dir_all};
     use std::io::Write;
     use std::time::SystemTime;
 
-    let dir: &Path = todo!("Set this to your local research_logs path, e.g. Path::new(\"/home/you/git-ai/research_logs\")");
-    let _ = create_dir_all(dir);
+    let dir: &Path = Path::new("/Users/Andrew/School/ReSeSS Research/tool_testing/");
     let path = dir.join("research.log");
 
     let timestamp = SystemTime::now()

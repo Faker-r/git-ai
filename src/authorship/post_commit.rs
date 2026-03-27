@@ -298,9 +298,10 @@ pub fn post_commit_with_final_state(
     notes_add(repo, &commit_sha, &authorship_json)?;
 
     research_log(&repo.storage.ai_dir, &format!(
-        "Git note written for commit {}. Note size: {} bytes",
+        "Git note written for commit {}. Note size: {} bytes\n--- GIT NOTE CONTENT START ---\n{}\n--- GIT NOTE CONTENT END ---",
         commit_sha,
         authorship_json.len(),
+        authorship_json,
     ));
 
     // Compute stats once (needed for both metrics and terminal output), unless preflight
