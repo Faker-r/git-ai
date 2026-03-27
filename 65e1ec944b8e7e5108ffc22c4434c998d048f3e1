@@ -1,0 +1,105 @@
+---
+{
+  "schema_version": "authorship/4.0.0",
+  "git_ai_version": "development:1.1.21",
+  "base_commit_sha": "65e1ec944b8e7e5108ffc22c4434c998d048f3e1",
+  "prompts": {},
+  "change_history": [
+    {
+      "timestamp": 1774573207,
+      "kind": "human",
+      "files": {
+        "src/commands/checkpoint_agent/agent_presets.rs": {
+          "added_lines": [],
+          "deleted_lines": []
+        },
+        "src/commands/checkpoint_agent/amp_preset.rs": {
+          "added_lines": [],
+          "deleted_lines": []
+        },
+        "src/commands/checkpoint_agent/opencode_preset.rs": {
+          "added_lines": [],
+          "deleted_lines": []
+        },
+        "src/utils.rs": {
+          "added_lines": [],
+          "deleted_lines": []
+        }
+      },
+      "line_stats": {
+        "additions": 39,
+        "deletions": 1,
+        "additions_sloc": 39,
+        "deletions_sloc": 1
+      }
+    },
+    {
+      "timestamp": 1774575565,
+      "kind": "human",
+      "files": {
+        "src/authorship/post_commit.rs": {
+          "added_lines": [],
+          "deleted_lines": []
+        },
+        "src/utils.rs": {
+          "added_lines": [],
+          "deleted_lines": []
+        }
+      },
+      "line_stats": {
+        "additions": 3,
+        "deletions": 3,
+        "additions_sloc": 3,
+        "deletions_sloc": 3
+      }
+    },
+    {
+      "timestamp": 1774575676,
+      "kind": "human",
+      "files": {
+        "src/utils.rs": {
+          "added_lines": [],
+          "deleted_lines": []
+        }
+      },
+      "line_stats": {
+        "additions": 2,
+        "deletions": 1,
+        "additions_sloc": 0,
+        "deletions_sloc": 1
+      }
+    },
+    {
+      "timestamp": 1774575847,
+      "kind": "human",
+      "files": {
+        "src/utils.rs": {
+          "added_lines": [],
+          "deleted_lines": []
+        }
+      },
+      "line_stats": {
+        "additions": 1,
+        "deletions": 1,
+        "additions_sloc": 1,
+        "deletions_sloc": 1
+      }
+    },
+    {
+      "timestamp": 1774576017,
+      "kind": "human",
+      "files": {
+        "src/utils.rs": {
+          "added_lines": [],
+          "deleted_lines": []
+        }
+      },
+      "line_stats": {
+        "additions": 1,
+        "deletions": 0,
+        "additions_sloc": 1,
+        "deletions_sloc": 0
+      }
+    }
+  ]
+}
