@@ -1,7 +1,7 @@
 use crate::error::GitAiError;
 use crate::git::diff_tree_to_tree::Diff;
 use std::io::IsTerminal;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 /// Check if debug logging is enabled via environment variable
@@ -57,6 +57,29 @@ pub fn debug_performance_log_structured(json: serde_json::Value) {
 pub fn debug_log(msg: &str) {
     if is_debug_enabled() {
         eprintln!("\x1b[1;33m[git-ai]\x1b[0m {}", msg);
+    }
+}
+
+/// Append a timestamped line to `<your_path>/research_logs/research.log`.
+/// Failures are silently ignored so research logging never breaks normal operation.
+///
+/// TODO: Set `dir` below to your local research_logs directory before using.
+pub fn research_log(_ai_dir: &Path, msg: &str) {
+    use std::fs::{OpenOptions, create_dir_all};
+    use std::io::Write;
+    use std::time::SystemTime;
+
+    let dir: &Path = todo!("Set this to your local research_logs path, e.g. Path::new(\"/home/you/git-ai/research_logs\")");
+    let _ = create_dir_all(dir);
+    let path = dir.join("research.log");
+
+    let timestamp = SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+
+    if let Ok(mut f) = OpenOptions::new().create(true).append(true).open(&path) {
+        let _ = writeln!(f, "[{}] {}", timestamp, msg);
     }
 }
 

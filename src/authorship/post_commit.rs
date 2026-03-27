@@ -12,7 +12,7 @@ use crate::config::{Config, PromptStorageMode};
 use crate::error::GitAiError;
 use crate::git::refs::notes_add;
 use crate::git::repository::Repository;
-use crate::utils::debug_log;
+use crate::utils::{debug_log, research_log};
 use std::collections::{HashMap, HashSet};
 use std::io::IsTerminal;
 
@@ -142,6 +142,21 @@ pub fn post_commit_with_final_state(
         pathspecs.insert(file_path.clone());
     }
 
+    research_log(&repo.storage.ai_dir, &format!(
+        "Post-commit checkpoint summary: {} checkpoints",
+        parent_working_log.len()
+    ));
+    for (i, cp) in parent_working_log.iter().enumerate() {
+        research_log(&repo.storage.ai_dir, &format!(
+            "  [{}] kind={}, agent={:?}, model={:?}, files=[{}]",
+            i,
+            cp.kind.to_str(),
+            cp.agent_id.as_ref().map(|a| format!("{}:{}", a.tool, a.id)),
+            cp.agent_id.as_ref().map(|a| a.model.as_str()),
+            cp.entries.iter().map(|e| e.file.as_str()).collect::<Vec<_>>().join(", "),
+        ));
+    }
+
     let (mut authorship_log, initial_attributions) = working_va
         .to_authorship_log_and_initial_working_log(
             repo,
@@ -152,6 +167,52 @@ pub fn post_commit_with_final_state(
         )?;
 
     authorship_log.metadata.base_commit_sha = commit_sha.clone();
+
+    // Build per-checkpoint change_history for research metrics
+    let change_history: Vec<crate::authorship::authorship_log_serialization::ChangeHistoryEntry> =
+        parent_working_log
+            .iter()
+            .map(|cp| {
+                use crate::authorship::authorship_log_serialization::{
+                    ChangeHistoryEntry, FileChangeDetail,
+                };
+                let (author_id, model) = if let Some(aid) = &cp.agent_id {
+                    (
+                        Some(crate::authorship::authorship_log_serialization::generate_short_hash(
+                            &aid.id, &aid.tool,
+                        )),
+                        Some(aid.model.clone()),
+                    )
+                } else {
+                    (None, None)
+                };
+
+                let mut files = std::collections::BTreeMap::new();
+                for entry in &cp.entries {
+                    files.insert(
+                        entry.file.clone(),
+                        FileChangeDetail {
+                            added_lines: entry.added_line_ranges.clone().unwrap_or_default(),
+                            deleted_lines: entry.deleted_line_ranges.clone().unwrap_or_default(),
+                        },
+                    );
+                }
+
+                ChangeHistoryEntry {
+                    timestamp: cp.timestamp,
+                    kind: cp.kind.to_str(),
+                    author_id,
+                    prompt_id: cp.prompt_id.clone(),
+                    model,
+                    files,
+                    line_stats: cp.line_stats.clone(),
+                }
+            })
+            .collect();
+
+    if !change_history.is_empty() {
+        authorship_log.metadata.change_history = Some(change_history);
+    }
 
     // Long-lived daemon processes should read a fresh config snapshot.
     // Wrapper/hooks mode can use the process-global cached config.
@@ -235,6 +296,12 @@ pub fn post_commit_with_final_state(
         .map_err(|_| GitAiError::Generic("Failed to serialize authorship log".to_string()))?;
 
     notes_add(repo, &commit_sha, &authorship_json)?;
+
+    research_log(&repo.storage.ai_dir, &format!(
+        "Git note written for commit {}. Note size: {} bytes",
+        commit_sha,
+        authorship_json.len(),
+    ));
 
     // Compute stats once (needed for both metrics and terminal output), unless preflight
     // estimate predicts this would be too expensive for the commit hook path.
@@ -477,6 +544,23 @@ fn update_prompts_to_latest(checkpoints: &mut [Checkpoint]) -> Result<(), GitAiE
             match result {
                 PromptUpdateResult::Updated(latest_transcript, latest_model) => {
                     let checkpoint = &mut checkpoints[last_idx];
+                    // Backfill prompt_id if it was missed at checkpoint time (transcript race)
+                    if checkpoint.prompt_id.is_none() {
+                        checkpoint.prompt_id = latest_transcript
+                            .messages
+                            .iter()
+                            .rev()
+                            .find_map(|m| {
+                                if matches!(
+                                    m,
+                                    crate::authorship::transcript::Message::User { .. }
+                                ) {
+                                    m.id().cloned()
+                                } else {
+                                    None
+                                }
+                            });
+                    }
                     checkpoint.transcript = Some(latest_transcript);
                     if let Some(agent_id) = &mut checkpoint.agent_id {
                         agent_id.model = latest_model;

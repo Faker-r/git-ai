@@ -1716,20 +1716,24 @@ impl CursorPreset {
                     model = Some(model_name.to_string());
                 }
 
+                let bid = Some(bubble_id.to_string());
+
                 // Extract text from bubble
                 if let Some(text) = bubble_content.get("text").and_then(|v| v.as_str()) {
                     let trimmed = text.trim();
                     if !trimmed.is_empty() {
                         let role = header.get("type").and_then(|v| v.as_i64()).unwrap_or(0);
                         if role == 1 {
-                            transcript.add_message(Message::user(
+                            transcript.add_message(Message::user_with_id(
                                 trimmed.to_string(),
                                 bubble_created_at.clone(),
+                                bid.clone(),
                             ));
                         } else {
-                            transcript.add_message(Message::assistant(
+                            transcript.add_message(Message::assistant_with_id(
                                 trimmed.to_string(),
                                 bubble_created_at.clone(),
+                                bid.clone(),
                             ));
                         }
                     }
@@ -1751,10 +1755,10 @@ impl CursorPreset {
                         "edit_file" => {
                             let target_file =
                                 raw_args_json.get("target_file").and_then(|v| v.as_str());
-                            transcript.add_message(Message::tool_use(
+                            transcript.add_message(Message::tool_use_with_id(
                                 tool_name.to_string(),
-                                // Explicitly clear out everything other than target_file (renamed to file_path for consistency in git-ai) (too much data in rawArgs)
                                 serde_json::json!({ "file_path": target_file.unwrap_or("") }),
+                                bid.clone(),
                             ));
                         }
                         "apply_patch"
@@ -1764,18 +1768,19 @@ impl CursorPreset {
                         | "write"
                         | "MultiEdit" => {
                             let file_path = raw_args_json.get("file_path").and_then(|v| v.as_str());
-                            transcript.add_message(Message::tool_use(
+                            transcript.add_message(Message::tool_use_with_id(
                                 tool_name.to_string(),
-                                // Explicitly clear out everything other than file_path (too much data in rawArgs)
                                 serde_json::json!({ "file_path": file_path.unwrap_or("") }),
+                                bid.clone(),
                             ));
                         }
                         "codebase_search" | "grep" | "read_file" | "web_search"
                         | "run_terminal_cmd" | "glob_file_search" | "todo_write"
                         | "file_search" | "grep_search" | "list_dir" | "ripgrep" => {
-                            transcript.add_message(Message::tool_use(
+                            transcript.add_message(Message::tool_use_with_id(
                                 tool_name.to_string(),
                                 raw_args_json,
+                                bid.clone(),
                             ));
                         }
                         _ => {}

@@ -668,7 +668,7 @@ fn test_parse_claude_code_jsonl_with_plan() {
 
     // Check Plan from Write (full plan content)
     match &transcript.messages()[2] {
-        Message::Plan { text, timestamp } => {
+        Message::Plan { text, timestamp, .. } => {
             assert!(
                 text.contains("Authentication Implementation Plan"),
                 "Plan should contain the plan title"

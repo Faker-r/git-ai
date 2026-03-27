@@ -1071,22 +1071,22 @@ fn format_context_json(ctx: &SessionContext) -> String {
             let messages_json: Vec<serde_json::Value> = to_show
                 .iter()
                 .map(|m| match m {
-                    Message::User { text, timestamp } => json!({
+                    Message::User { text, timestamp, .. } => json!({
                         "role": "user",
                         "text": text,
                         "timestamp": timestamp
                     }),
-                    Message::Assistant { text, timestamp } => json!({
+                    Message::Assistant { text, timestamp, .. } => json!({
                         "role": "assistant",
                         "text": text,
                         "timestamp": timestamp
                     }),
-                    Message::Thinking { text, timestamp } => json!({
+                    Message::Thinking { text, timestamp, .. } => json!({
                         "role": "thinking",
                         "text": text,
                         "timestamp": timestamp
                     }),
-                    Message::Plan { text, timestamp } => json!({
+                    Message::Plan { text, timestamp, .. } => json!({
                         "role": "plan",
                         "text": text,
                         "timestamp": timestamp

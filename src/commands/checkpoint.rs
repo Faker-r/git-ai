@@ -16,7 +16,7 @@ use crate::error::GitAiError;
 use crate::git::repo_storage::PersistedWorkingLog;
 use crate::git::repository::Repository;
 use crate::git::status::{EntryKind, StatusCode};
-use crate::utils::{debug_log, normalize_to_posix};
+use crate::utils::{debug_log, normalize_to_posix, research_log};
 use futures::stream::{self, StreamExt};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -728,6 +728,16 @@ fn execute_resolved_checkpoint(
         debug_log(&format!(
             "[BENCHMARK] Checkpoint creation took {:?}",
             checkpoint_create_start.elapsed()
+        ));
+
+        research_log(&repo.storage.ai_dir, &format!(
+            "Checkpoint created: kind={}, agent_id={:?}, files=[{}], line_stats={{+{} -{}}}, diff_hash={}",
+            checkpoint.kind.to_str(),
+            checkpoint.agent_id.as_ref().map(|a| format!("{}:{}", a.tool, a.id)),
+            checkpoint.entries.iter().map(|e| e.file.as_str()).collect::<Vec<_>>().join(", "),
+            checkpoint.line_stats.additions,
+            checkpoint.line_stats.deletions,
+            checkpoint.diff,
         ));
 
         if kind != CheckpointKind::Human
@@ -1630,6 +1640,16 @@ fn get_checkpoint_entry_for_file(
         file_path,
         file_start.elapsed()
     ));
+    if let Some(ai_dir) = working_log.dir.parent().and_then(|p| p.parent()) {
+        research_log(ai_dir, &format!(
+            "  File entry: {} | added_ranges={:?} | deleted_ranges={:?} | stats={{+{} -{}}}",
+            file_path,
+            entry.added_line_ranges,
+            entry.deleted_line_ranges,
+            stats.additions,
+            stats.deletions,
+        ));
+    }
     Ok(Some((entry, stats)))
 }
 
@@ -1893,14 +1913,58 @@ fn make_entry_for_file(
         stats_start.elapsed()
     ));
 
-    let entry = WorkingLogEntry::new(
+    let (added_ranges, deleted_ranges) = compute_line_change_ranges(previous_content, content);
+
+    let mut entry = WorkingLogEntry::new(
         file_path.to_string(),
         blob_sha.to_string(),
         new_attributions,
         line_attributions,
     );
+    if !added_ranges.is_empty() {
+        entry.added_line_ranges = Some(added_ranges);
+    }
+    if !deleted_ranges.is_empty() {
+        entry.deleted_line_ranges = Some(deleted_ranges);
+    }
 
     Ok((entry, line_stats))
+}
+
+/// Compute added/deleted line ranges from a diff.
+/// Returns (added_ranges, deleted_ranges) where ranges are 1-based inclusive (start, end).
+/// Added ranges are in new-content line coordinates; deleted ranges are in old-content coordinates.
+fn compute_line_change_ranges(
+    previous_content: &str,
+    current_content: &str,
+) -> (Vec<(u32, u32)>, Vec<(u32, u32)>) {
+    let changes = compute_line_changes(previous_content, current_content);
+    let mut added = Vec::new();
+    let mut deleted = Vec::new();
+    let mut old_line = 1u32;
+    let mut new_line = 1u32;
+
+    for change in changes {
+        let num_lines = change.value().lines().count() as u32;
+        if num_lines == 0 {
+            continue;
+        }
+        match change.tag() {
+            LineChangeTag::Equal => {
+                old_line += num_lines;
+                new_line += num_lines;
+            }
+            LineChangeTag::Delete => {
+                deleted.push((old_line, old_line + num_lines - 1));
+                old_line += num_lines;
+            }
+            LineChangeTag::Insert => {
+                added.push((new_line, new_line + num_lines - 1));
+                new_line += num_lines;
+            }
+        }
+    }
+    (added, deleted)
 }
 
 /// Compute line statistics for a single file by diffing previous and current content

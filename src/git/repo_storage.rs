@@ -4,7 +4,7 @@ use crate::authorship::authorship_log_serialization::generate_short_hash;
 use crate::authorship::working_log::{CHECKPOINT_API_VERSION, Checkpoint, CheckpointKind};
 use crate::error::GitAiError;
 use crate::git::rewrite_log::{RewriteLogEvent, append_event_to_file};
-use crate::utils::{debug_log, normalize_to_posix};
+use crate::utils::{debug_log, normalize_to_posix, research_log};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
@@ -519,6 +519,14 @@ impl PersistedWorkingLog {
             fs::write(&checkpoints_file, format!("{}\n", content))?;
         } else {
             fs::write(&checkpoints_file, "")?;
+        }
+
+        if let Some(ai_dir) = self.dir.parent().and_then(|p| p.parent()) {
+            research_log(ai_dir, &format!(
+                "Working log written: {} checkpoints to {}",
+                checkpoints.len(),
+                checkpoints_file.display(),
+            ));
         }
 
         Ok(())

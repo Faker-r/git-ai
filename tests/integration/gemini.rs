@@ -63,7 +63,7 @@ fn test_gemini_parses_user_messages() {
     );
 
     // Verify the user message content
-    if let Message::User { text, timestamp } = user_messages[0] {
+    if let Message::User { text, timestamp, .. } = user_messages[0] {
         assert!(text.contains("add another hello bob console log"));
         assert_eq!(timestamp.as_ref().unwrap(), "2025-12-06T18:25:18.042Z");
     }

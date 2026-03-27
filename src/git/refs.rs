@@ -503,11 +503,15 @@ pub fn get_reference_as_authorship_log_v3(
         }
     };
 
-    // Check version compatibility
-    if authorship_log.metadata.schema_version != AUTHORSHIP_LOG_VERSION {
+    // Check version compatibility (accept both 3.x and 4.x for backward compat)
+    if !authorship_log
+        .metadata
+        .schema_version
+        .starts_with("authorship/")
+    {
         return Err(GitAiError::Generic(format!(
-            "Unsupported authorship log version: {} (expected: {})",
-            authorship_log.metadata.schema_version, AUTHORSHIP_LOG_VERSION
+            "Unsupported authorship log version: {} (expected authorship/3.x or 4.x)",
+            authorship_log.metadata.schema_version
         )));
     }
 
