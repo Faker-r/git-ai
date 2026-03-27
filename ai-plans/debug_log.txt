@@ -1,0 +1,421 @@
+[[17745814231861774581423186] ] handle_checkpoint entry | args=["cursor", "--hook-input", "stdin"] | cwd=Some("/Users/Andrew/.cursor")handle_checkpoint entry | args=["claude", "--hook-input", "stdin"] | cwd=Some("/Users/Andrew/.claude")
+
+[1774581423189] CursorPreset: hook_event_name=preToolUse, conversation_id=7b8aebb9-af58-4cc9-b151-695828d2c78f, workspace_roots=["/Users/Andrew/School/ReSeSS_Research/tool_testing"]
+[1774581423189] CursorPreset: resolved repo_working_dir=/Users/Andrew/School/ReSeSS_Research/tool_testing/git-ai/src/commands/checkpoint_agent
+[1774581423400] handle_checkpoint entry | args=["claude", "--hook-input", "stdin"] | cwd=Some("/Users/Andrew/.claude")
+[1774581423401] handle_checkpoint entry | args=["cursor", "--hook-input", "stdin"] | cwd=Some("/Users/Andrew/.cursor")
+[1774581423404] CursorPreset: hook_event_name=postToolUse, conversation_id=7b8aebb9-af58-4cc9-b151-695828d2c78f, workspace_roots=["/Users/Andrew/School/ReSeSS_Research/tool_testing"]
+[1774581423404] CursorPreset: resolved repo_working_dir=/Users/Andrew/School/ReSeSS_Research/tool_testing/git-ai/src/commands/checkpoint_agent
+[1774581423728]   File entry: src/commands/checkpoint_agent/agent_presets.rs | added_ranges=Some([(1453, 1453)]) | deleted_ranges=Some([(1453, 1453)]) | stats={+1 -1}
+[1774581423728] Checkpoint created: kind=ai_agent, agent_id=Some("cursor:7b8aebb9-af58-4cc9-b151-695828d2c78f"), files=[src/commands/checkpoint_agent/agent_presets.rs], line_stats={+1 -1}, diff_hash=291ebcc8202f647a637de926c395b48ab5c30dc21e0551d60f6db61eae841f5d
+[1774581423729] Working log written: 5 checkpoints to /Users/Andrew/School/ReSeSS_Research/tool_testing/git-ai/src/commands/checkpoint_agent/../../../.git/ai/working_logs/f5a25b4b78f7c6dcce1cd1f3160e23e7466cdf84/checkpoints.jsonl
+[[1774581541103] 1774581541103handle_checkpoint entry | args=["cursor", "--hook-input", "stdin"] | cwd=Some("/Users/Andrew/.cursor")] 
+handle_checkpoint entry | args=["claude", "--hook-input", "stdin"] | cwd=Some("/Users/Andrew/.claude")
+[1774581541108] CursorPreset: hook_event_name=preToolUse, conversation_id=7b8aebb9-af58-4cc9-b151-695828d2c78f, workspace_roots=["/Users/Andrew/School/ReSeSS_Research/tool_testing"]
+[1774581541108] CursorPreset: resolved repo_working_dir=/Users/Andrew/School/ReSeSS_Research/tool_testing/git-ai/src/commands/checkpoint_agent
+[1774581541298]   File entry: src/commands/checkpoint_agent/agent_presets.rs | added_ranges=Some([(1455, 1455), (1456, 1456)]) | deleted_ranges=Some([(1453, 1453), (1454, 1454), (1455, 1455), (1456, 1456)]) | stats={+2 -4}
+[1774581541299] Checkpoint created: kind=human, agent_id=None, files=[src/commands/checkpoint_agent/agent_presets.rs, src/commands/git_ai_handlers.rs], line_stats={+3 -5}, diff_hash=ae8df7938c451c03472aa3e8bc5c69234d89c7d9229473ef4137ff4deab3b1c3
+[1774581541300] Working log written: 6 checkpoints to /Users/Andrew/School/ReSeSS_Research/tool_testing/git-ai/src/commands/checkpoint_agent/../../../.git/ai/working_logs/f5a25b4b78f7c6dcce1cd1f3160e23e7466cdf84/checkpoints.jsonl
+[1774581541778] handle_checkpoint entry | args=["cursor", "--hook-input", "stdin"] | cwd=Some("/Users/Andrew/.cursor")
+[1774581541779] handle_checkpoint entry | args=["claude", "--hook-input", "stdin"] | cwd=Some("/Users/Andrew/.claude")
+[1774581541782] CursorPreset: hook_event_name=postToolUse, conversation_id=7b8aebb9-af58-4cc9-b151-695828d2c78f, workspace_roots=["/Users/Andrew/School/ReSeSS_Research/tool_testing"]
+[1774581541782] CursorPreset: resolved repo_working_dir=/Users/Andrew/School/ReSeSS_Research/tool_testing/git-ai/src/commands/checkpoint_agent
+[1774581542076]   File entry: src/commands/checkpoint_agent/agent_presets.rs | added_ranges=None | deleted_ranges=Some([(1454, 1454), (1455, 1455), (1456, 1456)]) | stats={+0 -3}
+[1774581542077] Checkpoint created: kind=ai_agent, agent_id=Some("cursor:7b8aebb9-af58-4cc9-b151-695828d2c78f"), files=[src/commands/checkpoint_agent/agent_presets.rs], line_stats={+0 -3}, diff_hash=10a2edabc0e2d4c468af582298f8613d7974bf9572f5fb1ddf6776f358f0dcf7
+[1774581542079] Working log written: 7 checkpoints to /Users/Andrew/School/ReSeSS_Research/tool_testing/git-ai/src/commands/checkpoint_agent/../../../.git/ai/working_logs/f5a25b4b78f7c6dcce1cd1f3160e23e7466cdf84/checkpoints.jsonl
+[1774581568020] Working log written: 7 checkpoints to /Users/Andrew/School/ReSeSS_Research/tool_testing/git-ai/.git/ai/working_logs/f5a25b4b78f7c6dcce1cd1f3160e23e7466cdf84/checkpoints.jsonl
+[1774581568039] Post-commit checkpoint summary: 7 checkpoints
+[1774581568039]   [0] kind=human, agent=None, model=None, files=[src/commands/checkpoint_agent/agent_presets.rs, src/commands/git_ai_handlers.rs]
+[1774581568039]   [1] kind=ai_agent, agent=Some("cursor:7b8aebb9-af58-4cc9-b151-695828d2c78f"), model=Some("claude-4.6-sonnet-medium-thinking"), files=[src/commands/checkpoint_agent/agent_presets.rs]
+[1774581568042]   [2] kind=ai_agent, agent=Some("cursor:7b8aebb9-af58-4cc9-b151-695828d2c78f"), model=Some("claude-4.6-sonnet-medium-thinking"), files=[src/utils.rs]
+[1774581568042]   [3] kind=ai_agent, agent=Some("cursor:7b8aebb9-af58-4cc9-b151-695828d2c78f"), model=Some("claude-4.6-sonnet-medium-thinking"), files=[src/utils.rs]
+[1774581568042]   [4] kind=ai_agent, agent=Some("cursor:7b8aebb9-af58-4cc9-b151-695828d2c78f"), model=Some("claude-4.6-sonnet-medium-thinking"), files=[src/commands/checkpoint_agent/agent_presets.rs]
+[1774581568042]   [5] kind=human, agent=None, model=None, files=[src/commands/checkpoint_agent/agent_presets.rs, src/commands/git_ai_handlers.rs]
+[1774581568042]   [6] kind=ai_agent, agent=Some("cursor:7b8aebb9-af58-4cc9-b151-695828d2c78f"), model=Some("claude-4.6-sonnet-medium-thinking"), files=[src/commands/checkpoint_agent/agent_presets.rs]
+[1774581568167] Git note written for commit be340c5762f7cc987e68bdae27066f6df8634cf2. Note size: 5855 bytes
+--- NOTE CONTENT ---
+src/commands/checkpoint_agent/agent_presets.rs
+  24470a1a7c31fa8d 1453
+src/utils.rs
+  24470a1a7c31fa8d 14,16-17,67-74
+---
+{
+  "schema_version": "authorship/4.0.0",
+  "git_ai_version": "development:1.1.21",
+  "base_commit_sha": "be340c5762f7cc987e68bdae27066f6df8634cf2",
+  "prompts": {
+    "24470a1a7c31fa8d": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "7b8aebb9-af58-4cc9-b151-695828d2c78f",
+        "model": "claude-4.6-sonnet-medium-thinking"
+      },
+      "human_author": "Andrew Wang <awang60@student.ubc.ca>",
+      "messages": [],
+      "total_additions": 13,
+      "total_deletions": 9,
+      "accepted_lines": 12,
+      "overriden_lines": 0
+    }
+  },
+  "change_history": [
+    {
+      "timestamp": 1774581278,
+      "kind": "human",
+      "files": {
+        "src/commands/checkpoint_agent/agent_presets.rs": {
+          "added_lines": [],
+          "deleted_lines": []
+        },
+        "src/commands/git_ai_handlers.rs": {
+          "added_lines": [],
+          "deleted_lines": []
+        }
+      },
+      "line_stats": {
+        "additions": 42,
+        "deletions": 17,
+        "additions_sloc": 40,
+        "deletions_sloc": 17
+      }
+    },
+    {
+      "timestamp": 1774581278,
+      "kind": "ai_agent",
+      "author_id": "24470a1a7c31fa8d",
+      "model": "claude-4.6-sonnet-medium-thinking",
+      "files": {
+        "src/commands/checkpoint_agent/agent_presets.rs": {
+          "added_lines": [
+            [
+              1453,
+              1453
+            ]
+          ],
+          "deleted_lines": [
+            [
+              1453,
+              1453
+            ]
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 1,
+        "deletions": 1,
+        "additions_sloc": 1,
+        "deletions_sloc": 1
+      }
+    },
+    {
+      "timestamp": 1774581382,
+      "kind": "ai_agent",
+      "author_id": "24470a1a7c31fa8d",
+      "model": "claude-4.6-sonnet-medium-thinking",
+      "files": {
+        "src/utils.rs": {
+          "added_lines": [
+            [
+              14,
+              14
+            ],
+            [
+              16,
+              16
+            ],
+            [
+              17,
+              17
+            ]
+          ],
+          "deleted_lines": [
+            [
+              14,
+              14
+            ]
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 3,
+        "deletions": 1,
+        "additions_sloc": 3,
+        "deletions_sloc": 1
+      }
+    },
+    {
+      "timestamp": 1774581389,
+      "kind": "ai_agent",
+      "author_id": "24470a1a7c31fa8d",
+      "model": "claude-4.6-sonnet-medium-thinking",
+      "files": {
+        "src/utils.rs": {
+          "added_lines": [
+            [
+              67,
+              67
+            ],
+            [
+              68,
+              68
+            ],
+            [
+              69,
+              69
+            ],
+            [
+              70,
+              70
+            ],
+            [
+              71,
+              71
+            ],
+            [
+              72,
+              72
+            ],
+            [
+              73,
+              73
+            ],
+            [
+              74,
+              74
+            ]
+          ],
+          "deleted_lines": [
+            [
+              67,
+              67
+            ],
+            [
+              68,
+              68
+            ],
+            [
+              69,
+              69
+            ]
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 8,
+        "deletions": 3,
+        "additions_sloc": 8,
+        "deletions_sloc": 3
+      }
+    },
+    {
+      "timestamp": 1774581423,
+      "kind": "ai_agent",
+      "author_id": "24470a1a7c31fa8d",
+      "model": "claude-4.6-sonnet-medium-thinking",
+      "files": {
+        "src/commands/checkpoint_agent/agent_presets.rs": {
+          "added_lines": [
+            [
+              1453,
+              1453
+            ]
+          ],
+          "deleted_lines": [
+            [
+              1453,
+              1453
+            ]
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 1,
+        "deletions": 1,
+        "additions_sloc": 1,
+        "deletions_sloc": 1
+      }
+    },
+    {
+      "timestamp": 1774581541,
+      "kind": "human",
+      "files": {
+        "src/commands/checkpoint_agent/agent_presets.rs": {
+          "added_lines": [
+            [
+              1455,
+              1455
+            ],
+            [
+              1456,
+              1456
+            ]
+          ],
+          "deleted_lines": [
+            [
+              1453,
+              1453
+            ],
+            [
+              1454,
+              1454
+            ],
+            [
+              1455,
+              1455
+            ],
+            [
+              1456,
+              1456
+            ]
+          ]
+        },
+        "src/commands/git_ai_handlers.rs": {
+          "added_lines": [],
+          "deleted_lines": []
+        }
+      },
+      "line_stats": {
+        "additions": 3,
+        "deletions": 5,
+        "additions_sloc": 2,
+        "deletions_sloc": 5
+      }
+    },
+    {
+      "timestamp": 1774581541,
+      "kind": "ai_agent",
+      "author_id": "24470a1a7c31fa8d",
+      "prompt_id": "4bbe5754-c783-4a5a-94dd-adc92cdd13fb",
+      "model": "claude-4.6-sonnet-medium-thinking",
+      "files": {
+        "src/commands/checkpoint_agent/agent_presets.rs": {
+          "added_lines": [],
+          "deleted_lines": [
+            [
+              1454,
+              1454
+            ],
+            [
+              1455,
+              1455
+            ],
+            [
+              1456,
+              1456
+            ]
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 0,
+        "deletions": 3,
+        "additions_sloc": 0,
+        "deletions_sloc": 2
+      }
+    }
+  ]
+}
+--- END NOTE ---
+[1774581568338] Debug mode: moved checkpoint directory from f5a25b4b78f7c6dcce1cd1f3160e23e7466cdf84 to old-f5a25b4b78f7c6dcce1cd1f3160e23e7466cdf84
+[1774581741220] handle_checkpoint entry | args=["cursor", "--hook-input", "stdin"] | cwd=Some("/Users/Andrew/.cursor")
+[1774581741222] CursorPreset: hook_event_name=preToolUse, conversation_id=2fd5190d-e0f9-436a-9650-45fb8a70787d, workspace_roots=["/Users/Andrew/School/ReSeSS_Research/tool_testing"]
+[1774581741222] CursorPreset: resolved repo_working_dir=/Users/Andrew/School/ReSeSS_Research/tool_testing/git-ai/src/authorship
+[1774581741394] handle_checkpoint entry | args=["cursor", "--hook-input", "stdin"] | cwd=Some("/Users/Andrew/.cursor")
+[1774581741394] CursorPreset: hook_event_name=postToolUse, conversation_id=2fd5190d-e0f9-436a-9650-45fb8a70787d, workspace_roots=["/Users/Andrew/School/ReSeSS_Research/tool_testing"]
+[1774581741394] CursorPreset: resolved repo_working_dir=/Users/Andrew/School/ReSeSS_Research/tool_testing/git-ai/src/authorship
+[1774581741784] handle_checkpoint entry | args=["cursor", "--hook-input", "stdin"] | cwd=Some("/Users/Andrew/.cursor")
+[1774581741784] CursorPreset: hook_event_name=preToolUse, conversation_id=2fd5190d-e0f9-436a-9650-45fb8a70787d, workspace_roots=["/Users/Andrew/School/ReSeSS_Research/tool_testing"]
+[1774581741784] CursorPreset: resolved repo_working_dir=/Users/Andrew/School/ReSeSS_Research/tool_testing/git-ai/src/mdm/agents
+[1774581741913] handle_checkpoint entry | args=["cursor", "--hook-input", "stdin"] | cwd=Some("/Users/Andrew/.cursor")
+[1774581741914] CursorPreset: hook_event_name=postToolUse, conversation_id=2fd5190d-e0f9-436a-9650-45fb8a70787d, workspace_roots=["/Users/Andrew/School/ReSeSS_Research/tool_testing"]
+[1774581741914] CursorPreset: resolved repo_working_dir=/Users/Andrew/School/ReSeSS_Research/tool_testing/git-ai/src/mdm/agents
+[1774581762503] handle_checkpoint entry | args=["cursor", "--hook-input", "stdin"] | cwd=Some("/Users/Andrew/.cursor")
+[1774581762506] CursorPreset: hook_event_name=preToolUse, conversation_id=2fd5190d-e0f9-436a-9650-45fb8a70787d, workspace_roots=["/Users/Andrew/School/ReSeSS_Research/tool_testing"]
+[1774581762506] CursorPreset: resolved repo_working_dir=/Users/Andrew/School/ReSeSS_Research/tool_testing/git-ai
+[1774581762746] handle_checkpoint entry | args=["cursor", "--hook-input", "stdin"] | cwd=Some("/Users/Andrew/.cursor")
+[1774581762747] CursorPreset: hook_event_name=postToolUse, conversation_id=2fd5190d-e0f9-436a-9650-45fb8a70787d, workspace_roots=["/Users/Andrew/School/ReSeSS_Research/tool_testing"]
+[1774581762747] CursorPreset: resolved repo_working_dir=/Users/Andrew/School/ReSeSS_Research/tool_testing/git-ai
+[1774581762942] handle_checkpoint entry | args=["cursor", "--hook-input", "stdin"] | cwd=Some("/Users/Andrew/.cursor")
+[1774581762943] CursorPreset: hook_event_name=preToolUse, conversation_id=2fd5190d-e0f9-436a-9650-45fb8a70787d, workspace_roots=["/Users/Andrew/School/ReSeSS_Research/tool_testing"]
+[1774581762943] CursorPreset: resolved repo_working_dir=/Users/Andrew/School/ReSeSS_Research/tool_testing/git-ai
+[1774581763069] handle_checkpoint entry | args=["cursor", "--hook-input", "stdin"] | cwd=Some("/Users/Andrew/.cursor")
+[1774581763069] CursorPreset: hook_event_name=postToolUse, conversation_id=2fd5190d-e0f9-436a-9650-45fb8a70787d, workspace_roots=["/Users/Andrew/School/ReSeSS_Research/tool_testing"]
+[1774581763069] CursorPreset: resolved repo_working_dir=/Users/Andrew/School/ReSeSS_Research/tool_testing/git-ai
+[1774581763444] handle_checkpoint entry | args=["cursor", "--hook-input", "stdin"] | cwd=Some("/Users/Andrew/.cursor")
+[1774581763445] CursorPreset: hook_event_name=preToolUse, conversation_id=2fd5190d-e0f9-436a-9650-45fb8a70787d, workspace_roots=["/Users/Andrew/School/ReSeSS_Research/tool_testing"]
+[1774581763445] CursorPreset: resolved repo_working_dir=/Users/Andrew/School/ReSeSS_Research/tool_testing/git-ai
+[1774581763580] handle_checkpoint entry | args=["cursor", "--hook-input", "stdin"] | cwd=Some("/Users/Andrew/.cursor")
+[1774581763581] CursorPreset: hook_event_name=postToolUse, conversation_id=2fd5190d-e0f9-436a-9650-45fb8a70787d, workspace_roots=["/Users/Andrew/School/ReSeSS_Research/tool_testing"]
+[1774581763581] CursorPreset: resolved repo_working_dir=/Users/Andrew/School/ReSeSS_Research/tool_testing/git-ai
+[1774581765871] handle_checkpoint entry | args=["cursor", "--hook-input", "stdin"] | cwd=Some("/Users/Andrew/.cursor")
+[1774581765871] CursorPreset: hook_event_name=preToolUse, conversation_id=2fd5190d-e0f9-436a-9650-45fb8a70787d, workspace_roots=["/Users/Andrew/School/ReSeSS_Research/tool_testing"]
+[1774581765871] CursorPreset: resolved repo_working_dir=/Users/Andrew/School/ReSeSS_Research/tool_testing/git-ai/src/authorship
+[1774581766016] handle_checkpoint entry | args=["cursor", "--hook-input", "stdin"] | cwd=Some("/Users/Andrew/.cursor")
+[1774581766016] CursorPreset: hook_event_name=postToolUse, conversation_id=2fd5190d-e0f9-436a-9650-45fb8a70787d, workspace_roots=["/Users/Andrew/School/ReSeSS_Research/tool_testing"]
+[1774581766017] CursorPreset: resolved repo_working_dir=/Users/Andrew/School/ReSeSS_Research/tool_testing/git-ai/src/authorship
+[1774581766166] handle_checkpoint entry | args=["cursor", "--hook-input", "stdin"] | cwd=Some("/Users/Andrew/.cursor")
+[1774581766166] CursorPreset: hook_event_name=preToolUse, conversation_id=2fd5190d-e0f9-436a-9650-45fb8a70787d, workspace_roots=["/Users/Andrew/School/ReSeSS_Research/tool_testing"]
+[1774581766166] CursorPreset: resolved repo_working_dir=/Users/Andrew/School/ReSeSS_Research/tool_testing/git-ai/src/authorship
+[1774581766284] handle_checkpoint entry | args=["cursor", "--hook-input", "stdin"] | cwd=Some("/Users/Andrew/.cursor")
+[1774581766284] CursorPreset: hook_event_name=postToolUse, conversation_id=2fd5190d-e0f9-436a-9650-45fb8a70787d, workspace_roots=["/Users/Andrew/School/ReSeSS_Research/tool_testing"]
+[1774581766284] CursorPreset: resolved repo_working_dir=/Users/Andrew/School/ReSeSS_Research/tool_testing/git-ai/src/authorship
+[1774581791473] handle_checkpoint entry | args=["cursor", "--hook-input", "stdin"] | cwd=Some("/Users/Andrew/.cursor")
+[1774581791475] CursorPreset: hook_event_name=preToolUse, conversation_id=2fd5190d-e0f9-436a-9650-45fb8a70787d, workspace_roots=["/Users/Andrew/School/ReSeSS_Research/tool_testing"]
+[1774581791475] CursorPreset: resolved repo_working_dir=/Users/Andrew/School/ReSeSS_Research/tool_testing/git-ai/src/authorship
+[1774581791647] handle_checkpoint entry | args=["cursor", "--hook-input", "stdin"] | cwd=Some("/Users/Andrew/.cursor")
+[1774581791647] CursorPreset: hook_event_name=postToolUse, conversation_id=2fd5190d-e0f9-436a-9650-45fb8a70787d, workspace_roots=["/Users/Andrew/School/ReSeSS_Research/tool_testing"]
+[1774581791647] CursorPreset: resolved repo_working_dir=/Users/Andrew/School/ReSeSS_Research/tool_testing/git-ai/src/authorship
+[1774581793490] handle_checkpoint entry | args=["cursor", "--hook-input", "stdin"] | cwd=Some("/Users/Andrew/.cursor")
+[1774581793490] CursorPreset: hook_event_name=preToolUse, conversation_id=2fd5190d-e0f9-436a-9650-45fb8a70787d, workspace_roots=["/Users/Andrew/School/ReSeSS_Research/tool_testing"]
+[1774581793490] CursorPreset: resolved repo_working_dir=./git-ai/src/authorship
+[[1774581793492] handle_checkpoint entry | args=["cursor", "--hook-input", "stdin"] | cwd=Some("/Users/Andrew/.cursor")
+1774581793492] handle_checkpoint entry | args=["cursor", "--hook-input", "stdin"] | cwd=Some("/Users/Andrew/.cursor")
+[1774581793493] CursorPreset: hook_event_name=preToolUse, conversation_id=2fd5190d-e0f9-436a-9650-45fb8a70787d, workspace_roots=["/Users/Andrew/School/ReSeSS_Research/tool_testing"]
+[1774581793493[] CursorPreset: hook_event_name=preToolUse, conversation_id=2fd5190d-e0f9-436a-9650-45fb8a70787d, workspace_roots=["/Users/Andrew/School/ReSeSS_Research/tool_testing"]
+[1774581793493] 1774581793493] [handle_checkpoint entry | args=["cursor", "--hook-input", "stdin"] | cwd=Some("/Users/Andrew/.cursor")CursorPreset: resolved repo_working_dir=./git-ai/src/authorship
+
+1774581793493] CursorPreset: resolved repo_working_dir=./git-ai/src/authorship
+[1774581793493] CursorPreset: hook_event_name=preToolUse, conversation_id=2fd5190d-e0f9-436a-9650-45fb8a70787d, workspace_roots=["/Users/Andrew/School/ReSeSS_Research/tool_testing"]
+[1774581793493] CursorPreset: resolved repo_working_dir=./git-ai/src/authorship
+[1774581793497] handle_checkpoint entry | args=["cursor", "--hook-input", "stdin"] | cwd=Some("/Users/Andrew/.cursor")
+[1774581793497] CursorPreset: hook_event_name=preToolUse, conversation_id=2fd5190d-e0f9-436a-9650-45fb8a70787d, workspace_roots=["/Users/Andrew/School/ReSeSS_Research/tool_testing"]
+[1774581793497] CursorPreset: resolved repo_working_dir=./git-ai/src/authorship
+[1774581793503] handle_checkpoint entry | args=["cursor", "--hook-input", "stdin"] | cwd=Some("/Users/Andrew/.cursor")
+[1774581793503] handle_checkpoint entry | args=["cursor", "--hook-input", "stdin"] | cwd=Some("/Users/Andrew/.cursor")
+[1774581793503] CursorPreset: hook_event_name=preToolUse, conversation_id=2fd5190d-e0f9-436a-9650-45fb8a70787d, workspace_roots=["/Users/Andrew/School/ReSeSS_Research/tool_testing"]
+[1774581793503] CursorPreset: hook_event_name=preToolUse, conversation_id=2fd5190d-e0f9-436a-9650-45fb8a70787d, workspace_roots=["/Users/Andrew/School/ReSeSS_Research/tool_testing"]
+[1774581793503] CursorPreset: resolved repo_working_dir=./git-ai/src/authorship
+[1774581793503] CursorPreset: resolved repo_working_dir=./git-ai/src/authorship
+[1774581793504] handle_checkpoint entry | args=["cursor", "--hook-input", "stdin"] | cwd=Some("/Users/Andrew/.cursor")
+[1774581793504] CursorPreset: hook_event_name=preToolUse, conversation_id=2fd5190d-e0f9-436a-9650-45fb8a70787d, workspace_roots=["/Users/Andrew/School/ReSeSS_Research/tool_testing"]
+[1774581793504] CursorPreset: resolved repo_working_dir=./git-ai/src/authorship
+[1774581793507] handle_checkpoint entry | args=["cursor", "--hook-input", "stdin"] | cwd=Some("/Users/Andrew/.cursor")
+[1774581793507] CursorPreset: hook_event_name=preToolUse, conversation_id=2fd5190d-e0f9-436a-9650-45fb8a70787d, workspace_roots=["/Users/Andrew/School/ReSeSS_Research/tool_testing"]
+[1774581793508] CursorPreset: resolved repo_working_dir=./git-ai/src/authorship
+[1774581793552[1774581793552] ] handle_checkpoint entry | args=["cursor", "--hook-input", "stdin"] | cwd=Some("/Users/Andrew/.cursor")
+handle_checkpoint entry | args=["cursor", "--hook-input", "stdin"] | cwd=Some("/Users/Andrew/.cursor")
+[1774581793552] CursorPreset: hook_event_name=postToolUse, conversation_id=2fd5190d-e0f9-436a-9650-45fb8a70787d, workspace_roots=["/Users/Andrew/School/ReSeSS_Research/tool_testing"]
+[1774581793552] CursorPreset: resolved repo_working_dir=./git-ai/src/authorship
+[1774581793552] CursorPreset: hook_event_name=postToolUse, conversation_id=2fd5190d-e0f9-436a-9650-45fb8a70787d, workspace_roots=["/Users/Andrew/School/ReSeSS_Research/tool_testing"]
+[1774581793552] CursorPreset: resolved repo_working_dir=./git-ai/src/authorship
+[1774581793566] handle_checkpoint entry | args=["cursor", "--hook-input", "stdin"] | cwd=Some("/Users/Andrew/.cursor")
+[1774581793566] CursorPreset: hook_event_name=postToolUse, conversation_id=2fd5190d-e0f9-436a-9650-45fb8a70787d, workspace_roots=["/Users/Andrew/School/ReSeSS_Research/tool_testing"]
+[1774581793566] CursorPreset: resolved repo_working_dir=./git-ai/src/authorship
+[1774581793567] handle_checkpoint entry | args=["cursor", "--hook-input", "stdin"] | cwd=Some("/Users/Andrew/.cursor")
+[1774581793567] CursorPreset: hook_event_name=postToolUse, conversation_id=2fd5190d-e0f9-436a-9650-45fb8a70787d, workspace_roots=["/Users/Andrew/School/ReSeSS_Research/tool_testing"]
+[1774581793567] CursorPreset: resolved repo_working_dir=./git-ai/src/authorship
+[1774581793569] handle_checkpoint entry | args=["cursor", "--hook-input", "stdin"] | cwd=Some("/Users/Andrew/.cursor")
+[1774581793570] CursorPreset: hook_event_name=postToolUse, conversation_id=2fd5190d-e0f9-436a-9650-45fb8a70787d, workspace_roots=["/Users/Andrew/School/ReSeSS_Research/tool_testing"]
+[1774581793572] CursorPreset: resolved repo_working_dir=./git-ai/src/authorship
+[1774581793572] handle_checkpoint entry | args=["cursor", "--hook-input", "stdin"] | cwd=Some("/Users/Andrew/.cursor")
+[1774581793572] CursorPreset: hook_event_name=postToolUse, conversation_id=2fd5190d-e0f9-436a-9650-45fb8a70787d, workspace_roots=["/Users/Andrew/School/ReSeSS_Research/tool_testing"]
+[1774581793572] CursorPreset: resolved repo_working_dir=./git-ai/src/authorship
+[1774581793600] handle_checkpoint entry | args=["cursor", "--hook-input", "stdin"] | cwd=Some("/Users/Andrew/.cursor")
+[1774581793600] CursorPreset: hook_event_name=postToolUse, conversation_id=2fd5190d-e0f9-436a-9650-45fb8a70787d, workspace_roots=["/Users/Andrew/School/ReSeSS_Research/tool_testing"]
+[1774581793601] CursorPreset: resolved repo_working_dir=./git-ai/src/authorship
+[1774581793610] handle_checkpoint entry | args=["cursor", "--hook-input", "stdin"] | cwd=Some("/Users/Andrew/.cursor")
+[1774581793611] CursorPreset: hook_event_name=postToolUse, conversation_id=2fd5190d-e0f9-436a-9650-45fb8a70787d, workspace_roots=["/Users/Andrew/School/ReSeSS_Research/tool_testing"]
+[1774581793611] CursorPreset: resolved repo_working_dir=./git-ai/src/authorship
+[1774581793616] handle_checkpoint entry | args=["cursor", "--hook-input", "stdin"] | cwd=Some("/Users/Andrew/.cursor")
+[1774581793616] CursorPreset: hook_event_name=postToolUse, conversation_id=2fd5190d-e0f9-436a-9650-45fb8a70787d, workspace_roots=["/Users/Andrew/School/ReSeSS_Research/tool_testing"]
+[1774581793616] CursorPreset: resolved repo_working_dir=./git-ai/src/authorship
