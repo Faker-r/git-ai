@@ -169,6 +169,20 @@ pub fn post_commit_with_final_state(
     authorship_log.metadata.base_commit_sha = commit_sha.clone();
 
     // Build per-checkpoint change_history for research metrics
+    //
+    // update_prompts_to_latest only attaches the refreshed transcript to the LAST checkpoint per
+    // conversation. Build a fallback map so earlier checkpoints in the same conversation can still
+    // resolve their prompt_text.
+    let conv_transcripts: HashMap<&str, &crate::authorship::transcript::AiTranscript> = {
+        let mut m = HashMap::new();
+        for cp in &parent_working_log {
+            if let (Some(aid), Some(t)) = (&cp.agent_id, &cp.transcript) {
+                m.insert(aid.id.as_str(), t);
+            }
+        }
+        m
+    };
+
     let change_history: Vec<crate::authorship::authorship_log_serialization::ChangeHistoryEntry> =
         parent_working_log
             .iter()
@@ -210,7 +224,12 @@ pub fn post_commit_with_final_state(
                     );
                 }
 
-                let prompt_text = cp.transcript.as_ref().and_then(|t| {
+                let transcript = cp.transcript.as_ref().or_else(|| {
+                    cp.agent_id
+                        .as_ref()
+                        .and_then(|aid| conv_transcripts.get(aid.id.as_str()).copied())
+                });
+                let prompt_text = transcript.and_then(|t| {
                     extract_prompt_text_for_checkpoint(&t.messages, cp.prompt_id.as_deref(), cp.timestamp)
                 });
 
