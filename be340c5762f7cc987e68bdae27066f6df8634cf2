@@ -1,0 +1,281 @@
+src/commands/checkpoint_agent/agent_presets.rs
+  24470a1a7c31fa8d 1453
+src/utils.rs
+  24470a1a7c31fa8d 14,16-17,67-74
+---
+{
+  "schema_version": "authorship/4.0.0",
+  "git_ai_version": "development:1.1.21",
+  "base_commit_sha": "be340c5762f7cc987e68bdae27066f6df8634cf2",
+  "prompts": {
+    "24470a1a7c31fa8d": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "7b8aebb9-af58-4cc9-b151-695828d2c78f",
+        "model": "claude-4.6-sonnet-medium-thinking"
+      },
+      "human_author": "Andrew Wang <awang60@student.ubc.ca>",
+      "messages": [],
+      "total_additions": 13,
+      "total_deletions": 9,
+      "accepted_lines": 12,
+      "overriden_lines": 0
+    }
+  },
+  "change_history": [
+    {
+      "timestamp": 1774581278,
+      "kind": "human",
+      "files": {
+        "src/commands/checkpoint_agent/agent_presets.rs": {
+          "added_lines": [],
+          "deleted_lines": []
+        },
+        "src/commands/git_ai_handlers.rs": {
+          "added_lines": [],
+          "deleted_lines": []
+        }
+      },
+      "line_stats": {
+        "additions": 42,
+        "deletions": 17,
+        "additions_sloc": 40,
+        "deletions_sloc": 17
+      }
+    },
+    {
+      "timestamp": 1774581278,
+      "kind": "ai_agent",
+      "author_id": "24470a1a7c31fa8d",
+      "model": "claude-4.6-sonnet-medium-thinking",
+      "files": {
+        "src/commands/checkpoint_agent/agent_presets.rs": {
+          "added_lines": [
+            [
+              1453,
+              1453
+            ]
+          ],
+          "deleted_lines": [
+            [
+              1453,
+              1453
+            ]
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 1,
+        "deletions": 1,
+        "additions_sloc": 1,
+        "deletions_sloc": 1
+      }
+    },
+    {
+      "timestamp": 1774581382,
+      "kind": "ai_agent",
+      "author_id": "24470a1a7c31fa8d",
+      "model": "claude-4.6-sonnet-medium-thinking",
+      "files": {
+        "src/utils.rs": {
+          "added_lines": [
+            [
+              14,
+              14
+            ],
+            [
+              16,
+              16
+            ],
+            [
+              17,
+              17
+            ]
+          ],
+          "deleted_lines": [
+            [
+              14,
+              14
+            ]
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 3,
+        "deletions": 1,
+        "additions_sloc": 3,
+        "deletions_sloc": 1
+      }
+    },
+    {
+      "timestamp": 1774581389,
+      "kind": "ai_agent",
+      "author_id": "24470a1a7c31fa8d",
+      "model": "claude-4.6-sonnet-medium-thinking",
+      "files": {
+        "src/utils.rs": {
+          "added_lines": [
+            [
+              67,
+              67
+            ],
+            [
+              68,
+              68
+            ],
+            [
+              69,
+              69
+            ],
+            [
+              70,
+              70
+            ],
+            [
+              71,
+              71
+            ],
+            [
+              72,
+              72
+            ],
+            [
+              73,
+              73
+            ],
+            [
+              74,
+              74
+            ]
+          ],
+          "deleted_lines": [
+            [
+              67,
+              67
+            ],
+            [
+              68,
+              68
+            ],
+            [
+              69,
+              69
+            ]
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 8,
+        "deletions": 3,
+        "additions_sloc": 8,
+        "deletions_sloc": 3
+      }
+    },
+    {
+      "timestamp": 1774581423,
+      "kind": "ai_agent",
+      "author_id": "24470a1a7c31fa8d",
+      "model": "claude-4.6-sonnet-medium-thinking",
+      "files": {
+        "src/commands/checkpoint_agent/agent_presets.rs": {
+          "added_lines": [
+            [
+              1453,
+              1453
+            ]
+          ],
+          "deleted_lines": [
+            [
+              1453,
+              1453
+            ]
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 1,
+        "deletions": 1,
+        "additions_sloc": 1,
+        "deletions_sloc": 1
+      }
+    },
+    {
+      "timestamp": 1774581541,
+      "kind": "human",
+      "files": {
+        "src/commands/checkpoint_agent/agent_presets.rs": {
+          "added_lines": [
+            [
+              1455,
+              1455
+            ],
+            [
+              1456,
+              1456
+            ]
+          ],
+          "deleted_lines": [
+            [
+              1453,
+              1453
+            ],
+            [
+              1454,
+              1454
+            ],
+            [
+              1455,
+              1455
+            ],
+            [
+              1456,
+              1456
+            ]
+          ]
+        },
+        "src/commands/git_ai_handlers.rs": {
+          "added_lines": [],
+          "deleted_lines": []
+        }
+      },
+      "line_stats": {
+        "additions": 3,
+        "deletions": 5,
+        "additions_sloc": 2,
+        "deletions_sloc": 5
+      }
+    },
+    {
+      "timestamp": 1774581541,
+      "kind": "ai_agent",
+      "author_id": "24470a1a7c31fa8d",
+      "prompt_id": "4bbe5754-c783-4a5a-94dd-adc92cdd13fb",
+      "model": "claude-4.6-sonnet-medium-thinking",
+      "files": {
+        "src/commands/checkpoint_agent/agent_presets.rs": {
+          "added_lines": [],
+          "deleted_lines": [
+            [
+              1454,
+              1454
+            ],
+            [
+              1455,
+              1455
+            ],
+            [
+              1456,
+              1456
+            ]
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 0,
+        "deletions": 3,
+        "additions_sloc": 0,
+        "deletions_sloc": 2
+      }
+    }
+  ]
+}
