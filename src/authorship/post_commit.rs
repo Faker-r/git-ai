@@ -236,7 +236,7 @@ pub fn post_commit_with_final_state(
             .iter()
             .filter_map(|cp| cp.agent_id.as_ref().map(|a| a.id.clone()))
             .collect();
-        let context_convs = collect_context_conversations(repo, &parent_sha, &tracked_ids);
+        let context_convs = collect_context_conversations(repo, &parent_sha, &tracked_ids, &human_author);
         for (short_hash, record) in context_convs {
             authorship_log.metadata.prompts.entry(short_hash).or_insert(record);
         }
@@ -695,6 +695,7 @@ fn collect_context_conversations(
     repo: &Repository,
     parent_sha: &str,
     already_tracked_ids: &HashSet<String>,
+    human_author: &str,
 ) -> Vec<(String, crate::authorship::authorship_log::PromptRecord)> {
     use crate::authorship::authorship_log::PromptRecord;
     use crate::authorship::authorship_log_serialization::generate_short_hash;
@@ -764,7 +765,7 @@ fn collect_context_conversations(
                 };
                 let record = PromptRecord {
                     agent_id,
-                    human_author: None,
+                    human_author: Some(human_author.to_string()),
                     messages: transcript.messages().to_vec(),
                     total_additions: 0,
                     total_deletions: 0,
