@@ -1,0 +1,60 @@
+---
+{
+  "schema_version": "authorship/4.0.0",
+  "git_ai_version": "development:1.1.21",
+  "base_commit_sha": "60652822abffbf35586d88911532c622986b45c7",
+  "prompts": {
+    "679ec2d9f94a9529": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "1aa4f0e3-e6aa-466b-b134-192857353dae",
+        "model": "claude-4.6-sonnet-medium-thinking"
+      },
+      "human_author": "Andrew Wang <awang60@student.ubc.ca>",
+      "messages": [
+        {
+          "type": "user",
+          "text": "say something, 2 sentences max,",
+          "timestamp": "2026-03-27T07:12:47.281Z",
+          "id": "5211bb87-42a7-41fb-a5a2-0899990a585c"
+        },
+        {
+          "type": "assistant",
+          "text": "The code is open, the cursor is ready. What would you like to work on?",
+          "timestamp": "2026-03-27T07:12:49.755Z",
+          "id": "e239142f-27d5-4571-b029-b8d4bfc6995a"
+        }
+      ],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 0,
+      "overriden_lines": 0
+    },
+    "bb396e85c697c224": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "8a6f4fcf-2b0a-4dfc-a471-22757a7d0164",
+        "model": "claude-4.6-sonnet-medium-thinking"
+      },
+      "human_author": "Andrew Wang <awang60@student.ubc.ca>",
+      "messages": [
+        {
+          "type": "user",
+          "text": "say something, 3 sentences max,",
+          "timestamp": "2026-03-27T07:12:55.191Z",
+          "id": "b219fa0e-ea19-4a84-89eb-b6073054a041"
+        },
+        {
+          "type": "assistant",
+          "text": "Sure. This workspace contains a Rust project called `git-ai` focused on authorship tracking and line history in git repositories. Let me know what you'd like help with.",
+          "timestamp": "2026-03-27T07:12:57.644Z",
+          "id": "50a4256a-37d5-4b95-a511-f9a9dca2dcd6"
+        }
+      ],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 0,
+      "overriden_lines": 0
+    }
+  }
+}
