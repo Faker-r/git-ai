@@ -1,0 +1,112 @@
+src/commands/line_history.rs
+  3050d92206c9a815 281
+---
+{
+  "schema_version": "authorship/4.0.0",
+  "git_ai_version": "development:1.1.21",
+  "base_commit_sha": "fd177d7b616521d82be4f46c78c34b2368a6060d",
+  "prompts": {
+    "15e248efae308774": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "2bf02be1-0575-4db7-ac00-75aa3b77edc8",
+        "model": "claude-4.6-sonnet-medium-thinking"
+      },
+      "human_author": "Andrew Wang <awang60@student.ubc.ca>",
+      "messages": [
+        {
+          "type": "user",
+          "text": "@git-ai-testing/arithmetic_ops.py:39-40 update to be more specific with the comment",
+          "timestamp": "2026-03-27T07:14:48.910Z",
+          "id": "d78171a9-cc11-450f-afb1-f4361d67e9c6"
+        },
+        {
+          "type": "assistant",
+          "text": "Updated the comment to specify that `n` is a float drawn from the `[low, high]` range, which is more informative than the generic \"gets random number\".",
+          "timestamp": "2026-03-27T07:14:57.497Z",
+          "id": "cc911346-2f35-4e9a-8a25-a195f6f81862"
+        }
+      ],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 0,
+      "overriden_lines": 0
+    },
+    "3050d92206c9a815": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "b7e70618-d090-4109-9b51-1acc71b54f68",
+        "model": "claude-4.6-sonnet-medium-thinking"
+      },
+      "human_author": "Andrew Wang <awang60@student.ubc.ca>",
+      "messages": [
+        {
+          "type": "user",
+          "text": "@/Users/Andrew/.cursor/projects/Users-Andrew-School-ReSeSS-Research-tool-testing/terminals/5.txt:966-1040 prompt text not being stored properly in @git-ai/src/commands/line_history.rs",
+          "timestamp": "2026-03-27T07:20:21.853Z",
+          "id": "939616d5-3916-4c4f-b1e8-32f08ff30300"
+        },
+        {
+          "type": "assistant",
+          "text": "Let me look at the relevant data structures to understand how prompts are stored and looked up.",
+          "timestamp": "2026-03-27T07:20:21.855Z",
+          "id": "3d586dea-4cc5-442b-9dce-2e45a2e72909"
+        },
+        {
+          "type": "assistant",
+          "text": "Now let me look at the `ChangeHistoryEntry` struct to see what `prompt_id` stores vs. what key the `prompts` map uses.",
+          "timestamp": "2026-03-27T07:20:21.856Z",
+          "id": "98fb9771-7585-4d9a-a391-14384dd65732"
+        },
+        {
+          "type": "assistant",
+          "text": "Now let me find where `ChangeHistoryEntry` is created to understand what `prompt_id` actually contains:",
+          "timestamp": "2026-03-27T07:20:21.857Z",
+          "id": "0258ec4d-cf9e-4b9e-85d8-bb205b353b94"
+        },
+        {
+          "type": "assistant",
+          "text": "Found it. In `post_commit.rs` lines 180–218, the `ChangeHistoryEntry` is built with two distinct fields:\n- `conversation_id` = `generate_short_hash(...)` — this is the **short hash** key that the `prompts` BTreeMap is indexed by\n- `prompt_id` = `cp.prompt_id.clone()` — this is the **full UUID** shown in output\n\nBut in `line_history.rs` lines 281–284, the lookup uses `entry.prompt_id` (full UUID) to look up in `prompts`, which only has short-hash keys — so it always misses:\n\n```282:284:git-ai/src/commands/line_history.rs\n                    .and_then(|id| prompts.get(id))\n                    .and_then(|record| extract_user_prompt_text(&record.messages));\n```\n\nThe fix is to look up by `conversation_id` (the short hash) instead of `prompt_id`:",
+          "timestamp": "2026-03-27T07:20:38.847Z",
+          "id": "627e4951-f84d-44d8-9edc-9be6a3b4122a"
+        },
+        {
+          "type": "assistant",
+          "text": "The bug was a key mismatch: `ChangeHistoryEntry.prompt_id` holds the full UUID (e.g. `\"d78171a9-cc11-450f-afb1-f4361d67e9c6\"`), while the `prompts` BTreeMap is indexed by the short hash generated from `generate_short_hash(agent_id, tool)`. That short hash is stored in `conversation_id`, not `prompt_id`. Switching the lookup to `entry.conversation_id` will correctly resolve the entry and populate `prompt_text`.",
+          "timestamp": "2026-03-27T07:20:46.857Z",
+          "id": "19c670e4-eb1a-4189-968b-90e4d9cca26a"
+        }
+      ],
+      "total_additions": 1,
+      "total_deletions": 1,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    }
+  },
+  "change_history": [
+    {
+      "timestamp": 1774596044,
+      "kind": "ai_agent",
+      "conversation_id": "3050d92206c9a815",
+      "agent_type": "cursor",
+      "prompt_id": "939616d5-3916-4c4f-b1e8-32f08ff30300",
+      "model": "claude-4.6-sonnet-medium-thinking",
+      "files": {
+        "src/commands/line_history.rs": {
+          "added_lines": [
+            "281"
+          ],
+          "deleted_lines": [
+            "281"
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 1,
+        "deletions": 1,
+        "additions_sloc": 1,
+        "deletions_sloc": 1
+      }
+    }
+  ]
+}
