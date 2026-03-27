@@ -64,9 +64,11 @@ pub fn debug_log(msg: &str) {
 /// Failures are silently ignored so research logging never breaks normal operation.
 /// TODO: Set `dir` below to your local research_logs directory before using
 /// TODO: other
-/// TODO: other stuff
+/// This function runs every time a commit is finalized.
+/// Consider batching log writes for high-frequ
 
-// TODO s
+
+/// Hello, random comments. 
 
 
 pub fn research_log(_ai_dir: &Path, msg: &str) {
