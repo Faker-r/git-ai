@@ -1,0 +1,175 @@
+[1774577344072] handle_checkpoint ENTRY | args=[] | cwd=Some("/Users/Andrew/School/ReSeSS_Research/tool_testing/git-ai")
+[1774577344223] Checkpoint created: kind=human, agent_id=None, files=[src/utils.rs], line_stats={+1 -1}, diff_hash=f440be38948f8c8fdc0bdbef0532da9f6ac95dbeb62dbe5fc8df071dbb848e0a
+[1774577344224] Working log written: 5 checkpoints to /Users/Andrew/School/ReSeSS_Research/tool_testing/git-ai/.git/ai/working_logs/4caec8c9a0fa1bfbededc7bb951f30fcc2448563/checkpoints.jsonl
+[[17745774201701774577420170] ] handle_checkpoint ENTRY | args=["claude", "--hook-input", "stdin"] | cwd=Some("/Users/Andrew/.claude")handle_checkpoint ENTRY | args=["cursor", "--hook-input", "stdin"] | cwd=Some("/Users/Andrew/.cursor")
+
+[1774577420476] handle_checkpoint ENTRY | args=["cursor", "--hook-input", "stdin"] | cwd=Some("/Users/Andrew/.cursor")
+[1774577420504] handle_checkpoint ENTRY | args=["claude", "--hook-input", "stdin"] | cwd=Some("/Users/Andrew/.claude")
+[1774577580713] handle_checkpoint ENTRY | args=[] | cwd=Some("/Users/Andrew/School/ReSeSS_Research/tool_testing/git-ai")
+[1774577580915] Checkpoint created: kind=human, agent_id=None, files=[src/utils.rs], line_stats={+0 -1}, diff_hash=31ded1ac73b80eb0a690bdf881b37da291c397c76624f960dc0803545c25d7b6
+[1774577580917] Working log written: 6 checkpoints to /Users/Andrew/School/ReSeSS_Research/tool_testing/git-ai/.git/ai/working_logs/4caec8c9a0fa1bfbededc7bb951f30fcc2448563/checkpoints.jsonl
+[1774577586591] handle_checkpoint ENTRY | args=[] | cwd=Some("/Users/Andrew/School/ReSeSS_Research/tool_testing/git-ai")
+[1774577609511] handle_checkpoint ENTRY | args=[] | cwd=Some("/Users/Andrew/School/ReSeSS_Research/tool_testing/git-ai")
+[1774577609678] Checkpoint created: kind=human, agent_id=None, files=[src/utils.rs], line_stats={+3 -0}, diff_hash=8d8f4bdef519d2f9bd88145941d3d6543a7233fb9e8f06eb2cb8693afb2fdbf6
+[1774577609678] Working log written: 7 checkpoints to /Users/Andrew/School/ReSeSS_Research/tool_testing/git-ai/.git/ai/working_logs/4caec8c9a0fa1bfbededc7bb951f30fcc2448563/checkpoints.jsonl
+[[17745776368181774577636818] ] handle_checkpoint ENTRY | args=["claude", "--hook-input", "stdin"] | cwd=Some("/Users/Andrew/.claude")handle_checkpoint ENTRY | args=["cursor", "--hook-input", "stdin"] | cwd=Some("/Users/Andrew/.cursor")
+
+[[1774577636897] 1774577636897handle_checkpoint ENTRY | args=["cursor", "--hook-input", "stdin"] | cwd=Some("/Users/Andrew/.cursor")] 
+handle_checkpoint ENTRY | args=["claude", "--hook-input", "stdin"] | cwd=Some("/Users/Andrew/.claude")
+[1774577721938] handle_checkpoint ENTRY2222 | args=[] | cwd=Some("/Users/Andrew/School/ReSeSS_Research/tool_testing/git-ai")
+[1774577722147] Checkpoint created: kind=human, agent_id=None, files=[src/commands/git_ai_handlers.rs, src/utils.rs], line_stats={+2 -1}, diff_hash=9c2dbbb3072121c9451156e5003a4a3b90dc4714ece809ed8a482a2a9f2b7168
+[1774577722147] Working log written: 8 checkpoints to /Users/Andrew/School/ReSeSS_Research/tool_testing/git-ai/.git/ai/working_logs/4caec8c9a0fa1bfbededc7bb951f30fcc2448563/checkpoints.jsonl
+[1774577915589] Working log written: 8 checkpoints to /Users/Andrew/School/ReSeSS_Research/tool_testing/git-ai/.git/ai/working_logs/4caec8c9a0fa1bfbededc7bb951f30fcc2448563/checkpoints.jsonl
+[1774577915591] Post-commit checkpoint summary: 8 checkpoints
+[1774577915592]   [0] kind=human, agent=None, model=None, files=[src/utils.rs]
+[1774577915592]   [1] kind=human, agent=None, model=None, files=[src/utils.rs]
+[1774577915592]   [2] kind=human, agent=None, model=None, files=[src/utils.rs]
+[1774577915592]   [3] kind=human, agent=None, model=None, files=[src/utils.rs]
+[1774577915592]   [4] kind=human, agent=None, model=None, files=[src/utils.rs]
+[1774577915592]   [5] kind=human, agent=None, model=None, files=[src/utils.rs]
+[1774577915592]   [6] kind=human, agent=None, model=None, files=[src/utils.rs]
+[1774577915592]   [7] kind=human, agent=None, model=None, files=[src/commands/git_ai_handlers.rs, src/utils.rs]
+[1774577915612] Git note written for commit d56a3abf982a66c2313cf1acaf45c95b1b067d6b. Note size: 2895 bytes
+--- GIT NOTE CONTENT START ---
+---
+{
+  "schema_version": "authorship/4.0.0",
+  "git_ai_version": "development:1.1.21",
+  "base_commit_sha": "d56a3abf982a66c2313cf1acaf45c95b1b067d6b",
+  "prompts": {},
+  "change_history": [
+    {
+      "timestamp": 1774576337,
+      "kind": "human",
+      "files": {
+        "src/utils.rs": {
+          "added_lines": [],
+          "deleted_lines": []
+        }
+      },
+      "line_stats": {
+        "additions": 1,
+        "deletions": 1,
+        "additions_sloc": 1,
+        "deletions_sloc": 1
+      }
+    },
+    {
+      "timestamp": 1774576467,
+      "kind": "human",
+      "files": {
+        "src/utils.rs": {
+          "added_lines": [],
+          "deleted_lines": []
+        }
+      },
+      "line_stats": {
+        "additions": 1,
+        "deletions": 0,
+        "additions_sloc": 1,
+        "deletions_sloc": 0
+      }
+    },
+    {
+      "timestamp": 1774576692,
+      "kind": "human",
+      "files": {
+        "src/utils.rs": {
+          "added_lines": [],
+          "deleted_lines": []
+        }
+      },
+      "line_stats": {
+        "additions": 1,
+        "deletions": 1,
+        "additions_sloc": 1,
+        "deletions_sloc": 1
+      }
+    },
+    {
+      "timestamp": 1774577254,
+      "kind": "human",
+      "files": {
+        "src/utils.rs": {
+          "added_lines": [],
+          "deleted_lines": []
+        }
+      },
+      "line_stats": {
+        "additions": 2,
+        "deletions": 2,
+        "additions_sloc": 2,
+        "deletions_sloc": 2
+      }
+    },
+    {
+      "timestamp": 1774577344,
+      "kind": "human",
+      "files": {
+        "src/utils.rs": {
+          "added_lines": [],
+          "deleted_lines": []
+        }
+      },
+      "line_stats": {
+        "additions": 1,
+        "deletions": 1,
+        "additions_sloc": 1,
+        "deletions_sloc": 1
+      }
+    },
+    {
+      "timestamp": 1774577580,
+      "kind": "human",
+      "files": {
+        "src/utils.rs": {
+          "added_lines": [],
+          "deleted_lines": []
+        }
+      },
+      "line_stats": {
+        "additions": 0,
+        "deletions": 1,
+        "additions_sloc": 0,
+        "deletions_sloc": 1
+      }
+    },
+    {
+      "timestamp": 1774577609,
+      "kind": "human",
+      "files": {
+        "src/utils.rs": {
+          "added_lines": [],
+          "deleted_lines": []
+        }
+      },
+      "line_stats": {
+        "additions": 3,
+        "deletions": 0,
+        "additions_sloc": 2,
+        "deletions_sloc": 0
+      }
+    },
+    {
+      "timestamp": 1774577722,
+      "kind": "human",
+      "files": {
+        "src/commands/git_ai_handlers.rs": {
+          "added_lines": [],
+          "deleted_lines": []
+        },
+        "src/utils.rs": {
+          "added_lines": [],
+          "deleted_lines": []
+        }
+      },
+      "line_stats": {
+        "additions": 2,
+        "deletions": 1,
+        "additions_sloc": 2,
+        "deletions_sloc": 1
+      }
+    }
+  ]
+}
+--- GIT NOTE CONTENT END ---
