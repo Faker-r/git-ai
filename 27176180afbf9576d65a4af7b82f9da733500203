@@ -1,0 +1,407 @@
+src/commands/checkpoint_agent/agent_presets.rs
+  829448a8f01dc2f9 1637,1870-1920
+src/authorship/post_commit.rs
+  829448a8f01dc2f9 230-244,688-790
+---
+{
+  "schema_version": "authorship/4.0.0",
+  "git_ai_version": "development:1.1.21",
+  "base_commit_sha": "27176180afbf9576d65a4af7b82f9da733500203",
+  "prompts": {
+    "829448a8f01dc2f9": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "5d1dc426-b1f2-40e0-8e08-31019f437bb0",
+        "model": "claude-4.6-sonnet-medium-thinking"
+      },
+      "human_author": "Andrew Wang <awang60@student.ubc.ca>",
+      "messages": [
+        {
+          "type": "user",
+          "text": "@git-ai/ai-plans/debug_log.txt \n@git-ai/ai-plans/checkpoint-flow-documentation.md \n\nRight now, we only store conversations that influenced code. I want to also keep track of conversations that didnt impact code, like planning, research, etc. \n\nWhats a good way of doing this?\n\nSome ideas:\nOn commit time, fetch from cursor DB for all conversations we haven't touched yet. \nIssue: how do we know which ones are from previous commits? \nDo we have a timestamp of the previous commit time? \n\nLet me know if you have other ideas on a easy and clean way to do this.",
+          "timestamp": "2026-03-27T04:59:20.793Z",
+          "id": "013f90d8-1333-4616-b5ee-498e4652625e"
+        },
+        {
+          "type": "assistant",
+          "text": "Let me read the relevant files to understand the current system before proposing ideas.",
+          "timestamp": "2026-03-27T04:59:31.853Z",
+          "id": "fef3413f-ef19-432a-8b11-d857d612bde5"
+        },
+        {
+          "type": "assistant",
+          "text": "Now let me look at how the cursor SQLite DB is accessed and how `update_prompts_to_latest` works, since that's the key mechanism for fetching conversations.",
+          "timestamp": "2026-03-27T04:59:37.905Z",
+          "id": "fa13d154-c2f5-4517-bd40-187b187bf03d"
+        },
+        {
+          "type": "assistant",
+          "text": "Let me look at how the Cursor DB is queried to understand what data is available there.",
+          "timestamp": "2026-03-27T04:59:47.584Z",
+          "id": "d4f351aa-3e4a-420c-bf02-eef9c5761afa"
+        },
+        {
+          "type": "assistant",
+          "text": "Now let me look at how the Cursor SQLite DB is queried, specifically to understand what fields/timestamps are available.",
+          "timestamp": "2026-03-27T04:59:58.830Z",
+          "id": "dc65afb1-426c-4c9a-9bb8-6081d4553904"
+        },
+        {
+          "type": "assistant",
+          "text": "Now I have enough context. Let me look at one more thing — whether there's a listing API or if we'd need to do a full table scan.",
+          "timestamp": "2026-03-27T05:00:49.872Z",
+          "id": "a5d55ba5-e1fa-448d-9c8d-338c0d45bcdb"
+        },
+        {
+          "type": "assistant",
+          "text": "I now have a thorough understanding of the system. Let me synthesize the design options and present a plan.\n\nHere's my analysis of the problem and options:\n\n---\n\n## Understanding the Current System\n\nRight now, conversations only enter the system when a Cursor `postToolUse` hook fires — meaning **a file must have been edited**. Passive (planning/research) conversations never trigger any hook at all. The `update_prompts_to_latest` step at post-commit only refreshes conversations already tracked in the working log.\n\n**To your question — yes, we have the previous commit timestamp.** The `parent_sha` is always available at post-commit time, and `git log -1 --format=%ct <parent_sha>` gives its Unix timestamp. That's a natural bootstrap for a time-based scan.\n\n---\n\n## The Core Challenge\n\nThe Cursor DB doesn't expose a \"list all conversations after timestamp T\" API. Conversations live as `composerData:<uuid>` key-value rows in `cursorDiskKV`. To enumerate new ones you'd do:\n\n```sql\nSELECT key FROM cursorDiskKV WHERE key LIKE 'composerData:%'\n```\n\n...and then check each unknown UUID's last bubble `createdAt` to see if it falls in the right time window.\n\n---\n\n## Options\n\n**Option A: Watermark + scan at post-commit (your idea, refined)**\n\nStore a `last_chat_scan_at` watermark in the internal DB (the existing `git-ai` SQLite). At post-commit:\n1. Load the watermark (default: previous commit's Unix timestamp, from `git log -1 --format=%ct <parent_sha>`)\n2. Query all `composerData:*` UUIDs from Cursor DB\n3. Filter out UUIDs already in `internal_db.prompts.external_thread_id`\n4. For each new UUID, check only the last bubble's `createdAt` — if it's > watermark, fetch and record the full transcript\n5. Store these as context-only records (no `total_additions`/`total_deletions`), tagged in the git note as `context_conversations`\n6. Write `last_chat_scan_at = now` back to the internal DB\n\n**Pros:** Automatic, no extra hooks, leverages what already exists  \n**Cons:** Requires scanning all `composerData:*` keys at commit time (a local SQLite scan, so fast in practice)\n\n**Option B: Daemon-based polling (background)**\n\nHave the git-ai daemon periodically poll the Cursor DB for new conversation IDs and record them in a staging table in the internal DB. At post-commit, drain the staging table into the git note.\n\n**Pros:** Zero overhead at commit time; near-real-time capture even without commits  \n**Cons:** Daemon dependency; more moving parts; daemon currently doesn't have this responsibility\n\n**Option C: New lightweight hook (exploration only)**\n\nAdd a third Cursor hook (e.g. `onConversationEnd` or `agentStop`) that fires when the user closes/finishes a conversation without making edits, and calls `git-ai checkpoint cursor` with no `file_path`.\n\n**Pros:** Only processes conversations as they happen; no scan needed  \n**Cons:** Cursor currently only exposes `preToolUse`/`postToolUse` — this would require Cursor to add a new hook type, which we can't control\n\n---\n\n## Recommendation\n\n**Option A** is the cleanest path with the least new infrastructure. The scan is lightweight (local SQLite, ~milliseconds), it composes naturally with the existing post-commit flow, and the watermark sidesteps the \"which commits did I already see?\" problem cleanly.\n\nKey design decisions to confirm before building:\n\n1. **Where to store the watermark** — a new `settings` table in the existing internal DB (`git-ai.sqlite`) is the most natural fit\n2. **How to represent these in the git note** — a new top-level `\"context_conversations\"` key in the JSON section, parallel to `\"prompts\"`, vs. unifying them under `\"prompts\"` with a `\"kind\": \"context_only\"` field\n3. **Scope** — should context conversations be per-repo (only include conversations that referenced files in this workspace) or all conversations from the time window?",
+          "timestamp": "2026-03-27T05:01:26.316Z",
+          "id": "d85a6ae5-5249-4afd-9938-3b2588d0ade9"
+        },
+        {
+          "type": "assistant",
+          "text": "Good clarifications. So:\n- **No stored watermark needed** — compute the lower-bound timestamp at post-commit time directly from `git log -1 --format=%ct <parent_sha>` (already available as `parent_sha` in `post_commit()`)\n- **Unified under `prompts`** with `total_additions = 0`, `total_deletions = 0`\n\nOne more question on scope:",
+          "timestamp": "2026-03-27T05:07:00.936Z",
+          "id": "a8f17f29-ab24-472e-9572-b8940880e724"
+        },
+        {
+          "type": "assistant",
+          "text": "Now I have everything I need. Let me look at the authorship log metadata structure to confirm context-only prompts can slot in cleanly.",
+          "timestamp": "2026-03-27T05:15:41.089Z",
+          "id": "2e362794-d22b-43a7-9352-86c800ffd0c1"
+        },
+        {
+          "type": "assistant",
+          "text": "Now I have everything needed. Here's the plan:",
+          "timestamp": "2026-03-27T05:16:45.456Z",
+          "id": "0f8186d6-a1de-4924-9edd-5b01f734826f"
+        },
+        {
+          "type": "user",
+          "text": "Implement the plan as specified, it is attached for your reference. Do NOT edit the plan file itself.\n\nTo-do's from the plan have already been created. Do not create them again. Mark them as in_progress as you work, starting with the first one. Don't stop until you have completed all the to-dos.",
+          "timestamp": "2026-03-27T06:57:49.667Z",
+          "id": "77d53fb4-6314-4155-b205-826fe7fc61a8"
+        },
+        {
+          "type": "tool_use",
+          "name": "todo_write",
+          "input": {},
+          "id": "f8e6dbe3-53f0-4221-9c91-60306f0cd64b"
+        },
+        {
+          "type": "assistant",
+          "text": "Let me read the end of `agent_presets.rs` to find the right place to add the new methods.",
+          "timestamp": "2026-03-27T06:57:59.935Z",
+          "id": "9eeae6eb-3e62-46ef-8983-fbd741a55a36"
+        },
+        {
+          "type": "assistant",
+          "text": "Now I have what I need. Let me add the two new methods to `CursorPreset`, right before the closing `}` of its impl block at line 1870.",
+          "timestamp": "2026-03-27T06:58:10.490Z",
+          "id": "70d281c6-233b-452b-801b-2065846729d7"
+        },
+        {
+          "type": "tool_use",
+          "name": "todo_write",
+          "input": {},
+          "id": "2ddcbbdd-00c4-4088-abdc-29adc7f6235a"
+        },
+        {
+          "type": "assistant",
+          "text": "Now let me read the top of `post_commit.rs` to understand its imports before adding the new function.",
+          "timestamp": "2026-03-27T06:58:32.476Z",
+          "id": "95b93753-1c02-4b7a-b8cf-58977dfaf809"
+        },
+        {
+          "type": "assistant",
+          "text": "Now let me look at where `update_prompts_to_latest` ends and find a good spot to insert `collect_context_conversations`, and also check what imports I need from `authorship_log`.",
+          "timestamp": "2026-03-27T06:58:35.403Z",
+          "id": "644fd8d2-f939-4d31-bf58-89bb2861cc88"
+        },
+        {
+          "type": "assistant",
+          "text": "Let me also check how `exec_git` is available in this file and how `generate_short_hash` is imported.",
+          "timestamp": "2026-03-27T06:58:43.789Z",
+          "id": "aa1e9be8-8009-425e-8843-ed69033abe62"
+        },
+        {
+          "type": "assistant",
+          "text": "`repo.git(&[...])` is the cleanest way to run git commands. Now let me look at where in `post_commit_with_final_state` I should add the context conversations — just before the git note is written.",
+          "timestamp": "2026-03-27T06:59:47.151Z",
+          "id": "5d7686f1-e2d1-4b2b-a0a2-ad380087fc69"
+        },
+        {
+          "type": "assistant",
+          "text": "Let me check the `AiTranscript` API to confirm the correct method for extracting messages.",
+          "timestamp": "2026-03-27T07:00:12.277Z",
+          "id": "66f1a306-fcac-44f2-adce-ae75ef9559e2"
+        },
+        {
+          "type": "tool_use",
+          "name": "glob_file_search",
+          "input": {
+            "globPattern": "transcript.rs",
+            "targetDirectory": "/Users/Andrew/School/ReSeSS_Research/tool_testing/git-ai/src"
+          },
+          "id": "64ee23e8-8f84-4c90-88d9-392e401a5347"
+        },
+        {
+          "type": "assistant",
+          "text": "Now I have all the information I need. Let me add `collect_context_conversations` to `post_commit.rs`, inserting it right after `batch_upsert_prompts_to_db`.",
+          "timestamp": "2026-03-27T07:00:48.146Z",
+          "id": "a9460e3f-78da-4e0c-b1e7-30a093ab7c76"
+        },
+        {
+          "type": "tool_use",
+          "name": "todo_write",
+          "input": {},
+          "id": "f2606537-e425-4270-9c6f-532cfeb65645"
+        },
+        {
+          "type": "assistant",
+          "text": "Now integrate the call into `post_commit_with_final_state`. The right spot is right after `change_history` is set (around line 228) and before the storage-mode decisions, so context conversations go through the same secrets/CAS pipeline.",
+          "timestamp": "2026-03-27T07:01:10.884Z",
+          "id": "aecdb652-222a-47cc-b108-71325f14da13"
+        },
+        {
+          "type": "assistant",
+          "text": "Let me do a quick compile check to make sure everything builds.",
+          "timestamp": "2026-03-27T07:01:23.067Z",
+          "id": "640dc82a-4947-4b9f-acd9-9762963c7dcc"
+        },
+        {
+          "type": "assistant",
+          "text": "`cursor_global_database_path` is private. I need to make it public.",
+          "timestamp": "2026-03-27T07:01:33.607Z",
+          "id": "f2fdae10-1208-4538-adb5-1625b777e8b9"
+        },
+        {
+          "type": "assistant",
+          "text": "Clean compile. Now for todo 4 — integration tests.",
+          "timestamp": "2026-03-27T07:01:46.874Z",
+          "id": "41da283c-dcd3-47c9-800f-9294baba1260"
+        },
+        {
+          "type": "tool_use",
+          "name": "todo_write",
+          "input": {},
+          "id": "fa2ec636-4d7f-4802-bf2c-4788324331b8"
+        },
+        {
+          "type": "assistant",
+          "text": "Let me find the existing Cursor integration tests to understand the test patterns.",
+          "timestamp": "2026-03-27T07:01:54.414Z",
+          "id": "a76c97bc-acc0-4e8e-babe-a1f69847697b"
+        },
+        {
+          "type": "tool_use",
+          "name": "glob_file_search",
+          "input": {
+            "globPattern": "tests/integration/cursor.rs",
+            "targetDirectory": "/Users/Andrew/School/ReSeSS_Research/tool_testing/git-ai"
+          },
+          "id": "da0855de-74cb-4b02-ae6c-ce6f7d67e4cb"
+        },
+        {
+          "type": "assistant",
+          "text": "Let me look at the end of the existing tests file, and find the TestRepo pattern used in post-commit tests.",
+          "timestamp": "2026-03-27T07:02:08.630Z",
+          "id": "0855ffea-87c8-47e0-8a1c-26371bbf0753"
+        },
+        {
+          "type": "assistant",
+          "text": "Let me look at the part of `post_commit_with_final_state` that writes the note to understand if there's a skip guard.",
+          "timestamp": "2026-03-27T07:02:38.498Z",
+          "id": "e9896cb2-e174-4a11-beea-60c3d9ac0609"
+        },
+        {
+          "type": "assistant",
+          "text": "Let me look at the TestRepo API for committing with env vars.",
+          "timestamp": "2026-03-27T07:02:56.063Z",
+          "id": "ce5be034-9d26-451c-908f-3c0bdcc077e0"
+        },
+        {
+          "type": "tool_use",
+          "name": "glob_file_search",
+          "input": {
+            "globPattern": "test_repo.rs",
+            "targetDirectory": "/Users/Andrew/School/ReSeSS_Research/tool_testing/git-ai/tests"
+          },
+          "id": "a21d5c38-3d7b-415c-be4a-27801a99c433"
+        },
+        {
+          "type": "tool_use",
+          "name": "glob_file_search",
+          "input": {},
+          "id": "a7b03870-0c48-4933-9372-7bf2f0d2e7d5"
+        }
+      ],
+      "total_additions": 170,
+      "total_deletions": 1,
+      "accepted_lines": 170,
+      "overriden_lines": 0
+    },
+    "a31d3c70e1e24960": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "42f6e78b-4935-4545-b586-e7f2aaf7a96a",
+        "model": "claude-4.6-sonnet-medium-thinking"
+      },
+      "human_author": null,
+      "messages": [
+        {
+          "type": "user",
+          "text": "say something, 2 sentences max,",
+          "timestamp": "2026-03-27T07:04:57.078Z",
+          "id": "54fae8b7-dd24-4b31-be29-5abfcf030a32"
+        },
+        {
+          "type": "assistant",
+          "text": "The codebase looks like a Rust project with authorship tracking and checkpoint agent functionality. Happy to help explore or modify it whenever you're ready.",
+          "timestamp": "2026-03-27T07:04:59.427Z",
+          "id": "5b7e7ed1-4580-46f6-a461-68ebf2c1576f"
+        }
+      ],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 0,
+      "overriden_lines": 0
+    },
+    "ce4e790a27149321": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "10409437-6937-4fba-ac14-c695f6febdf2",
+        "model": "claude-4.6-sonnet-medium-thinking"
+      },
+      "human_author": null,
+      "messages": [
+        {
+          "type": "user",
+          "text": "give me the command to use src/commands/line_history.rs",
+          "timestamp": "2026-03-27T06:58:10.604Z",
+          "id": "5c97778c-b41a-493f-81e3-1549fa1b3b31"
+        },
+        {
+          "type": "assistant",
+          "text": "The command is:\n\n```bash\ngit-ai line-history <file> <line> [--commit <sha>]\n```\n\nFor example:\n```bash\ngit-ai line-history src/main.rs 42\ngit-ai line-history src/main.rs 42 --commit abc1234\n```\n\nIt traces the history of a specific line in a file across commits, optionally starting from a given commit SHA.",
+          "timestamp": "2026-03-27T06:58:19.008Z",
+          "id": "8fc3d6f4-bbbd-415c-b471-fe8400d21b43"
+        },
+        {
+          "type": "user",
+          "text": "can you add into the history object from this command, to include prompt text in each ai checkpoint",
+          "timestamp": "2026-03-27T07:02:15.590Z",
+          "id": "12af99f0-a613-414e-aa8b-bac4b34450e5"
+        },
+        {
+          "type": "assistant",
+          "text": "Let me read the relevant files to understand the current data structures.",
+          "timestamp": "2026-03-27T07:02:18.974Z",
+          "id": "df853acb-15c8-49aa-bad9-ba6197a91285"
+        },
+        {
+          "type": "assistant",
+          "text": "Now let me look at the `ChangeHistoryEntry` structure and how prompts are stored.",
+          "timestamp": "2026-03-27T07:02:23.320Z",
+          "id": "a550b06f-2ad6-40a0-92a9-d3e1d2dc27e9"
+        }
+      ],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 0,
+      "overriden_lines": 0
+    }
+  },
+  "change_history": [
+    {
+      "timestamp": 1774594699,
+      "kind": "ai_agent",
+      "conversation_id": "829448a8f01dc2f9",
+      "agent_type": "cursor",
+      "prompt_id": "77d53fb4-6314-4155-b205-826fe7fc61a8",
+      "model": "claude-4.6-sonnet-medium-thinking",
+      "files": {
+        "src/commands/checkpoint_agent/agent_presets.rs": {
+          "added_lines": [
+            "1870-1920"
+          ],
+          "deleted_lines": []
+        }
+      },
+      "line_stats": {
+        "additions": 51,
+        "deletions": 0,
+        "additions_sloc": 43,
+        "deletions_sloc": 0
+      }
+    },
+    {
+      "timestamp": 1774594863,
+      "kind": "ai_agent",
+      "conversation_id": "829448a8f01dc2f9",
+      "agent_type": "cursor",
+      "prompt_id": "77d53fb4-6314-4155-b205-826fe7fc61a8",
+      "model": "claude-4.6-sonnet-medium-thinking",
+      "files": {
+        "src/authorship/post_commit.rs": {
+          "added_lines": [
+            "673-775"
+          ],
+          "deleted_lines": []
+        }
+      },
+      "line_stats": {
+        "additions": 103,
+        "deletions": 0,
+        "additions_sloc": 92,
+        "deletions_sloc": 0
+      }
+    },
+    {
+      "timestamp": 1774594876,
+      "kind": "ai_agent",
+      "conversation_id": "829448a8f01dc2f9",
+      "agent_type": "cursor",
+      "prompt_id": "77d53fb4-6314-4155-b205-826fe7fc61a8",
+      "model": "claude-4.6-sonnet-medium-thinking",
+      "files": {
+        "src/authorship/post_commit.rs": {
+          "added_lines": [
+            "230-244"
+          ],
+          "deleted_lines": []
+        }
+      },
+      "line_stats": {
+        "additions": 15,
+        "deletions": 0,
+        "additions_sloc": 14,
+        "deletions_sloc": 0
+      }
+    },
+    {
+      "timestamp": 1774594895,
+      "kind": "ai_agent",
+      "conversation_id": "829448a8f01dc2f9",
+      "agent_type": "cursor",
+      "prompt_id": "77d53fb4-6314-4155-b205-826fe7fc61a8",
+      "model": "claude-4.6-sonnet-medium-thinking",
+      "files": {
+        "src/commands/checkpoint_agent/agent_presets.rs": {
+          "added_lines": [
+            "1637"
+          ],
+          "deleted_lines": [
+            "1637"
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 1,
+        "deletions": 1,
+        "additions_sloc": 1,
+        "deletions_sloc": 1
+      }
+    }
+  ]
+}
