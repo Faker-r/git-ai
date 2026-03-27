@@ -11,8 +11,10 @@ static DEBUG_ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
 static DEBUG_PERFORMANCE_LEVEL: std::sync::OnceLock<u8> = std::sync::OnceLock::new();
 static IS_TERMINAL: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
 static IS_IN_BACKGROUND_AGENT: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-/// Resolved path to `.git/git-ai-debug.log`, cached once per process.
+/// Resolved path to the main debug log, cached once per process.
 static DEBUG_LOG_FILE: std::sync::OnceLock<Option<PathBuf>> = std::sync::OnceLock::new();
+/// Separate log for [BENCHMARK] timing lines to keep the main log readable.
+static BENCHMARK_LOG_FILE: std::sync::OnceLock<Option<PathBuf>> = std::sync::OnceLock::new();
 
 fn is_debug_enabled() -> bool {
     *DEBUG_ENABLED.get_or_init(|| {
@@ -62,9 +64,14 @@ pub fn debug_log(msg: &str) {
     // Always print to stderr. Visible when running git commands directly in a terminal.
     eprintln!("\x1b[1;33m[git-ai]\x1b[0m {}", msg);
 
-    // Also append to a file so messages survive when stderr is swallowed (e.g. Cursor git hooks).
-    // Read with: tail -f /tmp/git-ai-debug.log
-    let log_path = DEBUG_LOG_FILE.get_or_init(|| Some(PathBuf::from("/tmp/git-ai-debug.log")));
+    // [BENCHMARK] lines go to a separate file to keep the main log readable.
+    // Read main log with:      tail -f /tmp/git-ai-debug.log
+    // Read benchmark log with: tail -f /tmp/git-ai-benchmark.log
+    let log_path = if msg.starts_with("[BENCHMARK]") {
+        BENCHMARK_LOG_FILE.get_or_init(|| Some(PathBuf::from("/tmp/git-ai-benchmark.log")))
+    } else {
+        DEBUG_LOG_FILE.get_or_init(|| Some(PathBuf::from("/tmp/git-ai-debug.log")))
+    };
     if let Some(log_path) = log_path {
         use std::fs::OpenOptions;
         use std::io::Write;

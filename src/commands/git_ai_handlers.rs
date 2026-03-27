@@ -352,7 +352,7 @@ fn print_help() {
 }
 
 fn handle_checkpoint(args: &[String]) {
-    debug_log(&format!("handle_checkpoint entry | args={:?} | cwd={:?}", args, std::env::current_dir().ok()));
+    // debug_log(&format!("handle_checkpoint entry | args={:?} | cwd={:?}", args, std::env::current_dir().ok()));
 
     let mut repository_working_dir = std::env::current_dir()
         .unwrap()
@@ -498,7 +498,7 @@ fn handle_checkpoint(args: &[String]) {
                         agent_run_result = Some(agent_run);
                     }
                     Err(e) => {
-                        eprintln!("Error running Cursor preset: {}", e);
+                        debug_log(&format!("Cursor preset error (exiting cleanly): {}", e));
                         std::process::exit(0);
                     }
                 }

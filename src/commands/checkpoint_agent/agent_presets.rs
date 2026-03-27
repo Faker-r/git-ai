@@ -5,6 +5,7 @@ use crate::{
     },
     error::GitAiError,
     observability::log_error,
+    utils::debug_log,
 };
 use chrono::{TimeZone, Utc};
 use dirs;
@@ -16,6 +17,7 @@ use std::env;
 use std::path::{Component, Path, PathBuf};
 
 pub struct AgentCheckpointFlags {
+    // The raw hook input payload passed from the agent (JSON string or literal).
     pub hook_input: Option<String>,
 }
 
@@ -1417,8 +1419,17 @@ impl AgentCheckpointPreset for CursorPreset {
             .map(|s| s.to_string())
             .unwrap_or_else(|| "unknown".to_string());
 
+        debug_log(&format!(
+            "CursorPreset: hook_event_name={}, conversation_id={}, workspace_roots={:?}",
+            hook_event_name, conversation_id, workspace_roots,
+        ));
+
         // Legacy hooks no longer installed; exit silently for existing users who haven't reinstalled.
         if hook_event_name == "beforeSubmitPrompt" || hook_event_name == "afterFileEdit" {
+            debug_log(&format!(
+                "CursorPreset: legacy hook event '{}', exiting (reinstall hooks to fix)",
+                hook_event_name
+            ));
             std::process::exit(0);
         }
 
@@ -1430,34 +1441,43 @@ impl AgentCheckpointPreset for CursorPreset {
             )));
         }
 
+        // file_path lives under tool_input.file_path in Cursor's hook payload
         let file_path = hook_data
-            .get("file_path")
+            .get("tool_input")
+            .and_then(|ti| ti.get("file_path"))
             .and_then(|v| v.as_str())
+            .or_else(|| hook_data.get("file_path").and_then(|v| v.as_str()))
             .map(Self::normalize_cursor_path)
             .unwrap_or_default();
 
+        // own directory lets find_repository walk up and locate the correct .git folder.
         let repo_working_dir = if !file_path.is_empty() {
-            workspace_roots
-                .iter()
-                .find(|root| {
-                    let root_str = root.as_str();
-                    file_path.starts_with(root_str)
-                        && (file_path.len() == root_str.len()
-                            || file_path[root_str.len()..].starts_with('/')
-                            || file_path[root_str.len()..].starts_with('\\')
-                            || root_str.ends_with('/')
-                            || root_str.ends_with('\\'))
+            Path::new(&file_path)
+                .parent()
+                .map(|p| p.to_string_lossy().to_string())
+                .unwrap_or_else(|| {
+                    workspace_roots
+                        .iter()
+                        .find(|root| {
+                            let root_str = root.as_str();
+                            file_path.starts_with(root_str)
+                                && (file_path.len() == root_str.len()
+                                    || file_path[root_str.len()..].starts_with('/')
+                                    || file_path[root_str.len()..].starts_with('\\')
+                                    || root_str.ends_with('/')
+                                    || root_str.ends_with('\\'))
+                        })
+                        .cloned()
+                        .or_else(|| workspace_roots.first().cloned())
+                        .unwrap_or_default()
                 })
-                .cloned()
-                .or_else(|| workspace_roots.first().cloned())
-                .ok_or_else(|| {
-                    GitAiError::PresetError("No workspace root found in hook_input".to_string())
-                })?
         } else {
             workspace_roots.first().cloned().ok_or_else(|| {
                 GitAiError::PresetError("No workspace root found in hook_input".to_string())
             })?
         };
+
+        debug_log(&format!("CursorPreset: resolved repo_working_dir={}", repo_working_dir));
 
         if hook_event_name == "preToolUse" {
             // early return, we're just adding a human checkpoint.
