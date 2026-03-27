@@ -1,0 +1,25 @@
+---
+{
+  "schema_version": "authorship/4.0.0",
+  "git_ai_version": "development:1.1.21",
+  "base_commit_sha": "f5a25b4b78f7c6dcce1cd1f3160e23e7466cdf84",
+  "prompts": {},
+  "change_history": [
+    {
+      "timestamp": 1774580605,
+      "kind": "human",
+      "files": {
+        "src/authorship/post_commit.rs": {
+          "added_lines": [],
+          "deleted_lines": []
+        }
+      },
+      "line_stats": {
+        "additions": 2,
+        "deletions": 1,
+        "additions_sloc": 2,
+        "deletions_sloc": 1
+      }
+    }
+  ]
+}
