@@ -32,6 +32,12 @@ pub struct MatchedCheckpoint {
     pub prompt_text: Option<String>,
     pub additions: u32,
     pub deletions: u32,
+    /// The content of the tracked line as it existed after this checkpoint was applied.
+    /// Present when the checkpoint introduced or modified the line (i.e. it appears in
+    /// `added_line_contents`). `None` for checkpoints that pre-date line-content recording
+    /// or where the line was not in the added set.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub line_content: Option<String>,
 }
 
 struct CommitInfo {
@@ -223,6 +229,23 @@ fn build_commit_entry(
 
 // --- Line mapping algorithm (ported from tests/line_mapping_tests.rs) ---
 
+/// Look up the content for a specific line number from a `added_line_contents` /
+/// `deleted_line_contents` slice.  Each entry has the format `"N: <text>"` or `"N:<text>"`.
+/// Returns the text portion when a matching entry is found.
+fn lookup_line_content(contents: &[String], line: u32) -> Option<String> {
+    let prefix_space = format!("{}: ", line);
+    let prefix_nospace = format!("{}:", line);
+    for entry in contents {
+        if let Some(rest) = entry.strip_prefix(&prefix_space) {
+            return Some(rest.to_string());
+        }
+        if let Some(rest) = entry.strip_prefix(&prefix_nospace) {
+            return Some(rest.to_string());
+        }
+    }
+    None
+}
+
 fn parse_line_ranges(ranges: &[String]) -> Vec<(u32, u32)> {
     ranges
         .iter()
@@ -257,6 +280,8 @@ fn find_checkpoints_that_touched_line(
 
         match map_new_to_old(current_line, &added, &deleted) {
             None => {
+                let line_content =
+                    lookup_line_content(&detail.added_line_contents, current_line);
                 matched.push(MatchedCheckpoint {
                     timestamp: entry.timestamp,
                     kind: entry.kind.clone(),
@@ -266,6 +291,7 @@ fn find_checkpoints_that_touched_line(
                     prompt_text: entry.prompt_text.clone(),
                     additions: entry.line_stats.additions,
                     deletions: entry.line_stats.deletions,
+                    line_content,
                 });
                 current_line = reverse_through_insert(current_line, &added, &deleted);
             }
