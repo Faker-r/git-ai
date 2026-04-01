@@ -26,6 +26,14 @@ pub struct WorkingLogEntry {
     /// Line ranges deleted in previous-content coordinates (start, end) inclusive
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub deleted_line_ranges: Option<Vec<(u32, u32)>>,
+    /// Individual added lines with content in new-content coordinates.
+    /// Each entry is (line_number, line_content).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub added_line_entries: Option<Vec<(u32, String)>>,
+    /// Individual deleted lines with content in old-content coordinates.
+    /// Each entry is (line_number, line_content).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deleted_line_entries: Option<Vec<(u32, String)>>,
 }
 
 impl WorkingLogEntry {
@@ -43,6 +51,8 @@ impl WorkingLogEntry {
             line_attributions,
             added_line_ranges: None,
             deleted_line_ranges: None,
+            added_line_entries: None,
+            deleted_line_entries: None,
         }
     }
 }

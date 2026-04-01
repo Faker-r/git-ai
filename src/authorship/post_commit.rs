@@ -211,6 +211,12 @@ pub fn post_commit_with_final_state(
                             .map(|&(s, e)| format_line_range_tuple(s, e))
                             .collect()
                     };
+                    let fmt_entries = |entries: &[(u32, String)]| -> Vec<String> {
+                        entries
+                            .iter()
+                            .map(|(n, content)| format!("{}: {}", n, content))
+                            .collect()
+                    };
                     files.insert(
                         entry.file.clone(),
                         FileChangeDetail {
@@ -219,6 +225,12 @@ pub fn post_commit_with_final_state(
                             ),
                             deleted_lines: fmt(
                                 entry.deleted_line_ranges.as_deref().unwrap_or(&[]),
+                            ),
+                            added_line_contents: fmt_entries(
+                                entry.added_line_entries.as_deref().unwrap_or(&[]),
+                            ),
+                            deleted_line_contents: fmt_entries(
+                                entry.deleted_line_entries.as_deref().unwrap_or(&[]),
                             ),
                         },
                     );

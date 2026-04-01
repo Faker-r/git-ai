@@ -21,12 +21,16 @@ pub const GIT_AI_VERSION: &str = concat!("development:", env!("CARGO_PKG_VERSION
 pub const GIT_AI_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Per-file change detail within a single checkpoint.
-/// Line ranges use the same compact string format as the attestation section:
-/// a single line is `"n"`, a range is `"n-m"`.
+/// `added_lines` / `deleted_lines` use the compact range format `"n"` or `"n-m"`.
+/// `added_line_contents` / `deleted_line_contents` use the human-readable `"n: <text>"` format.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FileChangeDetail {
     pub added_lines: Vec<String>,
     pub deleted_lines: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub added_line_contents: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub deleted_line_contents: Vec<String>,
 }
 
 /// Format a (start, end) tuple as a compact line range string.

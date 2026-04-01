@@ -1480,7 +1480,7 @@ fn get_checkpoint_entry_for_file(
         }
 
         let stats = compute_file_line_stats(&previous_content, &current_content);
-        let (added_ranges, deleted_ranges) =
+        let (added_ranges, deleted_ranges, added_entries, deleted_entries) =
             compute_line_change_ranges(&previous_content, &current_content);
         let mut entry = WorkingLogEntry::new(file_path, file_content_hash, Vec::new(), Vec::new());
         if !added_ranges.is_empty() {
@@ -1488,6 +1488,12 @@ fn get_checkpoint_entry_for_file(
         }
         if !deleted_ranges.is_empty() {
             entry.deleted_line_ranges = Some(deleted_ranges);
+        }
+        if !added_entries.is_empty() {
+            entry.added_line_entries = Some(added_entries);
+        }
+        if !deleted_entries.is_empty() {
+            entry.deleted_line_entries = Some(deleted_entries);
         }
         return Ok(Some((entry, stats)));
     }
@@ -1919,7 +1925,8 @@ fn make_entry_for_file(
         stats_start.elapsed()
     ));
 
-    let (added_ranges, deleted_ranges) = compute_line_change_ranges(previous_content, content);
+    let (added_ranges, deleted_ranges, added_entries, deleted_entries) =
+        compute_line_change_ranges(previous_content, content);
 
     let mut entry = WorkingLogEntry::new(
         file_path.to_string(),
@@ -1933,20 +1940,35 @@ fn make_entry_for_file(
     if !deleted_ranges.is_empty() {
         entry.deleted_line_ranges = Some(deleted_ranges);
     }
+    if !added_entries.is_empty() {
+        entry.added_line_entries = Some(added_entries);
+    }
+    if !deleted_entries.is_empty() {
+        entry.deleted_line_entries = Some(deleted_entries);
+    }
 
     Ok((entry, line_stats))
 }
 
-/// Compute added/deleted line ranges from a diff.
-/// Returns (added_ranges, deleted_ranges) where ranges are 1-based inclusive (start, end).
-/// Added ranges are in new-content line coordinates; deleted ranges are in old-content coordinates.
+/// Compute added/deleted line ranges and per-line content entries from a diff.
+/// Returns (added_ranges, deleted_ranges, added_entries, deleted_entries) where:
+/// - ranges are 1-based inclusive (start, end) — used for line_history coordinate mapping
+/// - entries are (line_number, content) pairs — used for human-readable change_history
+/// Added coords are in new-content space; deleted coords are in old-content space.
 fn compute_line_change_ranges(
     previous_content: &str,
     current_content: &str,
-) -> (Vec<(u32, u32)>, Vec<(u32, u32)>) {
+) -> (
+    Vec<(u32, u32)>,
+    Vec<(u32, u32)>,
+    Vec<(u32, String)>,
+    Vec<(u32, String)>,
+) {
     let changes = compute_line_changes(previous_content, current_content);
     let mut added: Vec<(u32, u32)> = Vec::new();
     let mut deleted: Vec<(u32, u32)> = Vec::new();
+    let mut added_entries: Vec<(u32, String)> = Vec::new();
+    let mut deleted_entries: Vec<(u32, String)> = Vec::new();
     let mut old_line = 1u32;
     let mut new_line = 1u32;
 
@@ -1973,6 +1995,9 @@ fn compute_line_change_ranges(
                 } else {
                     deleted.push((old_line, range_end));
                 }
+                for (i, line) in change.value().lines().enumerate() {
+                    deleted_entries.push((old_line + i as u32, line.to_string()));
+                }
                 old_line += num_lines;
             }
             LineChangeTag::Insert => {
@@ -1986,11 +2011,14 @@ fn compute_line_change_ranges(
                 } else {
                     added.push((new_line, range_end));
                 }
+                for (i, line) in change.value().lines().enumerate() {
+                    added_entries.push((new_line + i as u32, line.to_string()));
+                }
                 new_line += num_lines;
             }
         }
     }
-    (added, deleted)
+    (added, deleted, added_entries, deleted_entries)
 }
 
 /// Compute line statistics for a single file by diffing previous and current content
