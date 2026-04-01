@@ -1861,10 +1861,10 @@ impl AgentCheckpointPreset for CursorPreset {
 
         // Legacy hooks no longer installed; exit silently for existing users who haven't reinstalled.
         if hook_event_name == "beforeSubmitPrompt" || hook_event_name == "afterFileEdit" {
-            crate::utils::debug_log(&format!(
+            tracing::debug!(
                 "CursorPreset: legacy hook event '{}', exiting (reinstall hooks to fix)",
                 hook_event_name
-            ));
+            );
             std::process::exit(0);
         }
 
@@ -1900,7 +1900,7 @@ impl AgentCheckpointPreset for CursorPreset {
                 GitAiError::PresetError("No workspace root found in hook_input".to_string())
             })?;
         
-        crate::utils::debug_log(&format!("CursorPreset: resolved repo_working_dir={}", repo_working_dir));
+            tracing::debug!("CursorPreset: resolved repo_working_dir={}", repo_working_dir);
 
         if hook_event_name == "preToolUse" {
             let will_edit = if !file_path.is_empty() {
@@ -1927,17 +1927,17 @@ impl AgentCheckpointPreset for CursorPreset {
             });
         }
 
-        crate::utils::debug_log(&format!(
+        tracing::debug!(
             "CursorPreset: hook_event_name={}, conversation_id={}, workspace_roots={:?}",
             hook_event_name, conversation_id, workspace_roots
-        ));
+        );
 
         // Option 1: Read transcript from JSONL file if available
         let transcript_path = hook_data
             .get("transcript_path")
             .and_then(|v| v.as_str())
             .map(|s| s.to_string());
-        crate::utils::debug_log(&format!("CursorPreset: transcript_path={:?}", transcript_path));
+        tracing::debug!("CursorPreset: transcript_path={:?}", transcript_path);
         let transcript = if let Some(ref tp) = transcript_path {
             match Self::transcript_and_model_from_cursor_jsonl(tp) {
                 Ok((transcript, _)) => transcript,
@@ -1979,7 +1979,7 @@ impl AgentCheckpointPreset for CursorPreset {
         //         eprintln!(
         //             "[Warning] Could not extract transcript from Cursor composer. Retrying at commit."
         //         );
-        //         crate::utils::debug_log(&format!("CursorPreset: [Warning] Could not extract transcript from Cursor composer. Retrying at commit."));
+        //         tracing::debug!("CursorPreset: [Warning] Could not extract transcript from Cursor composer. Retrying at commit.");
         //         AiTranscript::new()
         //     }),
         //     Err(GitAiError::PresetError(msg))
@@ -1989,13 +1989,13 @@ impl AgentCheckpointPreset for CursorPreset {
         //         eprintln!(
         //             "[Warning] No conversation data found in Cursor DB for this thread. Proceeding and will re-sync at commit."
         //         );
-        //         crate::utils::debug_log(&format!("CursorPreset: [Warning] No conversation data found in Cursor DB for this thread. Proceeding and will re-sync at commit."));
+        //         tracing::debug!("CursorPreset: [Warning] No conversation data found in Cursor DB for this thread. Proceeding and will re-sync at commit.");
         //         AiTranscript::new()
         //     }
         //     Err(e) => return Err(e),
         // };
 
-        crate::utils::debug_log(&format!("CursorPreset: transcript:\n{}", transcript));
+        tracing::debug!("CursorPreset: transcript:\n{}", transcript);
 
         let edited_filepaths = if !file_path.is_empty() {
             Some(vec![file_path.to_string()])
@@ -2121,7 +2121,7 @@ impl CursorPreset {
                     if let Some(content_array) = raw_entry["message"]["content"].as_array() {
                         for item in content_array {
                             if item["type"].as_str() == Some("tool_result") {
-                                crate::utils::debug_log(&format!("CursorPreset: user msg, tool_result: {}", item["text"]));
+                                tracing::debug!("CursorPreset: user msg, tool_result: {}", item["text"]);
                                 continue;
                             }
                             if item["type"].as_str() == Some("text")
