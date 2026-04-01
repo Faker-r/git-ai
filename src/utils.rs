@@ -62,7 +62,7 @@ pub fn debug_log(msg: &str) {
     }
 
     // Always print to stderr. Visible when running git commands directly in a terminal.
-    eprintln!("\x1b[1;33m[git-ai]\x1b[0m {}", msg);
+    // eprintln!("\x1b[1;33m[git-ai]\x1b[0m {}", msg);
 
     // [BENCHMARK] lines go to a separate file to keep the main log readable.
     // Read main log with:      tail -f /tmp/git-ai-debug.log
