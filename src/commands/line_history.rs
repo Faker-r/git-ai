@@ -19,6 +19,7 @@ pub struct CommitHistoryEntry {
     pub commit_sha: String,
     pub commit_date: String,
     pub commit_message: String,
+    pub target_line: u32,
     pub checkpoints: Vec<MatchedCheckpoint>,
 }
 
@@ -223,6 +224,7 @@ fn build_commit_entry(
         commit_sha: commit.sha.clone(),
         commit_date: commit.date.clone(),
         commit_message: commit.subject.clone(),
+        target_line: commit.target_line_in_commit,
         checkpoints,
     })
 }
