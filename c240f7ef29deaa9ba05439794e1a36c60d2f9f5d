@@ -1,0 +1,415 @@
+src/commands/checkpoint.rs
+  e135e5cc670f52e5 520,1414,1456-1458
+src/authorship/pre_commit.rs
+  e135e5cc670f52e5 14
+---
+{
+  "schema_version": "authorship/4.0.0",
+  "git_ai_version": "development:1.1.21",
+  "base_commit_sha": "c240f7ef29deaa9ba05439794e1a36c60d2f9f5d",
+  "prompts": {
+    "e135e5cc670f52e5": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "ba71bd29-3921-42b4-9b40-b21632a16b79",
+        "model": "claude-4.6-opus-high-thinking"
+      },
+      "human_author": "Andrew Wang <awang60@student.ubc.ca>",
+      "messages": [
+        {
+          "type": "user",
+          "text": "Issue: No human checkpoint in change history if only 1 human change in the commit. \n\nI think it's because git-ai does an early exit for pre commit time when its no ai changes. I want to maintain the human changes.",
+          "timestamp": "2026-04-01T08:27:00.775Z",
+          "id": "14b65005-7f5c-48b0-98c8-cc8027f2c407"
+        },
+        {
+          "type": "assistant",
+          "text": "Let me examine the relevant code to understand the issue.",
+          "timestamp": "2026-04-01T08:27:06.316Z",
+          "id": "30cfc088-522d-43a1-9f1f-d8d318598d10"
+        },
+        {
+          "type": "tool_use",
+          "name": "glob_file_search",
+          "input": {
+            "globPattern": "**/pre_commit.rs",
+            "targetDirectory": "/Users/Andrew/School/ReSeSS_Research/tool_testing/git-ai"
+          },
+          "id": "c760221c-42a1-43b6-92f6-9175c82ee0e7"
+        },
+        {
+          "type": "assistant",
+          "text": "Now let me look at the pre-commit code to find the early exit.",
+          "timestamp": "2026-04-01T08:27:13.286Z",
+          "id": "9d83f273-79ab-460d-8441-41e33dfd387c"
+        },
+        {
+          "type": "assistant",
+          "text": "I can see the issue. Let me look at the checkpoint `run` function to understand the skip logic.",
+          "timestamp": "2026-04-01T08:27:19.545Z",
+          "id": "5b02bb33-cac6-4df1-aae3-1508cabd98ca"
+        },
+        {
+          "type": "tool_use",
+          "name": "glob_file_search",
+          "input": {
+            "globPattern": "**/commands/checkpoint.rs",
+            "targetDirectory": "/Users/Andrew/School/ReSeSS_Research/tool_testing/git-ai"
+          },
+          "id": "e6522ffd-4952-46c8-ae1a-fe0031ca9c18"
+        },
+        {
+          "type": "tool_use",
+          "name": "glob_file_search",
+          "input": {
+            "globPattern": "**/commands/checkpoint*",
+            "targetDirectory": "/Users/Andrew/School/ReSeSS_Research/tool_testing/git-ai"
+          },
+          "id": "2c988127-92a0-4201-9d3b-1061600f7809"
+        },
+        {
+          "type": "assistant",
+          "text": "Let me see how the `run` function maps the return value from `run_with_base_commit_override`.",
+          "timestamp": "2026-04-01T08:28:02.438Z",
+          "id": "0c257f9a-0216-4703-a9a7-db39125bf5bf"
+        },
+        {
+          "type": "assistant",
+          "text": "Let me see the non-pre-commit fast path for human-only files and understand the full per-file logic.",
+          "timestamp": "2026-04-01T08:28:20.751Z",
+          "id": "b6556c62-d0ba-4a0e-b924-2773aae1917a"
+        },
+        {
+          "type": "assistant",
+          "text": "Let me look at `execute_resolved_checkpoint` to understand how checkpoint entries are assembled and written.",
+          "timestamp": "2026-04-01T08:28:39.772Z",
+          "id": "8544a8f6-5a7b-44ec-b30c-b25d7b798039"
+        },
+        {
+          "type": "assistant",
+          "text": "Now I understand the full picture. There are two early exits causing this issue:\n\n1. **Global early exit** at line 519-532 in `resolve_live_checkpoint_execution` — when `is_pre_commit` is true and there are no AI edits, the entire checkpoint is skipped, so no human checkpoint gets written to the working log at all.\n\n2. **Per-file early exit** at line 1451-1460 — even if the global check were removed, individual human-only files would still be skipped during pre-commit.\n\nThe result is that `post_commit.rs` builds `change_history` from the working log checkpoints, but since no human checkpoint was ever written, the change_history has no human entry.\n\nThe good news is the non-pre-commit path for human-only files (lines 1466-1499) already does exactly the right thing: it captures line stats and change ranges without expensive attribution/blame work. The pre-commit paths just need to fall through to that same code.\n\nLet me fix both early exits.",
+          "timestamp": "2026-04-01T08:29:01.822Z",
+          "id": "a65a67a5-9b0c-4c40-8ea7-4540e70c92d8"
+        },
+        {
+          "type": "tool_use",
+          "name": "todo_write",
+          "input": {},
+          "id": "0a5e2af0-351e-4269-b90c-06acbc3ba4fe"
+        },
+        {
+          "type": "tool_use",
+          "name": "todo_write",
+          "input": {},
+          "id": "b5a456fe-4404-4057-b86e-f6ed15ce53df"
+        },
+        {
+          "type": "assistant",
+          "text": "Now remove the per-file pre-commit early exit so human-only files fall through to the cheap line-stats path that already exists for non-pre-commit checkpoints.",
+          "timestamp": "2026-04-01T08:29:22.077Z",
+          "id": "e287c3ff-1f0f-4dc8-a287-18dd0d72484b"
+        },
+        {
+          "type": "assistant",
+          "text": "Now let me also update the comment in `pre_commit.rs` since the behavior has changed.",
+          "timestamp": "2026-04-01T08:29:31.304Z",
+          "id": "3c7d44f7-aa43-4f9d-ae85-443ae89eaa40"
+        },
+        {
+          "type": "tool_use",
+          "name": "todo_write",
+          "input": {},
+          "id": "eae81c88-4bba-406e-9fde-3dc9beba43f9"
+        },
+        {
+          "type": "assistant",
+          "text": "Let me also verify the modified sections look correct by reading the final state.",
+          "timestamp": "2026-04-01T08:29:44.667Z",
+          "id": "f84bb77c-e34d-4dc4-9462-961623a56c77"
+        },
+        {
+          "type": "assistant",
+          "text": "Let me also clean up the now-dead conditional block — it computes values only to produce a debug log message. I'll simplify it.",
+          "timestamp": "2026-04-01T08:29:58.422Z",
+          "id": "049d5e09-34e5-470e-8ffa-2b3531d0f8bb"
+        },
+        {
+          "type": "assistant",
+          "text": "Now let me verify the build compiles.",
+          "timestamp": "2026-04-01T08:30:04.785Z",
+          "id": "c817f5ef-2d54-49ab-82ae-20f7309f2141"
+        },
+        {
+          "type": "assistant",
+          "text": "The build succeeds. There's one new warning: `is_pre_commit` is now unused in the per-file processing function since we removed the only check that used it. Let me fix that.",
+          "timestamp": "2026-04-01T08:30:14.472Z",
+          "id": "1d63cbf9-18d5-45c6-b13e-c0ebf22a5c43"
+        },
+        {
+          "type": "assistant",
+          "text": "The `is_pre_commit` parameter is still passed to `get_checkpoint_entry_for_file` but no longer used within it. Let me check if it's used in any callee or if we should just prefix it with an underscore.",
+          "timestamp": "2026-04-01T08:30:22.852Z",
+          "id": "9e1acba1-2a5a-4a78-99c5-285cff4671ac"
+        },
+        {
+          "type": "assistant",
+          "text": "Clean build — only the two pre-existing warnings remain, no new ones introduced.",
+          "timestamp": "2026-04-01T08:30:37.990Z",
+          "id": "85232b4d-a203-47ba-8d5d-e0968cccc1a5"
+        },
+        {
+          "type": "tool_use",
+          "name": "todo_write",
+          "input": {},
+          "id": "41e55560-906b-43c0-9af2-703e54207885"
+        },
+        {
+          "type": "assistant",
+          "text": "Here's a summary of the fix:\n\n**Root Cause:** Two early exits in `checkpoint.rs` prevented human checkpoints from being written to the working log when there were no AI changes:\n\n1. **Global early exit** (`resolve_live_checkpoint_execution`, ~line 519): When `is_pre_commit` was true and there were no AI edits, the entire checkpoint was skipped via `return Ok(None)`. This meant no human checkpoint was ever written to the working log.\n\n2. **Per-file early exit** (`get_checkpoint_entry_for_file`, ~line 1451): Even if the global check passed, individual files were skipped during pre-commit when they had no AI attribution, returning `Ok(None)` per file.\n\nThe result was that `post_commit.rs` built `change_history` from the (empty) working log, producing no human entries.\n\n**Fix:**\n\n1. Removed the global early exit — the pre-commit now always proceeds to process files, just logging a debug message instead of bailing out.\n\n2. Removed the per-file pre-commit early exit — human-only files now fall through to the existing non-pre-commit fast path (lines 1457-1486) which captures line stats, added/deleted ranges, and line contents **without** any expensive blame or attribution work. This path was already correct for human-only files; it just wasn't being reached during pre-commit.\n\nThe performance impact should be minimal since the human-only path only does string comparison and line diff computation — no git blame, no attribution resolution.",
+          "timestamp": "2026-04-01T08:30:42.178Z",
+          "id": "42ba6d45-be74-42af-bf7f-bbcc5b344cf6"
+        },
+        {
+          "type": "user",
+          "text": "@/tmp/git-ai-debug.log:2319-2358 the line history might be wrong. Im only adding, but its saying i modified a line. See the logic to see where it might be going wrong",
+          "timestamp": "2026-04-01T08:35:31.455Z",
+          "id": "a0377250-2be7-445d-b6d7-6a6a499732c9"
+        },
+        {
+          "type": "assistant",
+          "text": "Let me look at the `compute_line_change_ranges` function that produces these added/deleted ranges.",
+          "timestamp": "2026-04-01T08:35:45.212Z",
+          "id": "a71cf00f-b5b3-4492-b652-9768b009748b"
+        },
+        {
+          "type": "assistant",
+          "text": "Now let me look at the `compute_line_changes` function that feeds into this.",
+          "timestamp": "2026-04-01T08:35:51.523Z",
+          "id": "c4cb0c8b-52b5-4cab-a093-ed8e2436dd66"
+        }
+      ],
+      "total_additions": 7,
+      "total_deletions": 30,
+      "accepted_lines": 6,
+      "overriden_lines": 0
+    }
+  },
+  "change_history": [
+    {
+      "timestamp": 1775032155,
+      "kind": "ai_agent",
+      "conversation_id": "e135e5cc670f52e5",
+      "agent_type": "cursor",
+      "prompt_id": "14b65005-7f5c-48b0-98c8-cc8027f2c407",
+      "model": "claude-4.6-opus-high-thinking",
+      "prompt_text": "Issue: No human checkpoint in change history if only 1 human change in the commit. \n\nI think it's because git-ai does an early exit for pre commit time when its no ai changes. I want to maintain the human changes.",
+      "files": {
+        "src/commands/checkpoint.rs": {
+          "added_lines": [
+            "530"
+          ],
+          "deleted_lines": [
+            "530-531"
+          ],
+          "added_line_contents": [
+            "530:             debug_log(\"No AI edits in pre-commit checkpoint, proceeding to capture human change history\");"
+          ],
+          "deleted_line_contents": [
+            "530:             debug_log(\"No AI edits in pre-commit checkpoint, skipping\");",
+            "531:             return Ok(None);"
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 1,
+        "deletions": 2,
+        "additions_sloc": 1,
+        "deletions_sloc": 2
+      }
+    },
+    {
+      "timestamp": 1775032169,
+      "kind": "ai_agent",
+      "conversation_id": "e135e5cc670f52e5",
+      "agent_type": "cursor",
+      "prompt_id": "14b65005-7f5c-48b0-98c8-cc8027f2c407",
+      "model": "claude-4.6-opus-high-thinking",
+      "prompt_text": "Issue: No human checkpoint in change history if only 1 human change in the commit. \n\nI think it's because git-ai does an early exit for pre commit time when its no ai changes. I want to maintain the human changes.",
+      "files": {
+        "src/commands/checkpoint.rs": {
+          "added_lines": [
+            "1454-1456"
+          ],
+          "deleted_lines": [
+            "1450-1460",
+            "1465-1467"
+          ],
+          "added_line_contents": [
+            "1454:     // Human-only fast path (both pre-commit and regular checkpoint):",
+            "1455:     // Write an attribution-empty entry while still capturing line stats so that",
+            "1456:     // human changes appear in change_history."
+          ],
+          "deleted_line_contents": [
+            "1450:     // Pre-commit fast path:",
+            "1451:     // If this file has no prior AI attribution and no INITIAL attribution,",
+            "1452:     // we can skip it entirely. Human-only files do not affect AI authorship.",
+            "1453:     if is_pre_commit",
+            "1454:         && kind == CheckpointKind::Human",
+            "1455:         && !has_prior_ai_edits",
+            "1456:         && initial_attrs_for_file.is_empty()",
+            "1457:     {",
+            "1458:         return Ok(None);",
+            "1459:     }",
+            "1460: ",
+            "1465:     // Non-pre-commit fast path:",
+            "1466:     // Preserve existing `git-ai checkpoint` behavior for human-only files by writing an",
+            "1467:     // attribution-empty entry while still capturing line stats."
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 3,
+        "deletions": 14,
+        "additions_sloc": 3,
+        "deletions_sloc": 13
+      }
+    },
+    {
+      "timestamp": 1775032175,
+      "kind": "ai_agent",
+      "conversation_id": "e135e5cc670f52e5",
+      "agent_type": "cursor",
+      "prompt_id": "14b65005-7f5c-48b0-98c8-cc8027f2c407",
+      "model": "claude-4.6-opus-high-thinking",
+      "prompt_text": "Issue: No human checkpoint in change history if only 1 human change in the commit. \n\nI think it's because git-ai does an early exit for pre commit time when its no ai changes. I want to maintain the human changes.",
+      "files": {
+        "src/authorship/pre_commit.rs": {
+          "added_lines": [
+            "14"
+          ],
+          "deleted_lines": [
+            "14"
+          ],
+          "added_line_contents": [
+            "14:         true, // is_pre_commit: enables lightweight human-only file processing"
+          ],
+          "deleted_line_contents": [
+            "14:         true, // should skip if NO AI CHECKPOINTS"
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 1,
+        "deletions": 1,
+        "additions_sloc": 1,
+        "deletions_sloc": 1
+      }
+    },
+    {
+      "timestamp": 1775032201,
+      "kind": "ai_agent",
+      "conversation_id": "e135e5cc670f52e5",
+      "agent_type": "cursor",
+      "prompt_id": "14b65005-7f5c-48b0-98c8-cc8027f2c407",
+      "model": "claude-4.6-opus-high-thinking",
+      "prompt_text": "Issue: No human checkpoint in change history if only 1 human change in the commit. \n\nI think it's because git-ai does an early exit for pre commit time when its no ai changes. I want to maintain the human changes.",
+      "files": {
+        "src/commands/checkpoint.rs": {
+          "added_lines": [
+            "520"
+          ],
+          "deleted_lines": [
+            "520-531"
+          ],
+          "added_line_contents": [
+            "520:         debug_log(\"Pre-commit checkpoint: capturing human change history\");"
+          ],
+          "deleted_line_contents": [
+            "520:         let has_no_ai_edits = working_log",
+            "521:             .all_ai_touched_files()",
+            "522:             .map(|files| files.is_empty())",
+            "523:             .unwrap_or(true);",
+            "524:         let has_initial_attributions = !working_log.read_initial_attributions().files.is_empty();",
+            "525: ",
+            "526:         if has_no_ai_edits",
+            "527:             && !has_initial_attributions",
+            "528:             && !Config::get().get_feature_flags().inter_commit_move",
+            "529:         {",
+            "530:             debug_log(\"No AI edits in pre-commit checkpoint, proceeding to capture human change history\");",
+            "531:         }"
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 1,
+        "deletions": 12,
+        "additions_sloc": 1,
+        "deletions_sloc": 11
+      }
+    },
+    {
+      "timestamp": 1775032228,
+      "kind": "ai_agent",
+      "conversation_id": "e135e5cc670f52e5",
+      "agent_type": "cursor",
+      "prompt_id": "14b65005-7f5c-48b0-98c8-cc8027f2c407",
+      "model": "claude-4.6-opus-high-thinking",
+      "prompt_text": "Issue: No human checkpoint in change history if only 1 human change in the commit. \n\nI think it's because git-ai does an early exit for pre commit time when its no ai changes. I want to maintain the human changes.",
+      "files": {
+        "src/commands/checkpoint.rs": {
+          "added_lines": [
+            "1414"
+          ],
+          "deleted_lines": [
+            "1414"
+          ],
+          "added_line_contents": [
+            "1414:     _is_pre_commit: bool,"
+          ],
+          "deleted_line_contents": [
+            "1414:     is_pre_commit: bool,"
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 1,
+        "deletions": 1,
+        "additions_sloc": 1,
+        "deletions_sloc": 1
+      }
+    },
+    {
+      "timestamp": 1775032545,
+      "kind": "human",
+      "files": {
+        "src/commands/checkpoint.rs": {
+          "added_lines": [
+            "1439-1451"
+          ],
+          "deleted_lines": [],
+          "added_line_contents": [
+            "1439:     // Pre-commit fast path:",
+            "1440:     // If this file has no prior AI attribution and no INITIAL attribution,",
+            "1441:     // we can skip it entirely. Human-only files do not affect AI authorship.",
+            "1442: ",
+            "1443:     // Normally skipped, but for research we want to keep human attributions.",
+            "1444:     // if is_pre_commit",
+            "1445:     //     && kind == CheckpointKind::Human",
+            "1446:     //     && !has_prior_ai_edits",
+            "1447:     //     && initial_attrs_for_file.is_empty()",
+            "1448:     // {",
+            "1449:     //     return Ok(None);",
+            "1450:     // }",
+            "1451: "
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 13,
+        "deletions": 0,
+        "additions_sloc": 11,
+        "deletions_sloc": 0
+      }
+    }
+  ]
+}
