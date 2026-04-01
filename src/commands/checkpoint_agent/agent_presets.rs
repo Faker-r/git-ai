@@ -1918,6 +1918,50 @@ impl CursorPreset {
             .ok()
             .map(|dt| dt.timestamp() as u64)
     }
+
+    /// Return the workspace root path for a conversation by inspecting `messageRequestContext`
+    /// rows in the Cursor DB.
+    ///
+    /// Each `messageRequestContext:<conversation_id>:<bubble_id>` row (excluding the special
+    /// `WARM_SUBMIT` key) contains a `projectLayouts` array whose first element is a
+    /// JSON-encoded string with `listDirV2Result.directoryTreeRoot.absPath` equal to the
+    /// workspace root that was open when the conversation was running.
+    ///
+    /// Returns `None` when:
+    /// - No matching rows exist (older Cursor version, conversation without tool use)
+    /// - The JSON structure is unexpected
+    pub fn get_conversation_workspace_root(
+        db_path: &Path,
+        conversation_id: &str,
+    ) -> Option<String> {
+        let conn = Self::open_sqlite_readonly(db_path).ok()?;
+
+        let like_pattern = format!("messageRequestContext:{}:%", conversation_id);
+        let warm_submit_key = format!("messageRequestContext:{}:WARM_SUBMIT", conversation_id);
+
+        let mut stmt = conn
+            .prepare(
+                "SELECT value FROM cursorDiskKV WHERE key LIKE ? AND key != ? LIMIT 1",
+            )
+            .ok()?;
+
+        let mut rows = stmt.query([&like_pattern, &warm_submit_key]).ok()?;
+
+        let row = rows.next().ok()??;
+        let value_text: String = row.get(0).ok()?;
+        let data: serde_json::Value = serde_json::from_str(&value_text).ok()?;
+
+        let layouts = data.get("projectLayouts")?.as_array()?;
+        let first_layout_str = layouts.first()?.as_str()?;
+        let first_layout: serde_json::Value = serde_json::from_str(first_layout_str).ok()?;
+
+        first_layout
+            .get("listDirV2Result")?
+            .get("directoryTreeRoot")?
+            .get("absPath")?
+            .as_str()
+            .map(|s| s.to_string())
+    }
 }
 
 pub struct GithubCopilotPreset;

@@ -774,6 +774,18 @@ fn collect_context_conversations(
         }
     };
 
+    // Resolve the repo working directory once for workspace-scoping comparisons.
+    let repo_workdir = match repo.workdir() {
+        Ok(p) => p,
+        Err(e) => {
+            debug_log(&format!(
+                "[context_conversations] Failed to get repo workdir: {}",
+                e
+            ));
+            return Vec::new();
+        }
+    };
+
     let db_path = match CursorPreset::cursor_global_database_path() {
         Ok(p) => p,
         Err(_) => return Vec::new(),
@@ -808,6 +820,31 @@ fn collect_context_conversations(
 
         if last_ts <= lower_bound_ts {
             continue;
+        }
+
+        // Workspace-scoping: only include conversations that were active in the current repo's
+        // workspace. If the workspace root cannot be determined (e.g. older Cursor versions
+        // without messageRequestContext rows), include the conversation as a safe fallback.
+        if let Some(conv_workspace) =
+            CursorPreset::get_conversation_workspace_root(&db_path, &conversation_id)
+        {
+            let conv_workspace_path = std::path::Path::new(&conv_workspace);
+            // Use canonical paths where available to handle symlinks / case differences.
+            let canonical_conv = conv_workspace_path
+                .canonicalize()
+                .unwrap_or_else(|_| conv_workspace_path.to_path_buf());
+            let canonical_repo = repo_workdir
+                .canonicalize()
+                .unwrap_or_else(|_| repo_workdir.clone());
+            if canonical_conv != canonical_repo {
+                debug_log(&format!(
+                    "[context_conversations] Skipping conversation {} (workspace {} != repo {})",
+                    conversation_id,
+                    conv_workspace,
+                    repo_workdir.display()
+                ));
+                continue;
+            }
         }
 
         match CursorPreset::fetch_cursor_conversation_from_db(&db_path, &conversation_id) {

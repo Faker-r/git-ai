@@ -1964,8 +1964,6 @@ fn compute_line_change_ranges(
                 let range_end = old_line + num_lines - 1;
                 // Merge into the previous range if contiguous, avoiding O(n) range explosion
                 // on files with single-line deletions.
-                // TODO: remove this comment
-                // added by cursor for testing git-ai message tracking
                 if let Some(last) = deleted.last_mut() {
                     if last.1 + 1 == old_line {
                         last.1 = range_end;
