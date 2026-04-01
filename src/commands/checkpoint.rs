@@ -517,19 +517,7 @@ fn resolve_live_checkpoint_execution(
     ));
 
     if is_pre_commit && base_commit_override.is_none() {
-        let has_no_ai_edits = working_log
-            .all_ai_touched_files()
-            .map(|files| files.is_empty())
-            .unwrap_or(true);
-        let has_initial_attributions = !working_log.read_initial_attributions().files.is_empty();
-
-        if has_no_ai_edits
-            && !has_initial_attributions
-            && !Config::get().get_feature_flags().inter_commit_move
-        {
-            debug_log("No AI edits in pre-commit checkpoint, skipping");
-            return Ok(None);
-        }
+        debug_log("Pre-commit checkpoint: capturing human change history");
     }
 
     if let Some(dirty_files) = agent_run_result.and_then(|result| result.dirty_files.clone()) {
@@ -1423,7 +1411,7 @@ fn build_previous_file_state_maps(
 fn get_checkpoint_entry_for_file(
     file_path: String,
     kind: CheckpointKind,
-    is_pre_commit: bool,
+    _is_pre_commit: bool,
     repo: Repository,
     working_log: PersistedWorkingLog,
     previous_file_state_by_file: Arc<HashMap<String, PreviousFileState>>,
@@ -1451,21 +1439,23 @@ fn get_checkpoint_entry_for_file(
     // Pre-commit fast path:
     // If this file has no prior AI attribution and no INITIAL attribution,
     // we can skip it entirely. Human-only files do not affect AI authorship.
-    if is_pre_commit
-        && kind == CheckpointKind::Human
-        && !has_prior_ai_edits
-        && initial_attrs_for_file.is_empty()
-    {
-        return Ok(None);
-    }
+
+    // Normally skipped, but for research we want to keep human attributions.
+    // if is_pre_commit
+    //     && kind == CheckpointKind::Human
+    //     && !has_prior_ai_edits
+    //     && initial_attrs_for_file.is_empty()
+    // {
+    //     return Ok(None);
+    // }
 
     let current_content = working_log
         .read_current_file_content(&file_path)
         .unwrap_or_default();
 
-    // Non-pre-commit fast path:
-    // Preserve existing `git-ai checkpoint` behavior for human-only files by writing an
-    // attribution-empty entry while still capturing line stats.
+    // Human-only fast path (both pre-commit and regular checkpoint):
+    // Write an attribution-empty entry while still capturing line stats so that
+    // human changes appear in change_history.
     if kind == CheckpointKind::Human && !has_prior_ai_edits && initial_attrs_for_file.is_empty() {
         let previous_content = if let Some(state) = previous_state.as_ref() {
             working_log
