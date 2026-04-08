@@ -2439,6 +2439,7 @@ index abc123..def456 100644
                 overriden_lines: 0,
                 messages_url: None,
                 custom_attributes: None,
+                cursor_subagents: None,
             }
         }
 

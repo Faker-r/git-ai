@@ -278,6 +278,26 @@ pub fn post_commit_with_final_state(
         }
     }
 
+    // For Cursor conversations, check for subagent IDs by scanning the
+    // agent-transcripts/<conversation_id>/subagents/ directory on disk.
+    for pr in authorship_log.metadata.prompts.values_mut() {
+        if pr.agent_id.tool == "cursor" {
+            if let Some(subagent_ids) =
+                crate::commands::checkpoint_agent::agent_presets::CursorPreset::find_subagent_ids(
+                    &pr.agent_id.id,
+                )
+            {
+                debug_log(&format!(
+                    "Found {} Cursor subagent(s) for conversation {}: {:?}",
+                    subagent_ids.len(),
+                    pr.agent_id.id,
+                    subagent_ids,
+                ));
+                pr.cursor_subagents = Some(subagent_ids);
+            }
+        }
+    }
+
     // Long-lived daemon processes should read a fresh config snapshot.
     // Wrapper/hooks mode can use the process-global cached config.
     let (effective_storage, using_custom_api, custom_attrs) =
@@ -894,6 +914,7 @@ fn collect_context_conversations(
                     overriden_lines: 0,
                     messages_url: None,
                     custom_attributes: None,
+                    cursor_subagents: None,
                 };
                 results.push((short_hash, record));
             }

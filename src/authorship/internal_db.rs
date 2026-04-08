@@ -162,6 +162,7 @@ impl PromptDbRecord {
             overriden_lines: self.overridden_lines.unwrap_or(0),
             messages_url: None,
             custom_attributes: None,
+            cursor_subagents: None,
         }
     }
 

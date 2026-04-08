@@ -2020,20 +2020,15 @@ impl CursorPreset {
                 continue;
             }
 
-            // Parse workspace.json to get the folder path
+            // Parse workspace.json to get the folder path from its file:// URI
             let folder_path = match std::fs::read_to_string(&ws_json_path)
                 .ok()
                 .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
                 .and_then(|v| v.get("folder")?.as_str().map(|s| s.to_string()))
+                .and_then(|uri| url::Url::parse(&uri).ok())
+                .and_then(|u| u.to_file_path().ok())
             {
-                Some(uri) => {
-                    // Strip file:// scheme and percent-decode
-                    if let Some(raw) = uri.strip_prefix("file://") {
-                        percent_decode(raw)
-                    } else {
-                        uri
-                    }
-                }
+                Some(p) => p.to_string_lossy().to_string(),
                 None => continue,
             };
 
@@ -2069,36 +2064,71 @@ impl CursorPreset {
 
         map
     }
-}
 
-/// Decode percent-encoded characters in a URI path (e.g. `%20` → ` `).
-fn percent_decode(input: &str) -> String {
-    let mut out = String::with_capacity(input.len());
-    let mut chars = input.bytes();
-    while let Some(b) = chars.next() {
-        if b == b'%' {
-            let hi = chars.next();
-            let lo = chars.next();
-            if let (Some(h), Some(l)) = (hi, lo) {
-                let hex = [h, l];
-                if let Ok(s) = std::str::from_utf8(&hex) {
-                    if let Ok(val) = u8::from_str_radix(s, 16) {
-                        out.push(val as char);
-                        continue;
-                    }
-                }
-                // Malformed, emit as-is
-                out.push(b as char);
-                out.push(h as char);
-                out.push(l as char);
-            } else {
-                out.push(b as char);
-            }
-        } else {
-            out.push(b as char);
+    /// Return the path to Cursor's per-project agent-transcripts directory.
+    ///
+    /// Respects `GIT_AI_CURSOR_AGENT_TRANSCRIPTS_PATH` for testability,
+    /// otherwise scans `~/.cursor/projects/*/agent-transcripts/`.
+    fn cursor_agent_transcripts_dirs() -> Vec<PathBuf> {
+        if let Ok(p) = std::env::var("GIT_AI_CURSOR_AGENT_TRANSCRIPTS_PATH") {
+            return vec![PathBuf::from(p)];
         }
+        let home = match dirs::home_dir() {
+            Some(h) => h,
+            None => return vec![],
+        };
+        let projects_dir = home.join(".cursor").join("projects");
+        if !projects_dir.is_dir() {
+            return vec![];
+        }
+        let mut dirs = Vec::new();
+        if let Ok(entries) = std::fs::read_dir(&projects_dir) {
+            for entry in entries.flatten() {
+                let at_dir = entry.path().join("agent-transcripts");
+                if at_dir.is_dir() {
+                    dirs.push(at_dir);
+                }
+            }
+        }
+        dirs
     }
-    out
+
+    /// Find subagent conversation IDs for a given Cursor conversation.
+    ///
+    /// Scans `~/.cursor/projects/*/agent-transcripts/<conversation_id>/subagents/`
+    /// for `.jsonl` files and returns the UUIDs extracted from filenames.
+    /// Returns `None` if no subagents exist.
+    pub fn find_subagent_ids(conversation_id: &str) -> Option<Vec<String>> {
+        for transcripts_dir in Self::cursor_agent_transcripts_dirs() {
+            let subagents_dir = transcripts_dir
+                .join(conversation_id)
+                .join("subagents");
+
+            if !subagents_dir.is_dir() {
+                continue;
+            }
+
+            let entries = match std::fs::read_dir(&subagents_dir) {
+                Ok(e) => e,
+                Err(_) => continue,
+            };
+
+            let mut ids = Vec::new();
+            for entry in entries.flatten() {
+                let filename = entry.file_name().to_string_lossy().to_string();
+                if let Some(id) = filename.strip_suffix(".jsonl") {
+                    ids.push(id.to_string());
+                }
+            }
+
+            if !ids.is_empty() {
+                ids.sort();
+                return Some(ids);
+            }
+        }
+
+        None
+    }
 }
 
 pub struct GithubCopilotPreset;
@@ -3879,42 +3909,3 @@ impl AgentCheckpointPreset for AiTabPreset {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_percent_decode_space() {
-        assert_eq!(percent_decode("/Users/ReSeSS%20Research"), "/Users/ReSeSS Research");
-    }
-
-    #[test]
-    fn test_percent_decode_no_encoding() {
-        assert_eq!(percent_decode("/Users/project"), "/Users/project");
-    }
-
-    #[test]
-    fn test_percent_decode_multiple_encoded() {
-        assert_eq!(
-            percent_decode("/a%20b%2Fc%23d"),
-            "/a b/c#d"
-        );
-    }
-
-    #[test]
-    fn test_percent_decode_empty() {
-        assert_eq!(percent_decode(""), "");
-    }
-
-    #[test]
-    fn test_percent_decode_trailing_percent() {
-        // Malformed: lone % at end
-        assert_eq!(percent_decode("abc%"), "abc%");
-    }
-
-    #[test]
-    fn test_percent_decode_incomplete_hex() {
-        // Malformed: only one hex digit after %
-        assert_eq!(percent_decode("abc%2"), "abc%2");
-    }
-}

@@ -764,13 +764,7 @@ fn test_build_workspace_composer_map_empty_storage_dir() {
 
     let temp_dir = tempfile::TempDir::new().unwrap();
 
-    std::env::set_var(
-        "GIT_AI_CURSOR_WORKSPACE_STORAGE_PATH",
-        temp_dir.path().to_str().unwrap(),
-    );
-
-    let map = CursorPreset::build_workspace_composer_map();
-    std::env::remove_var("GIT_AI_CURSOR_WORKSPACE_STORAGE_PATH");
+    let map = CursorPreset::build_workspace_composer_map_from(temp_dir.path());
 
     assert!(map.is_empty(), "Empty storage dir should yield empty map");
 }
