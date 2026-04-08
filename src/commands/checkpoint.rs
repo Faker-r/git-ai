@@ -1411,6 +1411,38 @@ fn get_all_tracked_files(
         status_files_start.elapsed()
     );
 
+    // Re-include previously-checkpointed files that were deleted from disk.
+    // Git status cannot report these (they were never committed), but their
+    // previous content is available in the working log blob store so we can
+    // still produce a meaningful deletion diff.
+    if let Ok(checkpoint_data) = working_log.read_all_checkpoints() {
+        for checkpoint in &checkpoint_data {
+            for entry in &checkpoint.entries {
+                let normalized_path = normalize_to_posix(&entry.file);
+                if results_for_tracked_files.contains(&normalized_path) {
+                    continue;
+                }
+                if !is_path_in_repo(&normalized_path) {
+                    continue;
+                }
+                if should_ignore_file_with_matcher(&normalized_path, ignore_matcher) {
+                    continue;
+                }
+                let abs = repo_workdir
+                    .as_ref()
+                    .map(|w| w.join(&normalized_path))
+                    .unwrap_or_else(|| std::path::PathBuf::from(&normalized_path));
+                if !abs.exists() {
+                    debug_log(&format!(
+                        "Re-including deleted previously-checkpointed file: {}",
+                        normalized_path
+                    ));
+                    results_for_tracked_files.push(normalized_path);
+                }
+            }
+        }
+    }
+
     // Ensure to always include all dirty files
     if let Some(ref dirty_files) = working_log.dirty_files {
         for file_path in dirty_files.keys() {
