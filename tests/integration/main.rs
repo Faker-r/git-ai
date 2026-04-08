@@ -32,6 +32,7 @@ mod config_pattern_detection;
 mod continue_cli;
 mod continue_session;
 mod cross_repo_cwd_attribution;
+mod change_history;
 mod cursor;
 mod diff;
 mod diff_comprehensive;

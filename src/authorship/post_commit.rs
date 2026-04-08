@@ -818,6 +818,14 @@ fn collect_context_conversations(
         }
     };
 
+    // Build a composerId → workspace path map from per-workspace Cursor databases.
+    // This is the primary method for workspace scoping and covers all conversation types.
+    let workspace_map = CursorPreset::build_workspace_composer_map();
+
+    let canonical_repo = repo_workdir
+        .canonicalize()
+        .unwrap_or_else(|_| repo_workdir.clone());
+
     let mut results = Vec::new();
 
     for conversation_id in all_ids {
@@ -834,26 +842,35 @@ fn collect_context_conversations(
             continue;
         }
 
-        // Workspace-scoping: only include conversations that were active in the current repo's
-        // workspace. If the workspace root cannot be determined (e.g. older Cursor versions
-        // without messageRequestContext rows), include the conversation as a safe fallback.
-        if let Some(conv_workspace) =
-            CursorPreset::get_conversation_workspace_root(&db_path, &conversation_id)
-        {
-            let conv_workspace_path = std::path::Path::new(&conv_workspace);
-            // Use canonical paths where available to handle symlinks / case differences.
-            let canonical_conv = conv_workspace_path
-                .canonicalize()
-                .unwrap_or_else(|_| conv_workspace_path.to_path_buf());
-            let canonical_repo = repo_workdir
-                .canonicalize()
-                .unwrap_or_else(|_| repo_workdir.clone());
-            if canonical_conv != canonical_repo {
+        // Workspace-scoping: only include conversations from the current repo's workspace.
+        // 1. Check the per-workspace DB map (covers all conversation types)
+        // 2. Fall back to messageRequestContext rows in the global DB
+        // 3. If neither resolves → exclude (not include)
+        let conv_workspace: Option<std::path::PathBuf> = workspace_map
+            .get(&conversation_id)
+            .cloned()
+            .or_else(|| {
+                CursorPreset::get_conversation_workspace_root(&db_path, &conversation_id)
+                    .map(std::path::PathBuf::from)
+            });
+
+        match conv_workspace {
+            Some(ws) => {
+                let canonical_conv = ws.canonicalize().unwrap_or(ws);
+                if canonical_conv != canonical_repo {
+                    debug_log(&format!(
+                        "[context_conversations] Skipping conversation {} (workspace {} != repo {})",
+                        conversation_id,
+                        canonical_conv.display(),
+                        repo_workdir.display()
+                    ));
+                    continue;
+                }
+            }
+            None => {
                 debug_log(&format!(
-                    "[context_conversations] Skipping conversation {} (workspace {} != repo {})",
+                    "[context_conversations] Skipping conversation {} (workspace unknown)",
                     conversation_id,
-                    conv_workspace,
-                    repo_workdir.display()
                 ));
                 continue;
             }

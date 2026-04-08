@@ -1962,6 +1962,143 @@ impl CursorPreset {
             .as_str()
             .map(|s| s.to_string())
     }
+
+    /// Return the path to Cursor's per-workspace storage directory.
+    ///
+    /// Respects `GIT_AI_CURSOR_WORKSPACE_STORAGE_PATH` for testability,
+    /// otherwise uses the platform-specific default.
+    pub fn cursor_workspace_storage_path() -> Result<PathBuf, GitAiError> {
+        if let Ok(p) = std::env::var("GIT_AI_CURSOR_WORKSPACE_STORAGE_PATH") {
+            return Ok(PathBuf::from(p));
+        }
+        let user_dir = Self::cursor_user_dir()?;
+        Ok(user_dir.join("workspaceStorage"))
+    }
+
+    /// Build a map from conversation (composer) ID to workspace path by scanning
+    /// all per-workspace Cursor databases.
+    ///
+    /// Each workspace directory contains:
+    /// - `workspace.json` with a `folder` URI (e.g. `file:///Users/…`)
+    /// - `state.vscdb` with an `ItemTable` row keyed `composer.composerData`
+    ///   whose JSON value contains an `allComposers` array of `{composerId, …}`.
+    ///
+    /// This covers all conversation types (agent, chat, read-only) regardless of
+    /// Cursor version, unlike `messageRequestContext` which only exists for a
+    /// subset of conversations.
+    pub fn build_workspace_composer_map() -> HashMap<String, PathBuf> {
+        let ws_storage = match Self::cursor_workspace_storage_path() {
+            Ok(p) => p,
+            Err(_) => return HashMap::new(),
+        };
+        Self::build_workspace_composer_map_from(&ws_storage)
+    }
+
+    /// Build the composer map from an explicit workspace storage directory path.
+    pub fn build_workspace_composer_map_from(ws_storage: &Path) -> HashMap<String, PathBuf> {
+        if !ws_storage.is_dir() {
+            return HashMap::new();
+        }
+
+        let mut map = HashMap::new();
+
+        let entries = match std::fs::read_dir(ws_storage) {
+            Ok(e) => e,
+            Err(_) => return map,
+        };
+
+        for entry in entries.flatten() {
+            let ws_dir = entry.path();
+            if !ws_dir.is_dir() {
+                continue;
+            }
+
+            let ws_json_path = ws_dir.join("workspace.json");
+            let db_path = ws_dir.join("state.vscdb");
+
+            if !ws_json_path.is_file() || !db_path.is_file() {
+                continue;
+            }
+
+            // Parse workspace.json to get the folder path
+            let folder_path = match std::fs::read_to_string(&ws_json_path)
+                .ok()
+                .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
+                .and_then(|v| v.get("folder")?.as_str().map(|s| s.to_string()))
+            {
+                Some(uri) => {
+                    // Strip file:// scheme and percent-decode
+                    if let Some(raw) = uri.strip_prefix("file://") {
+                        percent_decode(raw)
+                    } else {
+                        uri
+                    }
+                }
+                None => continue,
+            };
+
+            // Read allComposers from the workspace DB
+            let conn = match Self::open_sqlite_readonly(&db_path) {
+                Ok(c) => c,
+                Err(_) => continue,
+            };
+
+            let composer_ids: Vec<String> = (|| -> Option<Vec<String>> {
+                let mut stmt = conn
+                    .prepare("SELECT value FROM ItemTable WHERE key = 'composer.composerData'")
+                    .ok()?;
+                let mut rows = stmt.query([]).ok()?;
+                let row = rows.next().ok()??;
+                let value_text: String = row.get(0).ok()?;
+                let data: serde_json::Value = serde_json::from_str(&value_text).ok()?;
+                let all_composers = data.get("allComposers")?.as_array()?;
+                Some(
+                    all_composers
+                        .iter()
+                        .filter_map(|c| c.get("composerId")?.as_str().map(|s| s.to_string()))
+                        .collect(),
+                )
+            })()
+            .unwrap_or_default();
+
+            let ws_path = PathBuf::from(&folder_path);
+            for cid in composer_ids {
+                map.insert(cid, ws_path.clone());
+            }
+        }
+
+        map
+    }
+}
+
+/// Decode percent-encoded characters in a URI path (e.g. `%20` → ` `).
+fn percent_decode(input: &str) -> String {
+    let mut out = String::with_capacity(input.len());
+    let mut chars = input.bytes();
+    while let Some(b) = chars.next() {
+        if b == b'%' {
+            let hi = chars.next();
+            let lo = chars.next();
+            if let (Some(h), Some(l)) = (hi, lo) {
+                let hex = [h, l];
+                if let Ok(s) = std::str::from_utf8(&hex) {
+                    if let Ok(val) = u8::from_str_radix(s, 16) {
+                        out.push(val as char);
+                        continue;
+                    }
+                }
+                // Malformed, emit as-is
+                out.push(b as char);
+                out.push(h as char);
+                out.push(l as char);
+            } else {
+                out.push(b as char);
+            }
+        } else {
+            out.push(b as char);
+        }
+    }
+    out
 }
 
 pub struct GithubCopilotPreset;
@@ -3739,5 +3876,45 @@ impl AgentCheckpointPreset for AiTabPreset {
             will_edit_filepaths: None,
             dirty_files,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_percent_decode_space() {
+        assert_eq!(percent_decode("/Users/ReSeSS%20Research"), "/Users/ReSeSS Research");
+    }
+
+    #[test]
+    fn test_percent_decode_no_encoding() {
+        assert_eq!(percent_decode("/Users/project"), "/Users/project");
+    }
+
+    #[test]
+    fn test_percent_decode_multiple_encoded() {
+        assert_eq!(
+            percent_decode("/a%20b%2Fc%23d"),
+            "/a b/c#d"
+        );
+    }
+
+    #[test]
+    fn test_percent_decode_empty() {
+        assert_eq!(percent_decode(""), "");
+    }
+
+    #[test]
+    fn test_percent_decode_trailing_percent() {
+        // Malformed: lone % at end
+        assert_eq!(percent_decode("abc%"), "abc%");
+    }
+
+    #[test]
+    fn test_percent_decode_incomplete_hex() {
+        // Malformed: only one hex digit after %
+        assert_eq!(percent_decode("abc%2"), "abc%2");
     }
 }

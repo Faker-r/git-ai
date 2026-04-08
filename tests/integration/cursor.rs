@@ -585,6 +585,196 @@ fn test_cursor_e2e_with_resync() {
     // The temp directory and database will be automatically cleaned up when temp_dir goes out of scope
 }
 
+/// Creates a mock workspace storage directory with workspace DBs for testing
+/// build_workspace_composer_map.
+fn setup_mock_workspace_storage(
+    temp_dir: &std::path::Path,
+    workspaces: &[(&str, &[&str])], // (folder_path, &[composer_ids])
+) {
+    for (i, (folder_path, composer_ids)) in workspaces.iter().enumerate() {
+        let ws_hash = format!("workspace_{}", i);
+        let ws_dir = temp_dir.join(&ws_hash);
+        std::fs::create_dir_all(&ws_dir).unwrap();
+
+        // Write workspace.json
+        let folder_uri = format!("file://{}", folder_path);
+        let ws_json = serde_json::json!({ "folder": folder_uri });
+        std::fs::write(
+            ws_dir.join("workspace.json"),
+            serde_json::to_string(&ws_json).unwrap(),
+        )
+        .unwrap();
+
+        // Create state.vscdb with ItemTable containing allComposers
+        let db_path = ws_dir.join("state.vscdb");
+        let conn = rusqlite::Connection::open(&db_path).unwrap();
+        conn.execute(
+            "CREATE TABLE ItemTable (key TEXT UNIQUE ON CONFLICT REPLACE, value BLOB)",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "CREATE TABLE cursorDiskKV (key TEXT UNIQUE ON CONFLICT REPLACE, value BLOB)",
+            [],
+        )
+        .unwrap();
+
+        let all_composers: Vec<serde_json::Value> = composer_ids
+            .iter()
+            .map(|id| serde_json::json!({ "composerId": id, "type": "agent" }))
+            .collect();
+
+        let composer_data = serde_json::json!({ "allComposers": all_composers });
+        conn.execute(
+            "INSERT INTO ItemTable (key, value) VALUES ('composer.composerData', ?)",
+            [serde_json::to_string(&composer_data).unwrap()],
+        )
+        .unwrap();
+    }
+}
+
+#[test]
+fn test_build_workspace_composer_map_returns_correct_mappings() {
+    use git_ai::commands::checkpoint_agent::agent_presets::CursorPreset;
+
+    let temp_dir = tempfile::TempDir::new().unwrap();
+    let ws_storage = temp_dir.path();
+
+    setup_mock_workspace_storage(
+        ws_storage,
+        &[
+            (
+                "/Users/test/project-a",
+                &["conv-aaa-1", "conv-aaa-2"],
+            ),
+            (
+                "/Users/test/project-b",
+                &["conv-bbb-1"],
+            ),
+        ],
+    );
+
+    let map = CursorPreset::build_workspace_composer_map_from(ws_storage);
+
+    assert_eq!(map.len(), 3, "Should have 3 composer→workspace mappings");
+    assert_eq!(
+        map.get("conv-aaa-1").map(|p| p.to_string_lossy().to_string()),
+        Some("/Users/test/project-a".to_string()),
+    );
+    assert_eq!(
+        map.get("conv-aaa-2").map(|p| p.to_string_lossy().to_string()),
+        Some("/Users/test/project-a".to_string()),
+    );
+    assert_eq!(
+        map.get("conv-bbb-1").map(|p| p.to_string_lossy().to_string()),
+        Some("/Users/test/project-b".to_string()),
+    );
+    assert!(
+        map.get("nonexistent").is_none(),
+        "Should not contain unknown conversation IDs"
+    );
+}
+
+#[test]
+fn test_build_workspace_composer_map_handles_percent_encoded_paths() {
+    use git_ai::commands::checkpoint_agent::agent_presets::CursorPreset;
+
+    let temp_dir = tempfile::TempDir::new().unwrap();
+    let ws_storage = temp_dir.path();
+
+    // Simulate a workspace.json with percent-encoded spaces (like Cursor writes)
+    let ws_dir = ws_storage.join("workspace_0");
+    std::fs::create_dir_all(&ws_dir).unwrap();
+    std::fs::write(
+        ws_dir.join("workspace.json"),
+        r#"{"folder": "file:///Users/Andrew/School/ReSeSS%20Research/tool_testing"}"#,
+    )
+    .unwrap();
+
+    let db_path = ws_dir.join("state.vscdb");
+    let conn = rusqlite::Connection::open(&db_path).unwrap();
+    conn.execute(
+        "CREATE TABLE ItemTable (key TEXT UNIQUE ON CONFLICT REPLACE, value BLOB)",
+        [],
+    )
+    .unwrap();
+    conn.execute(
+        "CREATE TABLE cursorDiskKV (key TEXT UNIQUE ON CONFLICT REPLACE, value BLOB)",
+        [],
+    )
+    .unwrap();
+    let composer_data =
+        serde_json::json!({ "allComposers": [{ "composerId": "conv-space-1" }] });
+    conn.execute(
+        "INSERT INTO ItemTable (key, value) VALUES ('composer.composerData', ?)",
+        [serde_json::to_string(&composer_data).unwrap()],
+    )
+    .unwrap();
+
+    let map = CursorPreset::build_workspace_composer_map_from(ws_storage);
+
+    assert_eq!(
+        map.get("conv-space-1").map(|p| p.to_string_lossy().to_string()),
+        Some("/Users/Andrew/School/ReSeSS Research/tool_testing".to_string()),
+        "Percent-encoded %20 should be decoded to space"
+    );
+}
+
+#[test]
+fn test_build_workspace_composer_map_excludes_dirs_without_workspace_json() {
+    use git_ai::commands::checkpoint_agent::agent_presets::CursorPreset;
+
+    let temp_dir = tempfile::TempDir::new().unwrap();
+    let ws_storage = temp_dir.path();
+
+    // Create a workspace dir with only state.vscdb but no workspace.json
+    let ws_dir = ws_storage.join("orphan");
+    std::fs::create_dir_all(&ws_dir).unwrap();
+    let db_path = ws_dir.join("state.vscdb");
+    let conn = rusqlite::Connection::open(&db_path).unwrap();
+    conn.execute(
+        "CREATE TABLE ItemTable (key TEXT UNIQUE ON CONFLICT REPLACE, value BLOB)",
+        [],
+    )
+    .unwrap();
+    conn.execute(
+        "CREATE TABLE cursorDiskKV (key TEXT UNIQUE ON CONFLICT REPLACE, value BLOB)",
+        [],
+    )
+    .unwrap();
+    let composer_data =
+        serde_json::json!({ "allComposers": [{ "composerId": "conv-orphan" }] });
+    conn.execute(
+        "INSERT INTO ItemTable (key, value) VALUES ('composer.composerData', ?)",
+        [serde_json::to_string(&composer_data).unwrap()],
+    )
+    .unwrap();
+
+    let map = CursorPreset::build_workspace_composer_map_from(ws_storage);
+
+    assert!(
+        map.is_empty(),
+        "Should not include conversations from dirs without workspace.json"
+    );
+}
+
+#[test]
+fn test_build_workspace_composer_map_empty_storage_dir() {
+    use git_ai::commands::checkpoint_agent::agent_presets::CursorPreset;
+
+    let temp_dir = tempfile::TempDir::new().unwrap();
+
+    std::env::set_var(
+        "GIT_AI_CURSOR_WORKSPACE_STORAGE_PATH",
+        temp_dir.path().to_str().unwrap(),
+    );
+
+    let map = CursorPreset::build_workspace_composer_map();
+    std::env::remove_var("GIT_AI_CURSOR_WORKSPACE_STORAGE_PATH");
+
+    assert!(map.is_empty(), "Empty storage dir should yield empty map");
+}
+
 crate::reuse_tests_in_worktree!(
     test_can_open_cursor_test_database,
     test_cursor_database_has_composer_data,
@@ -596,4 +786,8 @@ crate::reuse_tests_in_worktree!(
     test_cursor_preset_human_checkpoint_no_filepath,
     test_cursor_e2e_with_attribution,
     test_cursor_e2e_with_resync,
+    test_build_workspace_composer_map_returns_correct_mappings,
+    test_build_workspace_composer_map_handles_percent_encoded_paths,
+    test_build_workspace_composer_map_excludes_dirs_without_workspace_json,
+    test_build_workspace_composer_map_empty_storage_dir,
 );
