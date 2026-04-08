@@ -1037,13 +1037,13 @@ mod tests {
             .expect("write file");
         tmp_repo.commit_with_message("Commit").expect("commit");
 
-        // No notes exist, search should return empty or error
-        let results = grep_ai_notes(tmp_repo.gitai_repo(), "cursor");
-        // grep may return empty or error if refs/notes/ai doesn't exist
+        // Search for a term that definitely doesn't exist in any authorship note
+        let results = grep_ai_notes(tmp_repo.gitai_repo(), "nonexistent_tool_xyz_12345");
+        // grep may return empty or error if the term doesn't exist
         if let Ok(refs) = results {
             assert_eq!(refs.len(), 0);
         }
-        // Err is also acceptable - refs/notes/ai may not exist yet
+        // Err is also acceptable
     }
 
     #[test]

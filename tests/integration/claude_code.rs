@@ -817,6 +817,7 @@ fn test_plan_message_serialization_roundtrip() {
     let plan_msg = Message::Plan {
         text: "# My Plan\n\n## Step 1\nDo something".to_string(),
         timestamp: Some("2025-01-01T00:00:00Z".to_string()),
+        id: None,
     };
 
     let serialized = serde_json::to_string(&plan_msg).unwrap();
