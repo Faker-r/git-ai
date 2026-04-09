@@ -742,7 +742,7 @@ fn resolve_live_checkpoint_execution(
         &working_log,
         filtered_pathspec.as_ref(),
         is_pre_commit,
-        is_pre_commit && filtered_pathspec.is_some(),
+        filtered_pathspec.is_some(),
         &ignore_matcher,
     )?;
     debug_log(&format!(
