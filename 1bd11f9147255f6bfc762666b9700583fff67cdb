@@ -1,0 +1,41 @@
+src/commands/checkpoint.rs
+  9d3f66721778b0ea 596
+---
+{
+  "schema_version": "authorship/4.0.0",
+  "git_ai_version": "development:1.1.21",
+  "base_commit_sha": "1bd11f9147255f6bfc762666b9700583fff67cdb",
+  "prompts": {
+    "9d3f66721778b0ea": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "a789dc68-60da-4e75-86a3-8d79a03e9520",
+        "model": "default"
+      },
+      "human_author": "Yingying Wang <dora93wang@gmail.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    }
+  },
+  "change_history": [
+    {
+      "timestamp": 1775754092,
+      "kind": "human",
+      "files": {
+        "src/commands/checkpoint.rs": {
+          "added_lines": [],
+          "deleted_lines": []
+        }
+      },
+      "line_stats": {
+        "additions": 0,
+        "deletions": 0,
+        "additions_sloc": 0,
+        "deletions_sloc": 0
+      }
+    }
+  ]
+}
