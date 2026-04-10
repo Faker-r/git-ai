@@ -55,6 +55,7 @@ mod hook_forwarding;
 mod hook_modes;
 mod hooks_feature_flags;
 mod human_overwrites_ai_flows;
+mod ai_overwrites_human_flows;
 mod ignore_prompts;
 mod initial_attributions;
 mod install_hooks_comprehensive;

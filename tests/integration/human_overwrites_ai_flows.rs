@@ -295,7 +295,8 @@ fn test_human_deletes_ai_modified_line() {
     //
     // Expected: final committed line 1 is empty.
     // git-notes for the commit should contain one change_history entry:
-    // 1) ai generated text. human deletion is reflected in the line-declined statistics
+    // 1) ai generated text
+    // 2) human deleted ai-generated line 
     let repo = setup_repo_with_committed_a_md();
 
     std::fs::write(repo.path().join("a.md"), "ai generated text\n")
