@@ -1,7 +1,7 @@
 use crate::error::GitAiError;
 use crate::git::diff_tree_to_tree::Diff;
 use std::io::IsTerminal;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 /// Check if debug logging is enabled via environment variable
@@ -11,6 +11,10 @@ static DEBUG_ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
 static DEBUG_PERFORMANCE_LEVEL: std::sync::OnceLock<u8> = std::sync::OnceLock::new();
 static IS_TERMINAL: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
 static IS_IN_BACKGROUND_AGENT: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+/// Resolved path to the main debug log, cached once per process.
+static DEBUG_LOG_FILE: std::sync::OnceLock<Option<PathBuf>> = std::sync::OnceLock::new();
+/// Separate log for [BENCHMARK] timing lines to keep the main log readable.
+static BENCHMARK_LOG_FILE: std::sync::OnceLock<Option<PathBuf>> = std::sync::OnceLock::new();
 
 fn is_debug_enabled() -> bool {
     *DEBUG_ENABLED.get_or_init(|| {
@@ -48,17 +52,41 @@ pub fn debug_performance_log_structured(json: serde_json::Value) {
 
 /// Debug logging utility function
 ///
-/// Prints debug messages with a colored prefix when debug assertions are enabled or when
-/// the `GIT_AI_DEBUG` environment variable is set to "1".
-///
-/// # Arguments
-///
-/// * `msg` - The debug message to print
+/// Prints debug messages with a colored prefix to stderr, and also appends to
+/// `/tmp/git-ai-debug.log` so output is visible even when invoked from a Cursor
+/// hook where stderr is swallowed. Both outputs are gated on `GIT_AI_DEBUG=1`
+/// (or a debug build).
 pub fn debug_log(msg: &str) {
-    if is_debug_enabled() {
-        eprintln!("\x1b[1;33m[git-ai]\x1b[0m {}", msg);
+    if !is_debug_enabled() {
+        return;
+    }
+
+    // Always print to stderr. Visible when running git commands directly in a terminal.
+    eprintln!("\x1b[1;33m[git-ai]\x1b[0m {}", msg);
+
+    // [BENCHMARK] lines go to a separate file to keep the main log readable.
+    // Read main log with:      tail -f /tmp/git-ai-debug.log
+    // Read benchmark log with: tail -f /tmp/git-ai-benchmark.log
+    let log_path = if msg.starts_with("[BENCHMARK]") {
+        BENCHMARK_LOG_FILE.get_or_init(|| Some(PathBuf::from("/tmp/git-ai-benchmark.log")))
+    } else {
+        DEBUG_LOG_FILE.get_or_init(|| Some(PathBuf::from("/tmp/git-ai-debug.log")))
+    };
+    if let Some(log_path) = log_path {
+        use std::fs::OpenOptions;
+        use std::io::Write;
+        use std::time::SystemTime;
+        let ts = SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis())
+            .unwrap_or(0);
+        // Ignore write failures — debug logging must never affect normal operation.
+        if let Ok(mut f) = OpenOptions::new().create(true).append(true).open(log_path) {
+            let _ = writeln!(f, "[{}] {}", ts, msg);
+        }
     }
 }
+
 
 /// Print a git diff in a readable format
 ///

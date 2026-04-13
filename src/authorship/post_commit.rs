@@ -142,6 +142,21 @@ pub fn post_commit_with_final_state(
         pathspecs.insert(file_path.clone());
     }
 
+    debug_log(&format!(
+        "Post-commit checkpoint summary: {} checkpoints",
+        parent_working_log.len()
+    ));
+    for (i, cp) in parent_working_log.iter().enumerate() {
+        debug_log(&format!(
+            "  [{}] kind={}, agent={:?}, model={:?}, files=[{}]",
+            i,
+            cp.kind.to_str(),
+            cp.agent_id.as_ref().map(|a| format!("{}:{}", a.tool, a.id)),
+            cp.agent_id.as_ref().map(|a| a.model.as_str()),
+            cp.entries.iter().map(|e| e.file.as_str()).collect::<Vec<_>>().join(", "),
+        ));
+    }
+
     let (mut authorship_log, initial_attributions) = working_va
         .to_authorship_log_and_initial_working_log(
             repo,
@@ -152,6 +167,136 @@ pub fn post_commit_with_final_state(
         )?;
 
     authorship_log.metadata.base_commit_sha = commit_sha.clone();
+
+    // Build per-checkpoint change_history for research metrics
+    //
+    // update_prompts_to_latest only attaches the refreshed transcript to the LAST checkpoint per
+    // conversation. Build a fallback map so earlier checkpoints in the same conversation can still
+    // resolve their prompt_text.
+    let conv_transcripts: HashMap<&str, &crate::authorship::transcript::AiTranscript> = {
+        let mut m = HashMap::new();
+        for cp in &parent_working_log {
+            if let (Some(aid), Some(t)) = (&cp.agent_id, &cp.transcript) {
+                m.insert(aid.id.as_str(), t);
+            }
+        }
+        m
+    };
+
+    let change_history: Vec<crate::authorship::authorship_log_serialization::ChangeHistoryEntry> =
+        parent_working_log
+            .iter()
+            .map(|cp| {
+                use crate::authorship::authorship_log_serialization::{
+                    ChangeHistoryEntry, FileChangeDetail,
+                };
+                let (conversation_id, agent_type, model) = if let Some(aid) = &cp.agent_id {
+                    (
+                        Some(crate::authorship::authorship_log_serialization::generate_short_hash(
+                            &aid.id, &aid.tool,
+                        )),
+                        Some(aid.tool.clone()),
+                        Some(aid.model.clone()),
+                    )
+                } else {
+                    (None, None, None)
+                };
+
+                let mut files = std::collections::BTreeMap::new();
+                for entry in &cp.entries {
+                    use crate::authorship::authorship_log_serialization::format_line_range_tuple;
+                    let fmt = |ranges: &[(u32, u32)]| -> Vec<String> {
+                        ranges
+                            .iter()
+                            .map(|&(s, e)| format_line_range_tuple(s, e))
+                            .collect()
+                    };
+                    let fmt_entries = |entries: &[(u32, String)]| -> Vec<String> {
+                        entries
+                            .iter()
+                            .map(|(n, content)| format!("{}: {}", n, content))
+                            .collect()
+                    };
+                    files.insert(
+                        entry.file.clone(),
+                        FileChangeDetail {
+                            added_lines: fmt(
+                                entry.added_line_ranges.as_deref().unwrap_or(&[]),
+                            ),
+                            deleted_lines: fmt(
+                                entry.deleted_line_ranges.as_deref().unwrap_or(&[]),
+                            ),
+                            added_line_contents: fmt_entries(
+                                entry.added_line_entries.as_deref().unwrap_or(&[]),
+                            ),
+                            deleted_line_contents: fmt_entries(
+                                entry.deleted_line_entries.as_deref().unwrap_or(&[]),
+                            ),
+                        },
+                    );
+                }
+
+                let transcript = cp.transcript.as_ref().or_else(|| {
+                    cp.agent_id
+                        .as_ref()
+                        .and_then(|aid| conv_transcripts.get(aid.id.as_str()).copied())
+                });
+                let prompt_text = transcript.and_then(|t| {
+                    extract_prompt_text_for_checkpoint(&t.messages, cp.prompt_id.as_deref(), cp.timestamp)
+                });
+
+                ChangeHistoryEntry {
+                    timestamp: cp.timestamp,
+                    kind: cp.kind.to_str(),
+                    conversation_id,
+                    agent_type,
+                    prompt_id: cp.prompt_id.clone(),
+                    model,
+                    prompt_text,
+                    files,
+                    line_stats: cp.line_stats.clone(),
+                }
+            })
+            .collect();
+
+    if !change_history.is_empty() {
+        authorship_log.metadata.change_history = Some(change_history);
+    }
+
+    // Collect context-only conversations (planning, research, Q&A) that had activity since the
+    // parent commit but made no code changes. They are inserted into prompts with zero stats so
+    // that they travel through the same storage pipeline (secrets redaction, CAS upload, etc.)
+    // as code-touching conversations without requiring any schema changes.
+    {
+        let tracked_ids: HashSet<String> = parent_working_log
+            .iter()
+            .filter_map(|cp| cp.agent_id.as_ref().map(|a| a.id.clone()))
+            .collect();
+        let context_convs = collect_context_conversations(repo, &parent_sha, &tracked_ids, &human_author);
+        for (short_hash, record) in context_convs {
+            authorship_log.metadata.prompts.entry(short_hash).or_insert(record);
+        }
+    }
+
+    // For Cursor conversations, check for subagent IDs by scanning the
+    // agent-transcripts/<conversation_id>/subagents/ directory on disk.
+    for pr in authorship_log.metadata.prompts.values_mut() {
+        if pr.agent_id.tool == "cursor" {
+            if let Some(subagent_ids) =
+                crate::commands::checkpoint_agent::agent_presets::CursorPreset::find_subagent_ids(
+                    &pr.agent_id.id,
+                )
+            {
+                debug_log(&format!(
+                    "Found {} Cursor subagent(s) for conversation {}: {:?}",
+                    subagent_ids.len(),
+                    pr.agent_id.id,
+                    subagent_ids,
+                ));
+                pr.cursor_subagents = Some(subagent_ids);
+            }
+        }
+    }
 
     // Long-lived daemon processes should read a fresh config snapshot.
     // Wrapper/hooks mode can use the process-global cached config.
@@ -235,6 +380,13 @@ pub fn post_commit_with_final_state(
         .map_err(|_| GitAiError::Generic("Failed to serialize authorship log".to_string()))?;
 
     notes_add(repo, &commit_sha, &authorship_json)?;
+
+    debug_log(&format!(
+        "Git note written for commit {}. Note size: {} bytes\n--- NOTE CONTENT ---\n{}\n--- END NOTE ---",
+        commit_sha,
+        authorship_json.len(),
+        authorship_json,
+    ));
 
     // Compute stats once (needed for both metrics and terminal output), unless preflight
     // estimate predicts this would be too expensive for the commit hook path.
@@ -437,6 +589,37 @@ fn count_line_ranges(lines: &[u32]) -> usize {
     ranges
 }
 
+/// Extract the user prompt text for a checkpoint from its conversation transcript.
+/// If `prompt_id` (bubble_id) is set, looks for the matching user message by id.
+/// Falls back to the last user message at or before the checkpoint timestamp.
+fn extract_prompt_text_for_checkpoint(
+    messages: &[crate::authorship::transcript::Message],
+    prompt_id: Option<&str>,
+    checkpoint_ts: u64,
+) -> Option<String> {
+    use crate::authorship::transcript::Message;
+
+    if let Some(pid) = prompt_id {
+        if let Some(msg) = messages.iter().find(|m| {
+            matches!(m, Message::User { id, .. } if id.as_deref() == Some(pid))
+        }) {
+            return msg.text().cloned();
+        }
+    }
+
+    messages
+        .iter()
+        .filter(|m| matches!(m, Message::User { .. }))
+        .filter(|m| {
+            m.timestamp()
+                .and_then(|ts| chrono::DateTime::parse_from_rfc3339(ts).ok())
+                .map(|dt| dt.timestamp() as u64 <= checkpoint_ts)
+                .unwrap_or(true)
+        })
+        .last()
+        .and_then(|m| m.text().cloned())
+}
+
 /// Update prompts/transcripts in working log checkpoints to their latest versions.
 /// This helps prevent race conditions where we miss the last message in a conversation.
 ///
@@ -476,6 +659,44 @@ fn update_prompts_to_latest(checkpoints: &mut [Checkpoint]) -> Result<(), GitAiE
             // Apply the update to the last checkpoint only
             match result {
                 PromptUpdateResult::Updated(latest_transcript, latest_model) => {
+                    // Build a timeline of (unix_ts, bubble_id) for user messages so we can
+                    // assign the correct prompt_id to every checkpoint in this conversation.
+                    // If a message has no parseable timestamp we use 0, which matches any
+                    // checkpoint (better to assign something than leave it null).
+                    let user_msg_timeline: Vec<(u64, Option<String>)> = latest_transcript
+                        .messages
+                        .iter()
+                        .filter(|m| {
+                            matches!(m, crate::authorship::transcript::Message::User { .. })
+                        })
+                        .map(|m| {
+                            let ts = m
+                                .timestamp()
+                                .and_then(|ts_str| {
+                                    chrono::DateTime::parse_from_rfc3339(ts_str).ok()
+                                })
+                                .map(|dt| dt.timestamp() as u64)
+                                .unwrap_or(0);
+                            (ts, m.id().cloned())
+                        })
+                        .collect();
+
+                    // Backfill prompt_id for ALL checkpoints in this conversation that lack
+                    // one. At checkpoint creation time, Cursor's SQLite DB may not yet have
+                    // persisted the triggering user message, so earlier checkpoints in a
+                    // prompt batch frequently miss their prompt_id.
+                    // Strategy: assign the last user message whose timestamp <= checkpoint ts.
+                    for &idx in &indices {
+                        if checkpoints[idx].prompt_id.is_none() {
+                            let cp_ts = checkpoints[idx].timestamp;
+                            checkpoints[idx].prompt_id = user_msg_timeline
+                                .iter()
+                                .filter(|(msg_ts, _)| *msg_ts == 0 || *msg_ts <= cp_ts)
+                                .last()
+                                .and_then(|(_, id)| id.clone());
+                        }
+                    }
+
                     let checkpoint = &mut checkpoints[last_idx];
                     checkpoint.transcript = Some(latest_transcript);
                     if let Some(agent_id) = &mut checkpoint.agent_id {
@@ -549,6 +770,165 @@ fn batch_upsert_prompts_to_db(
     db_guard.batch_upsert_prompts(&records)?;
 
     Ok(())
+}
+
+/// Scan the Cursor DB for conversations that had activity after the parent commit but did not
+/// touch any code (planning, research, Q&A). Returns `(short_hash, PromptRecord)` pairs ready
+/// to be inserted into `authorship_log.metadata.prompts` with zero code-change stats.
+///
+/// Failures are non-fatal: each step logs a debug message and returns an empty vec or skips
+/// the offending conversation, so this function never propagates errors to the caller.
+fn collect_context_conversations(
+    repo: &Repository,
+    parent_sha: &str,
+    already_tracked_ids: &HashSet<String>,
+    human_author: &str,
+) -> Vec<(String, crate::authorship::authorship_log::PromptRecord)> {
+    use crate::authorship::authorship_log::PromptRecord;
+    use crate::authorship::authorship_log_serialization::generate_short_hash;
+    use crate::authorship::working_log::AgentId;
+    use crate::commands::checkpoint_agent::agent_presets::CursorPreset;
+
+    // Lower-bound timestamp: the moment the parent commit was made. Any conversation whose last
+    // bubble was created after this point is a candidate for inclusion.
+    let lower_bound_ts: u64 = if parent_sha == "initial" {
+        0
+    } else {
+        match repo.git(&["log", "-1", "--format=%ct", parent_sha]) {
+            Ok(output) => output.trim().parse::<u64>().unwrap_or(0),
+            Err(e) => {
+                debug_log(&format!(
+                    "[context_conversations] Failed to get parent commit timestamp: {}",
+                    e
+                ));
+                return Vec::new();
+            }
+        }
+    };
+
+    // Resolve the repo working directory once for workspace-scoping comparisons.
+    let repo_workdir = match repo.workdir() {
+        Ok(p) => p,
+        Err(e) => {
+            debug_log(&format!(
+                "[context_conversations] Failed to get repo workdir: {}",
+                e
+            ));
+            return Vec::new();
+        }
+    };
+
+    let db_path = match CursorPreset::cursor_global_database_path() {
+        Ok(p) => p,
+        Err(_) => return Vec::new(),
+    };
+
+    if !db_path.exists() {
+        return Vec::new();
+    }
+
+    let all_ids = match CursorPreset::list_all_cursor_conversation_ids(&db_path) {
+        Ok(ids) => ids,
+        Err(e) => {
+            debug_log(&format!(
+                "[context_conversations] Failed to list Cursor conversation IDs: {}",
+                e
+            ));
+            return Vec::new();
+        }
+    };
+
+    // Build a composerId → workspace path map from per-workspace Cursor databases.
+    // This is the primary method for workspace scoping and covers all conversation types.
+    let workspace_map = CursorPreset::build_workspace_composer_map();
+
+    let canonical_repo = repo_workdir
+        .canonicalize()
+        .unwrap_or_else(|_| repo_workdir.clone());
+
+    let mut results = Vec::new();
+
+    for conversation_id in all_ids {
+        if already_tracked_ids.contains(&conversation_id) {
+            continue;
+        }
+
+        let last_ts = match CursorPreset::get_last_bubble_timestamp(&db_path, &conversation_id) {
+            Some(ts) => ts,
+            None => continue,
+        };
+
+        if last_ts <= lower_bound_ts {
+            continue;
+        }
+
+        // Workspace-scoping: only include conversations from the current repo's workspace.
+        // 1. Check the per-workspace DB map (covers all conversation types)
+        // 2. Fall back to messageRequestContext rows in the global DB
+        // 3. If neither resolves → exclude (not include)
+        let conv_workspace: Option<std::path::PathBuf> = workspace_map
+            .get(&conversation_id)
+            .cloned()
+            .or_else(|| {
+                CursorPreset::get_conversation_workspace_root(&db_path, &conversation_id)
+                    .map(std::path::PathBuf::from)
+            });
+
+        match conv_workspace {
+            Some(ws) => {
+                let canonical_conv = ws.canonicalize().unwrap_or(ws);
+                if canonical_conv != canonical_repo {
+                    debug_log(&format!(
+                        "[context_conversations] Skipping conversation {} (workspace {} != repo {})",
+                        conversation_id,
+                        canonical_conv.display(),
+                        repo_workdir.display()
+                    ));
+                    continue;
+                }
+            }
+            None => {
+                debug_log(&format!(
+                    "[context_conversations] Skipping conversation {} (workspace unknown)",
+                    conversation_id,
+                ));
+                continue;
+            }
+        }
+
+        match CursorPreset::fetch_cursor_conversation_from_db(&db_path, &conversation_id) {
+            Ok(Some((transcript, model))) => {
+                let short_hash = generate_short_hash(&conversation_id, "cursor");
+                let agent_id = AgentId {
+                    tool: "cursor".to_string(),
+                    id: conversation_id.clone(),
+                    model,
+                };
+                let record = PromptRecord {
+                    agent_id,
+                    human_author: Some(human_author.to_string()),
+                    messages: transcript.messages().to_vec(),
+                    total_additions: 0,
+                    total_deletions: 0,
+                    accepted_lines: 0,
+                    overriden_lines: 0,
+                    messages_url: None,
+                    custom_attributes: None,
+                    cursor_subagents: None,
+                };
+                results.push((short_hash, record));
+            }
+            Ok(None) => {}
+            Err(e) => {
+                debug_log(&format!(
+                    "[context_conversations] Failed to fetch conversation {}: {}",
+                    conversation_id, e
+                ));
+            }
+        }
+    }
+
+    results
 }
 
 /// Enqueue prompt messages to CAS for external storage.

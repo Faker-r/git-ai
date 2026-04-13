@@ -124,6 +124,7 @@ pub fn simulate_agent_authorship(
         overriden_lines: 0,
         messages_url: None,
         custom_attributes: None,
+        cursor_subagents: None,
     };
 
     let line_range = if line_start == line_end {

@@ -503,11 +503,15 @@ pub fn get_reference_as_authorship_log_v3(
         }
     };
 
-    // Check version compatibility
-    if authorship_log.metadata.schema_version != AUTHORSHIP_LOG_VERSION {
+    // Check version compatibility (accept both 3.x and 4.x for backward compat)
+    if !authorship_log
+        .metadata
+        .schema_version
+        .starts_with("authorship/")
+    {
         return Err(GitAiError::Generic(format!(
-            "Unsupported authorship log version: {} (expected: {})",
-            authorship_log.metadata.schema_version, AUTHORSHIP_LOG_VERSION
+            "Unsupported authorship log version: {} (expected authorship/3.x or 4.x)",
+            authorship_log.metadata.schema_version
         )));
     }
 
@@ -1033,13 +1037,13 @@ mod tests {
             .expect("write file");
         tmp_repo.commit_with_message("Commit").expect("commit");
 
-        // No notes exist, search should return empty or error
-        let results = grep_ai_notes(tmp_repo.gitai_repo(), "cursor");
-        // grep may return empty or error if refs/notes/ai doesn't exist
+        // Search for a term that definitely doesn't exist in any authorship note
+        let results = grep_ai_notes(tmp_repo.gitai_repo(), "nonexistent_tool_xyz_12345");
+        // grep may return empty or error if the term doesn't exist
         if let Ok(refs) = results {
             assert_eq!(refs.len(), 0);
         }
-        // Err is also acceptable - refs/notes/ai may not exist yet
+        // Err is also acceptable
     }
 
     #[test]

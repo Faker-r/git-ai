@@ -521,6 +521,12 @@ impl PersistedWorkingLog {
             fs::write(&checkpoints_file, "")?;
         }
 
+        debug_log(&format!(
+            "Working log written: {} checkpoints to {}",
+            checkpoints.len(),
+            checkpoints_file.display(),
+        ));
+
         Ok(())
     }
 

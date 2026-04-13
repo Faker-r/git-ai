@@ -517,19 +517,7 @@ fn resolve_live_checkpoint_execution(
     ));
 
     if is_pre_commit && base_commit_override.is_none() {
-        let has_no_ai_edits = working_log
-            .all_ai_touched_files()
-            .map(|files| files.is_empty())
-            .unwrap_or(true);
-        let has_initial_attributions = !working_log.read_initial_attributions().files.is_empty();
-
-        if has_no_ai_edits
-            && !has_initial_attributions
-            && !Config::get().get_feature_flags().inter_commit_move
-        {
-            debug_log("No AI edits in pre-commit checkpoint, skipping");
-            return Ok(None);
-        }
+        debug_log("Pre-commit checkpoint: capturing human change history");
     }
 
     if let Some(dirty_files) = agent_run_result.and_then(|result| result.dirty_files.clone()) {
@@ -605,7 +593,7 @@ fn resolve_live_checkpoint_execution(
         &working_log,
         filtered_pathspec.as_ref(),
         is_pre_commit,
-        is_pre_commit && filtered_pathspec.is_some(),
+        filtered_pathspec.is_some(),
         &ignore_matcher,
     )?;
     debug_log(&format!(
@@ -728,6 +716,16 @@ fn execute_resolved_checkpoint(
         debug_log(&format!(
             "[BENCHMARK] Checkpoint creation took {:?}",
             checkpoint_create_start.elapsed()
+        ));
+
+        debug_log(&format!(
+            "Checkpoint created: kind={}, agent_id={:?}, files=[{}], line_stats={{+{} -{}}}, diff_hash={}",
+            checkpoint.kind.to_str(),
+            checkpoint.agent_id.as_ref().map(|a| format!("{}:{}", a.tool, a.id)),
+            checkpoint.entries.iter().map(|e| e.file.as_str()).collect::<Vec<_>>().join(", "),
+            checkpoint.line_stats.additions,
+            checkpoint.line_stats.deletions,
+            checkpoint.diff,
         ));
 
         if kind != CheckpointKind::Human
@@ -1215,6 +1213,38 @@ fn get_all_tracked_files(
         status_files_start.elapsed()
     ));
 
+    // Re-include previously-checkpointed files that were deleted from disk.
+    // Git status cannot report these (they were never committed), but their
+    // previous content is available in the working log blob store so we can
+    // still produce a meaningful deletion diff.
+    if let Ok(checkpoint_data) = working_log.read_all_checkpoints() {
+        for checkpoint in &checkpoint_data {
+            for entry in &checkpoint.entries {
+                let normalized_path = normalize_to_posix(&entry.file);
+                if results_for_tracked_files.contains(&normalized_path) {
+                    continue;
+                }
+                if !is_path_in_repo(&normalized_path) {
+                    continue;
+                }
+                if should_ignore_file_with_matcher(&normalized_path, ignore_matcher) {
+                    continue;
+                }
+                let abs = repo_workdir
+                    .as_ref()
+                    .map(|w| w.join(&normalized_path))
+                    .unwrap_or_else(|| std::path::PathBuf::from(&normalized_path));
+                if !abs.exists() {
+                    debug_log(&format!(
+                        "Re-including deleted previously-checkpointed file: {}",
+                        normalized_path
+                    ));
+                    results_for_tracked_files.push(normalized_path);
+                }
+            }
+        }
+    }
+
     // Ensure to always include all dirty files
     if let Some(ref dirty_files) = working_log.dirty_files {
         for file_path in dirty_files.keys() {
@@ -1413,7 +1443,7 @@ fn build_previous_file_state_maps(
 fn get_checkpoint_entry_for_file(
     file_path: String,
     kind: CheckpointKind,
-    is_pre_commit: bool,
+    _is_pre_commit: bool,
     repo: Repository,
     working_log: PersistedWorkingLog,
     previous_file_state_by_file: Arc<HashMap<String, PreviousFileState>>,
@@ -1441,21 +1471,23 @@ fn get_checkpoint_entry_for_file(
     // Pre-commit fast path:
     // If this file has no prior AI attribution and no INITIAL attribution,
     // we can skip it entirely. Human-only files do not affect AI authorship.
-    if is_pre_commit
-        && kind == CheckpointKind::Human
-        && !has_prior_ai_edits
-        && initial_attrs_for_file.is_empty()
-    {
-        return Ok(None);
-    }
+
+    // Normally skipped, but for research we want to keep human attributions.
+    // if is_pre_commit
+    //     && kind == CheckpointKind::Human
+    //     && !has_prior_ai_edits
+    //     && initial_attrs_for_file.is_empty()
+    // {
+    //     return Ok(None);
+    // }
 
     let current_content = working_log
         .read_current_file_content(&file_path)
         .unwrap_or_default();
 
-    // Non-pre-commit fast path:
-    // Preserve existing `git-ai checkpoint` behavior for human-only files by writing an
-    // attribution-empty entry while still capturing line stats.
+    // Human-only fast path (both pre-commit and regular checkpoint):
+    // Write an attribution-empty entry while still capturing line stats so that
+    // human changes appear in change_history.
     if kind == CheckpointKind::Human && !has_prior_ai_edits && initial_attrs_for_file.is_empty() {
         let previous_content = if let Some(state) = previous_state.as_ref() {
             working_log
@@ -1470,7 +1502,21 @@ fn get_checkpoint_entry_for_file(
         }
 
         let stats = compute_file_line_stats(&previous_content, &current_content);
-        let entry = WorkingLogEntry::new(file_path, file_content_hash, Vec::new(), Vec::new());
+        let (added_ranges, deleted_ranges, added_entries, deleted_entries) =
+            compute_line_change_ranges(&previous_content, &current_content);
+        let mut entry = WorkingLogEntry::new(file_path, file_content_hash, Vec::new(), Vec::new());
+        if !added_ranges.is_empty() {
+            entry.added_line_ranges = Some(added_ranges);
+        }
+        if !deleted_ranges.is_empty() {
+            entry.deleted_line_ranges = Some(deleted_ranges);
+        }
+        if !added_entries.is_empty() {
+            entry.added_line_entries = Some(added_entries);
+        }
+        if !deleted_entries.is_empty() {
+            entry.deleted_line_entries = Some(deleted_entries);
+        }
         return Ok(Some((entry, stats)));
     }
 
@@ -1629,6 +1675,14 @@ fn get_checkpoint_entry_for_file(
         "[BENCHMARK] Processing file {} took {:?}",
         file_path,
         file_start.elapsed()
+    ));
+    debug_log(&format!(
+        "  File entry: {} | added_ranges={:?} | deleted_ranges={:?} | stats={{+{} -{}}}",
+        file_path,
+        entry.added_line_ranges,
+        entry.deleted_line_ranges,
+        stats.additions,
+        stats.deletions,
     ));
     Ok(Some((entry, stats)))
 }
@@ -1893,14 +1947,100 @@ fn make_entry_for_file(
         stats_start.elapsed()
     ));
 
-    let entry = WorkingLogEntry::new(
+    let (added_ranges, deleted_ranges, added_entries, deleted_entries) =
+        compute_line_change_ranges(previous_content, content);
+
+    let mut entry = WorkingLogEntry::new(
         file_path.to_string(),
         blob_sha.to_string(),
         new_attributions,
         line_attributions,
     );
+    if !added_ranges.is_empty() {
+        entry.added_line_ranges = Some(added_ranges);
+    }
+    if !deleted_ranges.is_empty() {
+        entry.deleted_line_ranges = Some(deleted_ranges);
+    }
+    if !added_entries.is_empty() {
+        entry.added_line_entries = Some(added_entries);
+    }
+    if !deleted_entries.is_empty() {
+        entry.deleted_line_entries = Some(deleted_entries);
+    }
 
     Ok((entry, line_stats))
+}
+
+/// Compute added/deleted line ranges and per-line content entries from a diff.
+/// Returns (added_ranges, deleted_ranges, added_entries, deleted_entries) where:
+/// - ranges are 1-based inclusive (start, end) — used for line_history coordinate mapping
+/// - entries are (line_number, content) pairs — used for human-readable change_history
+/// Added coords are in new-content space; deleted coords are in old-content space.
+fn compute_line_change_ranges(
+    previous_content: &str,
+    current_content: &str,
+) -> (
+    Vec<(u32, u32)>,
+    Vec<(u32, u32)>,
+    Vec<(u32, String)>,
+    Vec<(u32, String)>,
+) {
+    let changes = compute_line_changes(previous_content, current_content);
+    let mut added: Vec<(u32, u32)> = Vec::new();
+    let mut deleted: Vec<(u32, u32)> = Vec::new();
+    let mut added_entries: Vec<(u32, String)> = Vec::new();
+    let mut deleted_entries: Vec<(u32, String)> = Vec::new();
+    let mut old_line = 1u32;
+    let mut new_line = 1u32;
+
+    for change in changes {
+        let num_lines = change.value().lines().count() as u32;
+        if num_lines == 0 {
+            continue;
+        }
+        match change.tag() {
+            LineChangeTag::Equal => {
+                old_line += num_lines;
+                new_line += num_lines;
+            }
+            LineChangeTag::Delete => {
+                let range_end = old_line + num_lines - 1;
+                // Merge into the previous range if contiguous, avoiding O(n) range explosion
+                // on files with single-line deletions.
+                if let Some(last) = deleted.last_mut() {
+                    if last.1 + 1 == old_line {
+                        last.1 = range_end;
+                    } else {
+                        deleted.push((old_line, range_end));
+                    }
+                } else {
+                    deleted.push((old_line, range_end));
+                }
+                for (i, line) in change.value().lines().enumerate() {
+                    deleted_entries.push((old_line + i as u32, line.to_string()));
+                }
+                old_line += num_lines;
+            }
+            LineChangeTag::Insert => {
+                let range_end = new_line + num_lines - 1;
+                if let Some(last) = added.last_mut() {
+                    if last.1 + 1 == new_line {
+                        last.1 = range_end;
+                    } else {
+                        added.push((new_line, range_end));
+                    }
+                } else {
+                    added.push((new_line, range_end));
+                }
+                for (i, line) in change.value().lines().enumerate() {
+                    added_entries.push((new_line + i as u32, line.to_string()));
+                }
+                new_line += num_lines;
+            }
+        }
+    }
+    (added, deleted, added_entries, deleted_entries)
 }
 
 /// Compute line statistics for a single file by diffing previous and current content

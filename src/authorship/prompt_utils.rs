@@ -727,10 +727,12 @@ mod tests {
                 Message::User {
                     text: "Hello".to_string(),
                     timestamp: None,
+                    id: None,
                 },
                 Message::Assistant {
                     text: "Hi there".to_string(),
                     timestamp: None,
+                    id: None,
                 },
             ],
             total_additions: 10,
@@ -739,6 +741,7 @@ mod tests {
             overriden_lines: 2,
             messages_url: None,
             custom_attributes: None,
+            cursor_subagents: None,
         }
     }
 
@@ -758,23 +761,28 @@ mod tests {
             Message::User {
                 text: "User message".to_string(),
                 timestamp: None,
+                id: None,
             },
             Message::Assistant {
                 text: "Assistant message".to_string(),
                 timestamp: None,
+                id: None,
             },
             Message::Thinking {
                 text: "Thinking message".to_string(),
                 timestamp: None,
+                id: None,
             },
             Message::Plan {
                 text: "Plan message".to_string(),
                 timestamp: None,
+                id: None,
             },
             Message::ToolUse {
                 name: "test_tool".to_string(),
                 input: serde_json::json!({"param": "value"}),
                 timestamp: None,
+                id: None,
             },
         ];
 
@@ -804,6 +812,7 @@ mod tests {
         prompt.messages = vec![Message::User {
             text: "Line 1\nLine 2\nLine 3".to_string(),
             timestamp: None,
+            id: None,
         }];
 
         let formatted = format_transcript(&prompt);
@@ -915,9 +924,10 @@ mod tests {
         let prompt_id = authorship
             .metadata
             .prompts
-            .keys()
-            .next()
-            .expect("No prompt found")
+            .iter()
+            .find(|(_, p)| p.agent_id.tool == "test_tool")
+            .expect("No test_tool prompt found")
+            .0
             .clone();
 
         // Get HEAD commit SHA
@@ -999,9 +1009,10 @@ mod tests {
         let prompt_id = authorship1
             .metadata
             .prompts
-            .keys()
-            .next()
-            .expect("No prompt found")
+            .iter()
+            .find(|(_, p)| p.agent_id.tool == "test_tool")
+            .expect("No test_tool prompt found")
+            .0
             .clone();
 
         // Test finding the prompt with offset 0 (most recent)
@@ -1095,9 +1106,10 @@ mod tests {
         let prompt_id = authorship
             .metadata
             .prompts
-            .keys()
-            .next()
-            .expect("No prompt found")
+            .iter()
+            .find(|(_, p)| p.agent_id.tool == "test_tool")
+            .expect("No test_tool prompt found")
+            .0
             .clone();
 
         // Test with commit specified
@@ -1125,9 +1137,10 @@ mod tests {
         let prompt_id = authorship
             .metadata
             .prompts
-            .keys()
-            .next()
-            .expect("No prompt found")
+            .iter()
+            .find(|(_, p)| p.agent_id.tool == "test_tool")
+            .expect("No test_tool prompt found")
+            .0
             .clone();
 
         // Test without commit (searches history)
@@ -1168,9 +1181,10 @@ mod tests {
         let prompt_id = authorship
             .metadata
             .prompts
-            .keys()
-            .next()
-            .expect("No prompt found")
+            .iter()
+            .find(|(_, p)| p.agent_id.tool == "test_tool")
+            .expect("No test_tool prompt found")
+            .0
             .clone();
 
         // Test fallback to repository
@@ -1271,10 +1285,12 @@ mod tests {
             Message::User {
                 text: "Question".to_string(),
                 timestamp: Some("2024-01-01T12:00:00Z".to_string()),
+                id: None,
             },
             Message::Assistant {
                 text: "Answer".to_string(),
                 timestamp: Some("2024-01-01T12:00:01Z".to_string()),
+                id: None,
             },
         ];
 
@@ -1291,6 +1307,7 @@ mod tests {
         prompt.messages = vec![Message::User {
             text: "Text with \"quotes\" and 'apostrophes' and\ttabs\nand newlines".to_string(),
             timestamp: None,
+            id: None,
         }];
 
         let formatted = format_transcript(&prompt);
@@ -1305,6 +1322,7 @@ mod tests {
         prompt.messages = vec![Message::User {
             text: "Hello 世界 🌍 Здравствуй مرحبا".to_string(),
             timestamp: None,
+            id: None,
         }];
 
         let formatted = format_transcript(&prompt);

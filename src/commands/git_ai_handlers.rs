@@ -24,7 +24,7 @@ use crate::git::repository::{CommitRange, Repository, group_files_by_repository}
 use crate::git::sync_authorship::{NotesExistence, fetch_authorship_notes, push_authorship_notes};
 use crate::observability::wrapper_performance_targets::log_performance_for_checkpoint;
 use crate::observability::{self, log_message};
-use crate::utils::is_interactive_terminal;
+use crate::utils::{debug_log, is_interactive_terminal};
 use serde::{Deserialize, Serialize};
 use std::env;
 use std::io::IsTerminal;
@@ -187,6 +187,9 @@ pub fn handle_git_ai(args: &[String]) {
         }
         "flush-metrics-db" => {
             commands::flush_metrics_db::handle_flush_metrics_db(&args[1..]);
+        }
+        "line-history" => {
+            commands::line_history::handle_line_history(&args[1..]);
         }
         "login" => {
             commands::login::handle_login(&args[1..]);
@@ -352,6 +355,8 @@ fn print_help() {
 }
 
 fn handle_checkpoint(args: &[String]) {
+    // debug_log(&format!("handle_checkpoint entry | args={:?} | cwd={:?}", args, std::env::current_dir().ok()));
+
     let mut repository_working_dir = std::env::current_dir()
         .unwrap()
         .to_string_lossy()
@@ -496,7 +501,7 @@ fn handle_checkpoint(args: &[String]) {
                         agent_run_result = Some(agent_run);
                     }
                     Err(e) => {
-                        eprintln!("Error running Cursor preset: {}", e);
+                        debug_log(&format!("Cursor preset error (exiting cleanly): {}", e));
                         std::process::exit(0);
                     }
                 }

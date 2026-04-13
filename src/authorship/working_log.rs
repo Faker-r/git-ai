@@ -20,6 +20,20 @@ pub struct WorkingLogEntry {
     pub attributions: Vec<Attribution>,
     #[serde(default)]
     pub line_attributions: Vec<LineAttribution>,
+    /// Line ranges added in new-content coordinates (start, end) inclusive
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub added_line_ranges: Option<Vec<(u32, u32)>>,
+    /// Line ranges deleted in previous-content coordinates (start, end) inclusive
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deleted_line_ranges: Option<Vec<(u32, u32)>>,
+    /// Individual added lines with content in new-content coordinates.
+    /// Each entry is (line_number, line_content).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub added_line_entries: Option<Vec<(u32, String)>>,
+    /// Individual deleted lines with content in old-content coordinates.
+    /// Each entry is (line_number, line_content).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deleted_line_entries: Option<Vec<(u32, String)>>,
 }
 
 impl WorkingLogEntry {
@@ -35,6 +49,10 @@ impl WorkingLogEntry {
             blob_sha,
             attributions,
             line_attributions,
+            added_line_ranges: None,
+            deleted_line_ranges: None,
+            added_line_entries: None,
+            deleted_line_entries: None,
         }
     }
 }
@@ -87,7 +105,7 @@ impl CheckpointKind {
 }
 
 /// Line-level statistics tracked per checkpoint kind
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(default)]
 pub struct CheckpointLineStats {
     #[serde(default)]
@@ -118,6 +136,9 @@ pub struct Checkpoint {
     pub api_version: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub git_ai_version: Option<String>,
+    /// The id of the user prompt that triggered this checkpoint (e.g. Cursor bubble_id)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub prompt_id: Option<String>,
 }
 
 impl Checkpoint {
@@ -144,6 +165,7 @@ impl Checkpoint {
             line_stats: CheckpointLineStats::default(),
             api_version: CHECKPOINT_API_VERSION.to_string(),
             git_ai_version: Some(GIT_AI_VERSION.to_string()),
+            prompt_id: None,
         }
     }
 }

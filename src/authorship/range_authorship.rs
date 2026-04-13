@@ -213,6 +213,7 @@ fn create_authorship_log_for_range(
                     ),
                     base_commit_sha: end_sha.to_string(),
                     prompts: std::collections::BTreeMap::new(),
+                    change_history: None,
                 },
             },
         );

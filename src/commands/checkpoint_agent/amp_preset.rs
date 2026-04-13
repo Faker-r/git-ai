@@ -336,6 +336,7 @@ impl AmpPreset {
                             transcript.add_message(Message::User {
                                 text: text.to_string(),
                                 timestamp: timestamp.clone(),
+                                id: None,
                             });
                         }
                     }
@@ -348,6 +349,7 @@ impl AmpPreset {
                                     transcript.add_message(Message::Assistant {
                                         text: text.to_string(),
                                         timestamp: timestamp.clone(),
+                                        id: None,
                                     });
                                 }
                             }
@@ -356,6 +358,7 @@ impl AmpPreset {
                                     transcript.add_message(Message::Assistant {
                                         text: thinking.to_string(),
                                         timestamp: timestamp.clone(),
+                                        id: None,
                                     });
                                 }
                             }
@@ -365,6 +368,7 @@ impl AmpPreset {
                                         name: name.to_string(),
                                         input: input.clone(),
                                         timestamp: timestamp.clone(),
+                                        id: None,
                                     });
                                 }
                             }

@@ -5,6 +5,7 @@ use crate::{
     },
     error::GitAiError,
     observability::log_error,
+    utils::debug_log,
 };
 use chrono::{TimeZone, Utc};
 use dirs;
@@ -16,6 +17,7 @@ use std::env;
 use std::path::{Component, Path, PathBuf};
 
 pub struct AgentCheckpointFlags {
+    // The raw hook input payload passed from the agent (JSON string or literal).
     pub hook_input: Option<String>,
 }
 
@@ -217,6 +219,7 @@ impl ClaudePreset {
                                 transcript.add_message(Message::User {
                                     text: content.to_string(),
                                     timestamp: timestamp.clone(),
+                                    id: None,
                                 });
                             }
                         } else if let Some(content_array) =
@@ -236,6 +239,7 @@ impl ClaudePreset {
                                     transcript.add_message(Message::User {
                                         text: text.to_string(),
                                         timestamp: timestamp.clone(),
+                                        id: None,
                                     });
                                 }
                             }
@@ -253,6 +257,7 @@ impl ClaudePreset {
                                             transcript.add_message(Message::Assistant {
                                                 text: text.to_string(),
                                                 timestamp: timestamp.clone(),
+                                                id: None,
                                             });
                                         }
                                     }
@@ -263,6 +268,7 @@ impl ClaudePreset {
                                             transcript.add_message(Message::Assistant {
                                                 text: thinking.to_string(),
                                                 timestamp: timestamp.clone(),
+                                                id: None,
                                             });
                                         }
                                     }
@@ -279,12 +285,14 @@ impl ClaudePreset {
                                                 transcript.add_message(Message::Plan {
                                                     text: plan_text,
                                                     timestamp: timestamp.clone(),
+                                                    id: None,
                                                 });
                                             } else {
                                                 transcript.add_message(Message::ToolUse {
                                                     name: name.to_string(),
                                                     input: item["input"].clone(),
                                                     timestamp: timestamp.clone(),
+                                                    id: None,
                                                 });
                                             }
                                         }
@@ -532,6 +540,7 @@ impl GeminiPreset {
                             transcript.add_message(Message::User {
                                 text: trimmed.to_string(),
                                 timestamp: timestamp.clone(),
+                                id: None,
                             });
                         }
                     }
@@ -551,6 +560,7 @@ impl GeminiPreset {
                             transcript.add_message(Message::Assistant {
                                 text: trimmed.to_string(),
                                 timestamp: timestamp.clone(),
+                                id: None,
                             });
                         }
                     }
@@ -573,6 +583,7 @@ impl GeminiPreset {
                                     name: name.to_string(),
                                     input: args,
                                     timestamp: tool_timestamp,
+                                    id: None,
                                 });
                             }
                         }
@@ -737,6 +748,7 @@ impl WindsurfPreset {
                             transcript.add_message(Message::User {
                                 text: trimmed.to_string(),
                                 timestamp,
+                                id: None,
                             });
                         }
                     }
@@ -751,6 +763,7 @@ impl WindsurfPreset {
                             transcript.add_message(Message::Assistant {
                                 text: trimmed.to_string(),
                                 timestamp,
+                                id: None,
                             });
                         }
                     }
@@ -773,6 +786,7 @@ impl WindsurfPreset {
                                 "new_content": new_content,
                             }),
                             timestamp,
+                            id: None,
                         });
                     }
                 }
@@ -784,6 +798,7 @@ impl WindsurfPreset {
                         name: entry_type.to_string(),
                         input,
                         timestamp,
+                        id: None,
                     });
                 }
                 _ => {
@@ -952,6 +967,7 @@ impl ContinueCliPreset {
                             transcript.add_message(Message::User {
                                 text: trimmed.to_string(),
                                 timestamp: timestamp.clone(),
+                                id: None,
                             });
                         }
                     }
@@ -964,6 +980,7 @@ impl ContinueCliPreset {
                             transcript.add_message(Message::Assistant {
                                 text: trimmed.to_string(),
                                 timestamp: timestamp.clone(),
+                                id: None,
                             });
                         }
                     }
@@ -998,6 +1015,7 @@ impl ContinueCliPreset {
                                     name: tool_name.to_string(),
                                     input: args,
                                     timestamp: tool_timestamp,
+                                    id: None,
                                 });
                             }
                         }
@@ -1253,11 +1271,13 @@ impl CodexPreset {
                                     transcript.add_message(Message::User {
                                         text: joined,
                                         timestamp: timestamp.clone(),
+                                        id: None,
                                     });
                                 } else if role == "assistant" {
                                     transcript.add_message(Message::Assistant {
                                         text: joined,
                                         timestamp: timestamp.clone(),
+                                        id: None,
                                     });
                                 }
                             }
@@ -1295,6 +1315,7 @@ impl CodexPreset {
                                 name,
                                 input,
                                 timestamp: timestamp.clone(),
+                                id: None,
                             });
                         }
                         _ => {}
@@ -1328,6 +1349,7 @@ impl CodexPreset {
                             transcript.add_message(Message::User {
                                 text: trimmed.to_string(),
                                 timestamp: timestamp.clone(),
+                                id: None,
                             });
                         }
                     }
@@ -1339,6 +1361,7 @@ impl CodexPreset {
                         transcript.add_message(Message::Assistant {
                             text: trimmed.to_string(),
                             timestamp: timestamp.clone(),
+                            id: None,
                         });
                     }
                 }
@@ -1396,8 +1419,17 @@ impl AgentCheckpointPreset for CursorPreset {
             .map(|s| s.to_string())
             .unwrap_or_else(|| "unknown".to_string());
 
+        debug_log(&format!(
+            "CursorPreset: hook_event_name={}, conversation_id={}, workspace_roots={:?}",
+            hook_event_name, conversation_id, workspace_roots,
+        ));
+
         // Legacy hooks no longer installed; exit silently for existing users who haven't reinstalled.
         if hook_event_name == "beforeSubmitPrompt" || hook_event_name == "afterFileEdit" {
+            debug_log(&format!(
+                "CursorPreset: legacy hook event '{}', exiting (reinstall hooks to fix)",
+                hook_event_name
+            ));
             std::process::exit(0);
         }
 
@@ -1409,34 +1441,43 @@ impl AgentCheckpointPreset for CursorPreset {
             )));
         }
 
+        // file_path lives under tool_input.file_path in Cursor's hook payload
         let file_path = hook_data
-            .get("file_path")
+            .get("tool_input")
+            .and_then(|ti| ti.get("file_path"))
             .and_then(|v| v.as_str())
+            .or_else(|| hook_data.get("file_path").and_then(|v| v.as_str()))
             .map(Self::normalize_cursor_path)
             .unwrap_or_default();
 
+        // own directory lets find_repository walk up and locate the correct .git folder.
         let repo_working_dir = if !file_path.is_empty() {
-            workspace_roots
-                .iter()
-                .find(|root| {
-                    let root_str = root.as_str();
-                    file_path.starts_with(root_str)
-                        && (file_path.len() == root_str.len()
-                            || file_path[root_str.len()..].starts_with('/')
-                            || file_path[root_str.len()..].starts_with('\\')
-                            || root_str.ends_with('/')
-                            || root_str.ends_with('\\'))
+            Path::new(&file_path)
+                .parent()
+                .map(|p| p.to_string_lossy().to_string())
+                .unwrap_or_else(|| {
+                    workspace_roots
+                        .iter()
+                        .find(|root| {
+                            let root_str = root.as_str();
+                            file_path.starts_with(root_str)
+                                && (file_path.len() == root_str.len()
+                                    || file_path[root_str.len()..].starts_with('/')
+                                    || file_path[root_str.len()..].starts_with('\\')
+                                    || root_str.ends_with('/')
+                                    || root_str.ends_with('\\'))
+                        })
+                        .cloned()
+                        .or_else(|| workspace_roots.first().cloned())
+                        .unwrap_or_default()
                 })
-                .cloned()
-                .or_else(|| workspace_roots.first().cloned())
-                .ok_or_else(|| {
-                    GitAiError::PresetError("No workspace root found in hook_input".to_string())
-                })?
         } else {
             workspace_roots.first().cloned().ok_or_else(|| {
                 GitAiError::PresetError("No workspace root found in hook_input".to_string())
             })?
         };
+
+        debug_log(&format!("CursorPreset: resolved repo_working_dir={}", repo_working_dir));
 
         if hook_event_name == "preToolUse" {
             // early return, we're just adding a human checkpoint.
@@ -1593,7 +1634,7 @@ impl CursorPreset {
     }
 
     // Get the Cursor database path
-    fn cursor_global_database_path() -> Result<PathBuf, GitAiError> {
+    pub fn cursor_global_database_path() -> Result<PathBuf, GitAiError> {
         if let Ok(global_db_path) = std::env::var("GIT_AI_CURSOR_GLOBAL_DB_PATH") {
             return Ok(PathBuf::from(global_db_path));
         }
@@ -1716,20 +1757,24 @@ impl CursorPreset {
                     model = Some(model_name.to_string());
                 }
 
+                let bid = Some(bubble_id.to_string());
+
                 // Extract text from bubble
                 if let Some(text) = bubble_content.get("text").and_then(|v| v.as_str()) {
                     let trimmed = text.trim();
                     if !trimmed.is_empty() {
                         let role = header.get("type").and_then(|v| v.as_i64()).unwrap_or(0);
                         if role == 1 {
-                            transcript.add_message(Message::user(
+                            transcript.add_message(Message::user_with_id(
                                 trimmed.to_string(),
                                 bubble_created_at.clone(),
+                                bid.clone(),
                             ));
                         } else {
-                            transcript.add_message(Message::assistant(
+                            transcript.add_message(Message::assistant_with_id(
                                 trimmed.to_string(),
                                 bubble_created_at.clone(),
+                                bid.clone(),
                             ));
                         }
                     }
@@ -1751,10 +1796,10 @@ impl CursorPreset {
                         "edit_file" => {
                             let target_file =
                                 raw_args_json.get("target_file").and_then(|v| v.as_str());
-                            transcript.add_message(Message::tool_use(
+                            transcript.add_message(Message::tool_use_with_id(
                                 tool_name.to_string(),
-                                // Explicitly clear out everything other than target_file (renamed to file_path for consistency in git-ai) (too much data in rawArgs)
                                 serde_json::json!({ "file_path": target_file.unwrap_or("") }),
+                                bid.clone(),
                             ));
                         }
                         "apply_patch"
@@ -1764,18 +1809,19 @@ impl CursorPreset {
                         | "write"
                         | "MultiEdit" => {
                             let file_path = raw_args_json.get("file_path").and_then(|v| v.as_str());
-                            transcript.add_message(Message::tool_use(
+                            transcript.add_message(Message::tool_use_with_id(
                                 tool_name.to_string(),
-                                // Explicitly clear out everything other than file_path (too much data in rawArgs)
                                 serde_json::json!({ "file_path": file_path.unwrap_or("") }),
+                                bid.clone(),
                             ));
                         }
                         "codebase_search" | "grep" | "read_file" | "web_search"
                         | "run_terminal_cmd" | "glob_file_search" | "todo_write"
                         | "file_search" | "grep_search" | "list_dir" | "ripgrep" => {
-                            transcript.add_message(Message::tool_use(
+                            transcript.add_message(Message::tool_use_with_id(
                                 tool_name.to_string(),
                                 raw_args_json,
+                                bid.clone(),
                             ));
                         }
                         _ => {}
@@ -1820,6 +1866,268 @@ impl CursorPreset {
         }
 
         Ok(None)
+    }
+
+    /// Return all Cursor conversation UUIDs present in the database.
+    /// Reads every `composerData:<uuid>` key from `cursorDiskKV` and strips the prefix.
+    pub fn list_all_cursor_conversation_ids(
+        db_path: &Path,
+    ) -> Result<Vec<String>, GitAiError> {
+        let conn = Self::open_sqlite_readonly(db_path)?;
+        let mut stmt = conn
+            .prepare("SELECT key FROM cursorDiskKV WHERE key LIKE 'composerData:%'")
+            .map_err(|e| GitAiError::Generic(format!("Query failed: {}", e)))?;
+        let mut rows = stmt
+            .query([])
+            .map_err(|e| GitAiError::Generic(format!("Query failed: {}", e)))?;
+
+        let mut ids = Vec::new();
+        while let Ok(Some(row)) = rows.next() {
+            let key: String = row
+                .get(0)
+                .map_err(|e| GitAiError::Generic(format!("Failed to read key: {}", e)))?;
+            if let Some(uuid) = key.strip_prefix("composerData:") {
+                ids.push(uuid.to_string());
+            }
+        }
+        Ok(ids)
+    }
+
+    /// Return the Unix timestamp (seconds) of the last bubble in a conversation,
+    /// or `None` if the conversation is missing, uses a legacy format, or has no
+    /// parseable timestamp.
+    pub fn get_last_bubble_timestamp(db_path: &Path, conversation_id: &str) -> Option<u64> {
+        let data = Self::fetch_composer_payload(db_path, conversation_id).ok()?;
+
+        let headers = data
+            .get("fullConversationHeadersOnly")
+            .and_then(|v| v.as_array())?;
+
+        let last_bubble_id = headers
+            .iter()
+            .rev()
+            .find_map(|h| h.get("bubbleId").and_then(|v| v.as_str()).map(|s| s.to_string()))?;
+
+        let bubble = Self::fetch_bubble_content_from_db(db_path, conversation_id, &last_bubble_id)
+            .ok()
+            .flatten()?;
+
+        let created_at = bubble.get("createdAt").and_then(|v| v.as_str())?;
+
+        chrono::DateTime::parse_from_rfc3339(created_at)
+            .ok()
+            .map(|dt| dt.timestamp() as u64)
+    }
+
+    /// Return the workspace root path for a conversation by inspecting `messageRequestContext`
+    /// rows in the Cursor DB.
+    ///
+    /// Each `messageRequestContext:<conversation_id>:<bubble_id>` row (excluding the special
+    /// `WARM_SUBMIT` key) contains a `projectLayouts` array whose first element is a
+    /// JSON-encoded string with `listDirV2Result.directoryTreeRoot.absPath` equal to the
+    /// workspace root that was open when the conversation was running.
+    ///
+    /// Returns `None` when:
+    /// - No matching rows exist (older Cursor version, conversation without tool use)
+    /// - The JSON structure is unexpected
+    pub fn get_conversation_workspace_root(
+        db_path: &Path,
+        conversation_id: &str,
+    ) -> Option<String> {
+        let conn = Self::open_sqlite_readonly(db_path).ok()?;
+
+        let like_pattern = format!("messageRequestContext:{}:%", conversation_id);
+        let warm_submit_key = format!("messageRequestContext:{}:WARM_SUBMIT", conversation_id);
+
+        let mut stmt = conn
+            .prepare(
+                "SELECT value FROM cursorDiskKV WHERE key LIKE ? AND key != ? LIMIT 1",
+            )
+            .ok()?;
+
+        let mut rows = stmt.query([&like_pattern, &warm_submit_key]).ok()?;
+
+        let row = rows.next().ok()??;
+        let value_text: String = row.get(0).ok()?;
+        let data: serde_json::Value = serde_json::from_str(&value_text).ok()?;
+
+        let layouts = data.get("projectLayouts")?.as_array()?;
+        let first_layout_str = layouts.first()?.as_str()?;
+        let first_layout: serde_json::Value = serde_json::from_str(first_layout_str).ok()?;
+
+        first_layout
+            .get("listDirV2Result")?
+            .get("directoryTreeRoot")?
+            .get("absPath")?
+            .as_str()
+            .map(|s| s.to_string())
+    }
+
+    /// Return the path to Cursor's per-workspace storage directory.
+    ///
+    /// Respects `GIT_AI_CURSOR_WORKSPACE_STORAGE_PATH` for testability,
+    /// otherwise uses the platform-specific default.
+    pub fn cursor_workspace_storage_path() -> Result<PathBuf, GitAiError> {
+        if let Ok(p) = std::env::var("GIT_AI_CURSOR_WORKSPACE_STORAGE_PATH") {
+            return Ok(PathBuf::from(p));
+        }
+        let user_dir = Self::cursor_user_dir()?;
+        Ok(user_dir.join("workspaceStorage"))
+    }
+
+    /// Build a map from conversation (composer) ID to workspace path by scanning
+    /// all per-workspace Cursor databases.
+    ///
+    /// Each workspace directory contains:
+    /// - `workspace.json` with a `folder` URI (e.g. `file:///Users/…`)
+    /// - `state.vscdb` with an `ItemTable` row keyed `composer.composerData`
+    ///   whose JSON value contains an `allComposers` array of `{composerId, …}`.
+    ///
+    /// This covers all conversation types (agent, chat, read-only) regardless of
+    /// Cursor version, unlike `messageRequestContext` which only exists for a
+    /// subset of conversations.
+    pub fn build_workspace_composer_map() -> HashMap<String, PathBuf> {
+        let ws_storage = match Self::cursor_workspace_storage_path() {
+            Ok(p) => p,
+            Err(_) => return HashMap::new(),
+        };
+        Self::build_workspace_composer_map_from(&ws_storage)
+    }
+
+    /// Build the composer map from an explicit workspace storage directory path.
+    pub fn build_workspace_composer_map_from(ws_storage: &Path) -> HashMap<String, PathBuf> {
+        if !ws_storage.is_dir() {
+            return HashMap::new();
+        }
+
+        let mut map = HashMap::new();
+
+        let entries = match std::fs::read_dir(ws_storage) {
+            Ok(e) => e,
+            Err(_) => return map,
+        };
+
+        for entry in entries.flatten() {
+            let ws_dir = entry.path();
+            if !ws_dir.is_dir() {
+                continue;
+            }
+
+            let ws_json_path = ws_dir.join("workspace.json");
+            let db_path = ws_dir.join("state.vscdb");
+
+            if !ws_json_path.is_file() || !db_path.is_file() {
+                continue;
+            }
+
+            // Parse workspace.json to get the folder path from its file:// URI
+            let folder_path = match std::fs::read_to_string(&ws_json_path)
+                .ok()
+                .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
+                .and_then(|v| v.get("folder")?.as_str().map(|s| s.to_string()))
+                .and_then(|uri| url::Url::parse(&uri).ok())
+                .and_then(|u| u.to_file_path().ok())
+            {
+                Some(p) => p.to_string_lossy().to_string(),
+                None => continue,
+            };
+
+            // Read allComposers from the workspace DB
+            let conn = match Self::open_sqlite_readonly(&db_path) {
+                Ok(c) => c,
+                Err(_) => continue,
+            };
+
+            let composer_ids: Vec<String> = (|| -> Option<Vec<String>> {
+                let mut stmt = conn
+                    .prepare("SELECT value FROM ItemTable WHERE key = 'composer.composerData'")
+                    .ok()?;
+                let mut rows = stmt.query([]).ok()?;
+                let row = rows.next().ok()??;
+                let value_text: String = row.get(0).ok()?;
+                let data: serde_json::Value = serde_json::from_str(&value_text).ok()?;
+                let all_composers = data.get("allComposers")?.as_array()?;
+                Some(
+                    all_composers
+                        .iter()
+                        .filter_map(|c| c.get("composerId")?.as_str().map(|s| s.to_string()))
+                        .collect(),
+                )
+            })()
+            .unwrap_or_default();
+
+            let ws_path = PathBuf::from(&folder_path);
+            for cid in composer_ids {
+                map.insert(cid, ws_path.clone());
+            }
+        }
+
+        map
+    }
+
+    /// Return the path to Cursor's per-project agent-transcripts directory.
+    ///
+    /// Respects `GIT_AI_CURSOR_AGENT_TRANSCRIPTS_PATH` for testability,
+    /// otherwise scans `~/.cursor/projects/*/agent-transcripts/`.
+    fn cursor_agent_transcripts_dirs() -> Vec<PathBuf> {
+        if let Ok(p) = std::env::var("GIT_AI_CURSOR_AGENT_TRANSCRIPTS_PATH") {
+            return vec![PathBuf::from(p)];
+        }
+        let home = match dirs::home_dir() {
+            Some(h) => h,
+            None => return vec![],
+        };
+        let projects_dir = home.join(".cursor").join("projects");
+        if !projects_dir.is_dir() {
+            return vec![];
+        }
+        let mut dirs = Vec::new();
+        if let Ok(entries) = std::fs::read_dir(&projects_dir) {
+            for entry in entries.flatten() {
+                let at_dir = entry.path().join("agent-transcripts");
+                if at_dir.is_dir() {
+                    dirs.push(at_dir);
+                }
+            }
+        }
+        dirs
+    }
+
+    /// Find subagent conversation IDs for a given Cursor conversation.
+    ///
+    /// Scans `~/.cursor/projects/*/agent-transcripts/<conversation_id>/subagents/`
+    /// for `.jsonl` files and returns the UUIDs extracted from filenames.
+    /// Returns `None` if no subagents exist.
+    pub fn find_subagent_ids(conversation_id: &str) -> Option<Vec<String>> {
+        for transcripts_dir in Self::cursor_agent_transcripts_dirs() {
+            let subagents_dir = transcripts_dir
+                .join(conversation_id)
+                .join("subagents");
+
+            if !subagents_dir.is_dir() {
+                continue;
+            }
+
+            let entries = match std::fs::read_dir(&subagents_dir) {
+                Ok(e) => e,
+                Err(_) => continue,
+            };
+
+            let mut ids = Vec::new();
+            for entry in entries.flatten() {
+                let filename = entry.file_name().to_string_lossy().to_string();
+                if let Some(id) = filename.strip_suffix(".jsonl") {
+                    ids.push(id.to_string());
+                }
+            }
+
+            if !ids.is_empty() {
+                ids.sort();
+                return Some(ids);
+            }
+        }
+
+        None
     }
 }
 
@@ -2870,6 +3178,7 @@ impl DroidPreset {
                                 transcript.add_message(Message::User {
                                     text: text.to_string(),
                                     timestamp: timestamp.clone(),
+                                    id: None,
                                 });
                             }
                         }
@@ -2879,6 +3188,7 @@ impl DroidPreset {
                         transcript.add_message(Message::User {
                             text: content.to_string(),
                             timestamp: timestamp.clone(),
+                            id: None,
                         });
                     }
                 }
@@ -2893,6 +3203,7 @@ impl DroidPreset {
                                         transcript.add_message(Message::Assistant {
                                             text: text.to_string(),
                                             timestamp: timestamp.clone(),
+                                            id: None,
                                         });
                                     }
                                 }
@@ -2903,6 +3214,7 @@ impl DroidPreset {
                                         transcript.add_message(Message::Assistant {
                                             text: thinking.to_string(),
                                             timestamp: timestamp.clone(),
+                                            id: None,
                                         });
                                     }
                                 }
@@ -2919,12 +3231,14 @@ impl DroidPreset {
                                             transcript.add_message(Message::Plan {
                                                 text: plan_text,
                                                 timestamp: timestamp.clone(),
+                                                id: None,
                                             });
                                         } else {
                                             transcript.add_message(Message::ToolUse {
                                                 name: name.to_string(),
                                                 input: item["input"].clone(),
                                                 timestamp: timestamp.clone(),
+                                                id: None,
                                             });
                                         }
                                     }
@@ -3104,6 +3418,7 @@ impl GithubCopilotPreset {
                     transcript.add_message(Message::User {
                         text: trimmed.to_string(),
                         timestamp: user_ts_rfc3339.clone(),
+                        id: None,
                     });
                 }
             }
@@ -3269,6 +3584,7 @@ impl GithubCopilotPreset {
                     transcript.add_message(Message::Assistant {
                         text: assistant_text_accumulator.trim().to_string(),
                         timestamp: assistant_ts,
+                        id: None,
                     });
                 }
             }
@@ -3347,6 +3663,7 @@ impl GithubCopilotPreset {
                         transcript.add_message(Message::User {
                             text: text.to_string(),
                             timestamp: timestamp.clone(),
+                            id: None,
                         });
                     }
                 }
@@ -3370,6 +3687,7 @@ impl GithubCopilotPreset {
                         transcript.add_message(Message::Assistant {
                             text,
                             timestamp: timestamp.clone(),
+                            id: None,
                         });
                     }
 
@@ -3590,3 +3908,4 @@ impl AgentCheckpointPreset for AiTabPreset {
         })
     }
 }
+
