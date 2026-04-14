@@ -170,6 +170,9 @@ pub fn handle_git_ai(args: &[String]) {
         "git-hooks" => {
             handle_git_hooks(&args[1..]);
         }
+        "repo" => {
+            handle_repo(&args[1..]);
+        }
         "squash-authorship" => {
             commands::squash_authorship::handle_squash_authorship(&args[1..]);
         }
@@ -303,6 +306,10 @@ fn print_help() {
     eprintln!("  uninstall-hooks    Remove git-ai hooks from all detected tools");
     eprintln!("  git-hooks ensure   Ensure repo-local git-ai hooks are installed/healed");
     eprintln!("  git-hooks remove   Remove repo-local git-ai hooks and restore local hooksPath");
+    eprintln!("  repo               Manage per-repository git-ai enablement");
+    eprintln!("    enable                 Enable git-ai tracking in this repository");
+    eprintln!("    disable                Disable git-ai tracking in this repository");
+    eprintln!("    status                 Show git-ai tracking status and reason");
     eprintln!("  ci                 Continuous integration utilities");
     eprintln!("    github                 GitHub CI helpers");
     eprintln!("  squash-authorship  Generate authorship log for squashed commits");
@@ -654,7 +661,8 @@ fn handle_checkpoint(args: &[String]) {
 
     let config = config::Config::get();
     if let Ok(ref repo) = repo_result
-        && !config.is_allowed_repository(&Some(repo.clone()))
+        && (!config.is_allowed_repository(&Some(repo.clone()))
+            || commands::git_hook_handlers::is_repo_explicitly_disabled(repo))
     {
         eprintln!(
             "Skipping checkpoint because repository is excluded or not in allow_repositories list"
@@ -746,7 +754,9 @@ fn handle_checkpoint(args: &[String]) {
 
             // Process each repository separately
             for (repo_workdir, (repo, repo_file_paths)) in repo_files {
-                if !config.is_allowed_repository(&Some(repo.clone())) {
+                if !config.is_allowed_repository(&Some(repo.clone()))
+                    || commands::git_hook_handlers::is_repo_explicitly_disabled(&repo)
+                {
                     eprintln!(
                         "Skipping checkpoint for {} because repository is excluded or not in allow_repositories list",
                         repo_workdir.display()
@@ -1004,7 +1014,9 @@ fn handle_checkpoint(args: &[String]) {
         }
 
         for (repo_workdir, (ext_repo, repo_file_paths)) in repo_files {
-            if !config.is_allowed_repository(&Some(ext_repo.clone())) {
+            if !config.is_allowed_repository(&Some(ext_repo.clone()))
+                || commands::git_hook_handlers::is_repo_explicitly_disabled(&ext_repo)
+            {
                 continue;
             }
 
@@ -1845,6 +1857,71 @@ fn handle_git_hooks(args: &[String]) {
         }
         _ => {
             eprintln!("Usage: git-ai git-hooks <ensure|remove>");
+            std::process::exit(1);
+        }
+    }
+}
+
+fn handle_repo(args: &[String]) {
+    match args.first().map(String::as_str) {
+        Some("enable") => {
+            let repo = match find_repository(&Vec::<String>::new()) {
+                Ok(repo) => repo,
+                Err(e) => {
+                    eprintln!("Failed to find repository: {e}");
+                    std::process::exit(1);
+                }
+            };
+            commands::git_hook_handlers::forget_repo_disabled(&repo);
+            if let Err(e) = commands::git_hook_handlers::ensure_repo_hooks_installed(&repo, false) {
+                eprintln!("Failed to ensure repo hooks: {e}");
+                std::process::exit(1);
+            }
+            if let Err(e) = commands::git_hook_handlers::mark_repo_hooks_enabled(&repo) {
+                eprintln!("Failed to mark repo enabled: {e}");
+                std::process::exit(1);
+            }
+            eprintln!("git-ai enabled for this repository");
+            std::process::exit(0);
+        }
+        Some("disable") => {
+            let repo = match find_repository(&Vec::<String>::new()) {
+                Ok(repo) => repo,
+                Err(e) => {
+                    eprintln!("Failed to find repository: {e}");
+                    std::process::exit(1);
+                }
+            };
+            if let Err(e) = commands::git_hook_handlers::remove_repo_hooks(&repo, false) {
+                eprintln!("Failed to remove repo hooks: {e}");
+                std::process::exit(1);
+            }
+            commands::git_hook_handlers::remember_repo_disabled(&repo);
+            eprintln!("git-ai disabled for this repository");
+            std::process::exit(0);
+        }
+        Some("status") => {
+            let repo = match find_repository(&Vec::<String>::new()) {
+                Ok(repo) => repo,
+                Err(e) => {
+                    eprintln!("Failed to find repository: {e}");
+                    std::process::exit(1);
+                }
+            };
+            let disabled =
+                commands::git_hook_handlers::is_repo_explicitly_disabled(&repo);
+            let (status, reason) = if disabled {
+                ("disabled", "explicitly_disabled")
+            } else {
+                ("enabled", "default")
+            };
+
+            eprintln!("status: {status}");
+            eprintln!("reason: {reason}");
+            std::process::exit(0);
+        }
+        _ => {
+            eprintln!("Usage: git-ai repo <enable|disable|status>");
             std::process::exit(1);
         }
     }

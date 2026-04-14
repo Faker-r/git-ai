@@ -275,6 +275,213 @@ fn git_hooks_uninstall_alias_works_end_to_end() {
 
 #[test]
 #[serial]
+fn cloned_repo_can_be_disabled_via_git_hooks_remove_and_stays_disabled_on_checkpoint() {
+    // Simulates: git-ai already installed globally, user clones a new repo, then disables
+    // git-ai for this repository using git-hooks remove.
+    let _mode = EnvVarGuard::set("GIT_AI_TEST_GIT_MODE", "wrapper");
+    let repo = TestRepo::new();
+    let marker_path = git_hooks_ai_dir(&repo).join("git_hooks_enabled");
+    let managed_hooks_dir = git_hooks_ai_dir(&repo).join("hooks");
+
+    // User explicitly disables git-ai repo hooks for this repository.
+    repo.git_ai(&["git-hooks", "remove"])
+        .expect("git-hooks remove should succeed");
+
+    assert!(
+        !marker_path.exists() && marker_path.symlink_metadata().is_err(),
+        "marker should be absent after explicit disable"
+    );
+    assert!(
+        !managed_hooks_dir.exists() && managed_hooks_dir.symlink_metadata().is_err(),
+        "managed hooks should be absent after explicit disable"
+    );
+
+    // Agent hooks may still invoke checkpoint globally, but this repo should remain disabled.
+    fs::write(repo.path().join("disabled-repo.txt"), "disabled repo\n").expect("write test file");
+    repo.git(&["add", "disabled-repo.txt"]).expect("staging should succeed");
+    repo.git_ai(&["checkpoint", "mock_ai", "disabled-repo.txt"])
+        .expect("checkpoint should succeed");
+
+    assert!(
+        !marker_path.exists() && marker_path.symlink_metadata().is_err(),
+        "checkpoint should not re-enable marker for explicitly disabled repo"
+    );
+    assert!(
+        !managed_hooks_dir.exists() && managed_hooks_dir.symlink_metadata().is_err(),
+        "checkpoint should not re-install managed hooks for explicitly disabled repo"
+    );
+}
+
+#[test]
+#[serial]
+fn repo_disable_removes_hooks_and_remembers() {
+    let _mode = EnvVarGuard::set("GIT_AI_TEST_GIT_MODE", "wrapper");
+    let repo = TestRepo::new();
+    let marker_path = git_hooks_ai_dir(&repo).join("git_hooks_enabled");
+    let managed_hooks_dir = git_hooks_ai_dir(&repo).join("hooks");
+
+    // First ensure hooks are present
+    repo.git_ai(&["git-hooks", "ensure"])
+        .expect("ensure should succeed");
+    assert!(marker_path.exists(), "marker should exist after ensure");
+    assert!(managed_hooks_dir.exists(), "hooks dir should exist after ensure");
+
+    // Disable via repo disable
+    repo.git_ai(&["repo", "disable"])
+        .expect("repo disable should succeed");
+    assert!(
+        !marker_path.exists(),
+        "marker should be removed after repo disable"
+    );
+    assert!(
+        !managed_hooks_dir.exists(),
+        "managed hooks should be removed after repo disable"
+    );
+}
+
+#[test]
+#[serial]
+fn repo_enable_restores_hooks_and_forgets() {
+    let _mode = EnvVarGuard::set("GIT_AI_TEST_GIT_MODE", "wrapper");
+    let repo = TestRepo::new();
+    let marker_path = git_hooks_ai_dir(&repo).join("git_hooks_enabled");
+    let managed_hooks_dir = git_hooks_ai_dir(&repo).join("hooks");
+
+    // Disable first
+    repo.git_ai(&["repo", "disable"])
+        .expect("repo disable should succeed");
+    assert!(!marker_path.exists(), "marker absent after disable");
+
+    // Re-enable
+    repo.git_ai(&["repo", "enable"])
+        .expect("repo enable should succeed");
+    assert!(marker_path.exists(), "marker should exist after repo enable");
+    assert!(
+        managed_hooks_dir.exists(),
+        "managed hooks should exist after repo enable"
+    );
+}
+
+#[test]
+#[serial]
+fn repo_status_shows_enabled_disabled_and_reason() {
+    let _mode = EnvVarGuard::set("GIT_AI_TEST_GIT_MODE", "wrapper");
+    let repo = TestRepo::new();
+
+    // Default state: enabled
+    let output = repo
+        .git_ai(&["repo", "status"])
+        .expect("repo status should succeed");
+    assert!(
+        output.contains("enabled"),
+        "default status should say enabled, got: {output}"
+    );
+    assert!(
+        output.contains("default"),
+        "default reason should be 'default', got: {output}"
+    );
+
+    // After disable
+    repo.git_ai(&["repo", "disable"])
+        .expect("repo disable should succeed");
+    let output = repo
+        .git_ai(&["repo", "status"])
+        .expect("repo status should succeed");
+    assert!(
+        output.contains("disabled"),
+        "status after disable should say disabled, got: {output}"
+    );
+    assert!(
+        output.contains("explicitly_disabled"),
+        "reason after disable should be 'explicitly_disabled', got: {output}"
+    );
+}
+
+#[test]
+#[serial]
+fn disabled_repo_stays_disabled_on_checkpoint() {
+    let _mode = EnvVarGuard::set("GIT_AI_TEST_GIT_MODE", "wrapper");
+    let repo = TestRepo::new();
+    let marker_path = git_hooks_ai_dir(&repo).join("git_hooks_enabled");
+    let managed_hooks_dir = git_hooks_ai_dir(&repo).join("hooks");
+
+    // Disable via repo disable
+    repo.git_ai(&["repo", "disable"])
+        .expect("repo disable should succeed");
+
+    // Run a checkpoint -- should NOT re-enable
+    fs::write(repo.path().join("file.txt"), "content\n").expect("write");
+    repo.git(&["add", "file.txt"]).expect("add");
+    repo.git_ai(&["checkpoint", "mock_ai", "file.txt"])
+        .expect("checkpoint should succeed");
+
+    assert!(
+        !marker_path.exists(),
+        "checkpoint should not re-enable marker after repo disable"
+    );
+    assert!(
+        !managed_hooks_dir.exists(),
+        "checkpoint should not re-install hooks after repo disable"
+    );
+}
+
+#[test]
+#[serial]
+fn disable_survives_checkpoint_with_git_hooks_enabled_then_reenable() {
+    let _mode = EnvVarGuard::set("GIT_AI_TEST_GIT_MODE", "wrapper");
+    let repo = TestRepo::new();
+    let marker_path = git_hooks_ai_dir(&repo).join("git_hooks_enabled");
+    let disabled_marker = git_hooks_ai_dir(&repo).join("disabled");
+
+    repo.git_ai(&["repo", "disable"])
+        .expect("repo disable should succeed");
+    assert!(disabled_marker.exists(), "disabled marker should be created");
+
+    let status = repo
+        .git_ai(&["repo", "status"])
+        .expect("repo status should succeed");
+    assert!(
+        status.contains("explicitly_disabled"),
+        "should show explicitly_disabled after disable, got: {status}"
+    );
+
+    // checkpoint with git_hooks_enabled=true should NOT override the disable
+    fs::write(repo.path().join("file.txt"), "content\n").expect("write");
+    repo.git(&["add", "file.txt"]).expect("add");
+    repo.git_ai_with_env(
+        &["checkpoint", "mock_ai", "file.txt"],
+        &[("GIT_AI_GIT_HOOKS_ENABLED", "true")],
+    )
+    .expect("checkpoint should succeed");
+
+    assert!(
+        !marker_path.exists(),
+        "disable should prevent hook re-install even with git_hooks_enabled=true"
+    );
+    assert!(disabled_marker.exists(), "disabled marker should persist");
+
+    // Re-enable and verify it clears the disabled state
+    repo.git_ai(&["repo", "enable"])
+        .expect("repo enable should succeed");
+    let status = repo
+        .git_ai(&["repo", "status"])
+        .expect("repo status should succeed");
+    assert!(
+        status.contains("enabled") && status.contains("default"),
+        "should show enabled/default after re-enable, got: {status}"
+    );
+    assert!(
+        marker_path.exists(),
+        "repo enable should restore the hooks marker"
+    );
+    assert!(
+        !disabled_marker.exists(),
+        "disabled marker should be removed after enable"
+    );
+}
+
+#[test]
+#[serial]
 fn hook_mode_runs_without_wrapper() {
     let _mode = EnvVarGuard::set("GIT_AI_TEST_GIT_MODE", "hooks");
 
@@ -592,6 +799,12 @@ crate::reuse_tests_in_worktree_with_attrs!(
     git_hooks_remove_removes_repo_opt_in_marker,
     git_hooks_remove_restores_preexisting_hooks_path_end_to_end,
     git_hooks_uninstall_alias_works_end_to_end,
+    cloned_repo_can_be_disabled_via_git_hooks_remove_and_stays_disabled_on_checkpoint,
+    repo_disable_removes_hooks_and_remembers,
+    repo_enable_restores_hooks_and_forgets,
+    repo_status_shows_enabled_disabled_and_reason,
+    disabled_repo_stays_disabled_on_checkpoint,
+    disable_survives_checkpoint_with_git_hooks_enabled_then_reenable,
     hook_mode_runs_without_wrapper,
     hooks_mode_batches_multi_commit_cherry_pick_rewrite_event,
     hooks_mode_amend_uses_single_amend_rewrite_event,

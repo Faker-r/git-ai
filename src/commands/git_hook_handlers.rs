@@ -2291,6 +2291,10 @@ fn run_managed_hook(
         return 0;
     }
 
+    if is_repo_explicitly_disabled(repo) {
+        return 0;
+    }
+
     let mut repo = repo.clone();
     maybe_restore_stale_rebase_hooks(&repo);
     maybe_finalize_stale_cherry_pick_batch_state(&mut repo);
@@ -2636,7 +2640,47 @@ pub fn handle_git_hook_invocation(hook_name: &str, hook_args: &[String]) -> i32 
     status
 }
 
+// ---------------------------------------------------------------------------
+// Repo disable / exclude gating
+// ---------------------------------------------------------------------------
+
+const REPO_DISABLED_FILE: &str = "disabled";
+
+fn repo_disabled_path(repo: &Repository) -> PathBuf {
+    repo_ai_dir(repo).join(REPO_DISABLED_FILE)
+}
+
+pub fn remember_repo_disabled(repo: &Repository) {
+    let path = repo_disabled_path(repo);
+    if let Some(parent) = path.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+    if let Err(e) = fs::write(&path, "") {
+        debug_log(&format!("remember_repo_disabled: {e}"));
+    }
+}
+
+pub fn forget_repo_disabled(repo: &Repository) {
+    let path = repo_disabled_path(repo);
+    if path.exists() {
+        if let Err(e) = fs::remove_file(&path) {
+            debug_log(&format!("forget_repo_disabled: {e}"));
+        }
+    }
+}
+
+/// Returns true when the user has explicitly disabled git-ai for this repo
+/// via `git-ai repo disable`. Checks for a marker file at `.git/ai/disabled`.
+pub fn is_repo_explicitly_disabled(repo: &Repository) -> bool {
+    repo_disabled_path(repo).exists()
+}
+
 pub fn ensure_repo_level_hooks_for_checkpoint(repo: &Repository) {
+    if is_repo_explicitly_disabled(repo) {
+        debug_log("ensure_repo_level_hooks_for_checkpoint: repo is disabled, skipping");
+        return;
+    }
+
     let feature_flags = config::Config::get().get_feature_flags().clone();
     if feature_flags.git_hooks_enabled {
         // When the git_hooks_enabled feature flag is on, always ensure hooks are installed
@@ -3900,5 +3944,28 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn repo_disabled_marker_roundtrip() {
+        let tmp = tempfile::tempdir().expect("failed to create tempdir");
+        let repo = init_repo(&tmp.path().join("repo"));
+
+        assert!(
+            !is_repo_explicitly_disabled(&repo),
+            "new repo should not be disabled"
+        );
+
+        remember_repo_disabled(&repo);
+        assert!(
+            is_repo_explicitly_disabled(&repo),
+            "repo should be disabled after remember"
+        );
+
+        forget_repo_disabled(&repo);
+        assert!(
+            !is_repo_explicitly_disabled(&repo),
+            "repo should not be disabled after forget"
+        );
     }
 }
