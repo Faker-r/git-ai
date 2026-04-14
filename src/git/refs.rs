@@ -1,4 +1,4 @@
-use crate::authorship::authorship_log_serialization::{AUTHORSHIP_LOG_VERSION, AuthorshipLog};
+use crate::authorship::authorship_log_serialization::{AUTHORSHIP_LOG_VERSION, AUTHORSHIP_LOG_VERSION_4, AuthorshipLog};
 use crate::authorship::working_log::Checkpoint;
 use crate::error::GitAiError;
 use crate::git::repository::{Repository, exec_git, exec_git_stdin};
@@ -503,11 +503,12 @@ pub fn get_reference_as_authorship_log_v3(
         }
     };
 
-    // Check version compatibility
-    if authorship_log.metadata.schema_version != AUTHORSHIP_LOG_VERSION {
+    // Check version compatibility (accept both 3.x and 4.x for backward compat)
+    let version = &authorship_log.metadata.schema_version;
+    if version != AUTHORSHIP_LOG_VERSION && version != AUTHORSHIP_LOG_VERSION_4 {
         return Err(GitAiError::Generic(format!(
-            "Unsupported authorship log version: {} (expected: {})",
-            authorship_log.metadata.schema_version, AUTHORSHIP_LOG_VERSION
+            "Unsupported authorship log version: {} (expected: {} or {})",
+            version, AUTHORSHIP_LOG_VERSION, AUTHORSHIP_LOG_VERSION_4
         )));
     }
 

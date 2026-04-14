@@ -10,6 +10,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Authorship log format version identifier
 pub const AUTHORSHIP_LOG_VERSION: &str = "authorship/3.0.0";
+pub const AUTHORSHIP_LOG_VERSION_4: &str = "authorship/4.0.0";
 
 #[cfg(all(debug_assertions, test))]
 pub const GIT_AI_VERSION: &str = "development";
