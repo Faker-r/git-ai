@@ -1,6 +1,7 @@
 use crate::authorship::virtual_attribution::VirtualAttributions;
 use crate::commands::git_hook_handlers::{
-    ENV_SKIP_MANAGED_HOOKS, has_repo_hook_state, resolve_previous_non_managed_hooks_path,
+    ENV_SKIP_MANAGED_HOOKS, has_repo_hook_state, is_repo_explicitly_disabled,
+    resolve_previous_non_managed_hooks_path,
 };
 use crate::commands::hooks::checkout_hooks;
 use crate::commands::hooks::cherry_pick_hooks;
@@ -201,7 +202,10 @@ pub fn handle_git(args: &[String]) {
 
     let config = config::Config::get();
 
-    let skip_hooks = !config.is_allowed_repository(&repository_option);
+    let skip_hooks = !config.is_allowed_repository(&repository_option)
+        || repository_option
+            .as_ref()
+            .is_some_and(is_repo_explicitly_disabled);
 
     if skip_hooks {
         tracing::debug!(

@@ -613,3 +613,79 @@ fn should_forward_repo_state_first(repo: Option<&Repository>) -> Option<PathBuf>
 
     Some(candidate)
 }
+
+// ---------------------------------------------------------------------------
+// Repo disable / exclude gating
+// ---------------------------------------------------------------------------
+
+const REPO_DISABLED_FILE: &str = "disabled";
+
+fn repo_disabled_path(repo: &Repository) -> PathBuf {
+    repo_ai_dir(repo).join(REPO_DISABLED_FILE)
+}
+
+pub fn remember_repo_disabled(repo: &Repository) {
+    let path = repo_disabled_path(repo);
+    if let Some(parent) = path.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+    if let Err(e) = fs::write(&path, "") {
+        tracing::debug!("remember_repo_disabled: {}", e);
+    }
+}
+
+pub fn forget_repo_disabled(repo: &Repository) {
+    let path = repo_disabled_path(repo);
+    if path.exists()
+        && let Err(e) = fs::remove_file(&path)
+    {
+        tracing::debug!("forget_repo_disabled: {}", e);
+    }
+}
+
+/// Returns true when the user has explicitly disabled git-ai for this repo
+/// via `git-ai repo disable`. Checks for a marker file at `.git/ai/disabled`.
+pub fn is_repo_explicitly_disabled(repo: &Repository) -> bool {
+    repo_disabled_path(repo).exists()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn init_repo(path: &Path) -> Repository {
+        std::process::Command::new("git")
+            .args(["init", &path.to_string_lossy()])
+            .output()
+            .expect("git init should succeed");
+        std::process::Command::new("git")
+            .args(["-C", &path.to_string_lossy(), "commit", "--allow-empty", "-m", "init"])
+            .output()
+            .expect("initial commit should succeed");
+        crate::git::find_repository_in_path(&path.to_string_lossy())
+            .expect("should find repository")
+    }
+
+    #[test]
+    fn repo_disabled_marker_roundtrip() {
+        let tmp = tempfile::tempdir().expect("failed to create tempdir");
+        let repo = init_repo(&tmp.path().join("repo"));
+
+        assert!(
+            !is_repo_explicitly_disabled(&repo),
+            "new repo should not be disabled"
+        );
+
+        remember_repo_disabled(&repo);
+        assert!(
+            is_repo_explicitly_disabled(&repo),
+            "repo should be disabled after remember"
+        );
+
+        forget_repo_disabled(&repo);
+        assert!(
+            !is_repo_explicitly_disabled(&repo),
+            "repo should not be disabled after forget"
+        );
+    }
+}

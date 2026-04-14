@@ -320,5 +320,18 @@ The note format is defined in the [Git AI Standard v3.0.0](https://github.com/gi
 
 </details>
 
+--- 
+# Enhancements 
+
+## Enable/disable Git AI for repositories
+
+Git AI repository tracking is default-on for repositories you work in.
+
+- Disable in the current repository: `git-ai repo disable`
+- Re-enable in the current repository: `git-ai repo enable`
+- Check current repository status: `git-ai repo status`
+
+--- 
+
 # License
 Apache 2.0

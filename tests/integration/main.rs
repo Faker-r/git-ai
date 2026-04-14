@@ -56,6 +56,7 @@ mod github_copilot_tools;
 mod github_integration;
 mod gix_config_tests;
 mod graphite;
+mod repo_toggle;
 mod ignore_prompts;
 mod initial_attributions;
 mod install_hooks_comprehensive;
