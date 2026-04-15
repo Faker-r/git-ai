@@ -1,0 +1,16 @@
+specs/git_ai_standard_v4.0.0_diffs.md
+  h_36b021ee800750 1-325
+specs/git_ai_standard_v4.0.0.md
+  h_36b021ee800750 1-701
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "development:1.3.0",
+  "base_commit_sha": "51603daafa4e79a71f5fff2cf6076425eb206978",
+  "prompts": {},
+  "humans": {
+    "h_36b021ee800750": {
+      "author": "Andrew Wang"
+    }
+  }
+}
