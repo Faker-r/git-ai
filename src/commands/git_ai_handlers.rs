@@ -2166,10 +2166,6 @@ fn handle_repo(args: &[String]) {
                     std::process::exit(1);
                 }
             };
-            if let Err(e) = commands::git_hook_handlers::remove_repo_hooks(&repo, false) {
-                eprintln!("Failed to remove repo hooks: {e}");
-                std::process::exit(1);
-            }
             commands::git_hook_handlers::remember_repo_disabled(&repo);
             eprintln!("git-ai disabled for this repository");
             std::process::exit(0);

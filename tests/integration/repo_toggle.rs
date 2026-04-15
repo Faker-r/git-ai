@@ -195,6 +195,75 @@ fn disable_survives_checkpoint_with_git_hooks_enabled_then_reenable() {
     );
 }
 
+#[test]
+#[serial]
+fn repo_disable_preserves_installed_hooks_and_hooks_path() {
+    // Soft-toggle: `repo disable` must NOT uninstall managed hooks or
+    // restore core.hooksPath. Hook handlers short-circuit on the marker
+    // instead, so re-enable is a pure marker delete with no install needed.
+    //
+    // We simulate the post-install state by creating a hooks dir and pointing
+    // core.hooksPath at it, then assert disable leaves both untouched. This
+    // avoids coupling the test to the install-hooks code path while still
+    // locking in the invariant that disable is non-destructive.
+    let _mode = EnvVarGuard::set("GIT_AI_TEST_GIT_MODE", "wrapper");
+    let repo = TestRepo::new();
+    let ai_dir = git_hooks_ai_dir(&repo);
+    let hooks_dir = ai_dir.join("hooks");
+    let state_file = ai_dir.join("git_hooks_state.json");
+
+    fs::create_dir_all(&hooks_dir).expect("create simulated hooks dir");
+    fs::write(hooks_dir.join("pre-commit"), "#!/bin/sh\nexit 0\n")
+        .expect("write simulated pre-commit");
+    fs::write(&state_file, "{}").expect("write simulated state file");
+    repo.git(&["config", "--local", "core.hooksPath", &hooks_dir.to_string_lossy()])
+        .expect("set core.hooksPath to simulated managed dir");
+
+    repo.git_ai(&["repo", "disable"])
+        .expect("repo disable should succeed");
+
+    assert!(
+        ai_dir.join("disabled").exists(),
+        "disabled marker should exist after disable"
+    );
+    assert!(
+        hooks_dir.exists(),
+        "hooks dir should survive repo disable (soft toggle)"
+    );
+    assert!(
+        hooks_dir.join("pre-commit").exists(),
+        "individual hook scripts should survive repo disable"
+    );
+    assert!(
+        state_file.exists(),
+        "git_hooks_state.json should survive repo disable"
+    );
+    let hooks_path_after_disable = repo
+        .git(&["config", "--local", "--get", "core.hooksPath"])
+        .expect("core.hooksPath should still be set after disable");
+    let hooks_path_first_line = hooks_path_after_disable
+        .lines()
+        .next()
+        .unwrap_or_default()
+        .trim();
+    assert_eq!(
+        hooks_path_first_line,
+        hooks_dir.to_string_lossy(),
+        "core.hooksPath should be unchanged by repo disable"
+    );
+
+    repo.git_ai(&["repo", "enable"])
+        .expect("repo enable should succeed");
+    assert!(
+        !ai_dir.join("disabled").exists(),
+        "disabled marker should be cleared after enable"
+    );
+    assert!(
+        hooks_dir.exists(),
+        "hooks dir should remain in place after enable"
+    );
+}
+
 crate::reuse_tests_in_worktree_with_attrs!(
     (#[serial_test::serial])
     repo_disable_creates_disabled_marker,
@@ -202,4 +271,5 @@ crate::reuse_tests_in_worktree_with_attrs!(
     repo_status_shows_enabled_disabled_and_reason,
     disabled_repo_stays_disabled_on_checkpoint,
     disable_survives_checkpoint_with_git_hooks_enabled_then_reenable,
+    repo_disable_preserves_installed_hooks_and_hooks_path,
 );
