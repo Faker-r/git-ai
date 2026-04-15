@@ -84,6 +84,8 @@ Every `Message` variant (`User`, `Assistant`, `Thinking`, `Plan`, `ToolUse`) gai
 
 The core new data structure. A chronological array of `ChangeHistoryEntry` objects stored in `metadata.change_history`, recording every checkpoint between parent commit and this commit.
 
+Note that it records all changes between the timestamps of the parent commit and the current commit, regardless of whether those changes were committed. 
+
 ### ChangeHistoryEntry
 
 | Field | Type | Required | Description |
