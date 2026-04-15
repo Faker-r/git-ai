@@ -4,7 +4,9 @@ use crate::authorship::ignore::{
     build_ignore_matcher, effective_ignore_patterns, should_ignore_file_with_matcher,
 };
 use crate::authorship::prompt_utils::{PromptUpdateResult, update_prompt_from_tool};
-use crate::authorship::secrets::{redact_secrets_from_prompts, strip_prompt_messages};
+use crate::authorship::secrets::{
+    redact_secrets_from_change_history, redact_secrets_from_prompts, strip_prompt_messages,
+};
 use crate::authorship::stats::{stats_for_commit_stats, write_stats_to_terminal};
 use crate::authorship::virtual_attribution::VirtualAttributions;
 use crate::authorship::working_log::{Checkpoint, CheckpointKind, WorkingLogEntry};
@@ -261,6 +263,17 @@ pub fn post_commit_with_final_state(
 
     if !change_history.is_empty() {
         authorship_log.metadata.change_history = Some(change_history);
+    }
+
+    // Redact secrets from change_history (prompt_text and line contents)
+    if let Some(ref mut ch) = authorship_log.metadata.change_history {
+        let count = redact_secrets_from_change_history(ch);
+        if count > 0 {
+            debug_log(&format!(
+                "Redacted {} secrets from change_history",
+                count
+            ));
+        }
     }
 
     // Collect context-only conversations (planning, research, Q&A) that had activity since the

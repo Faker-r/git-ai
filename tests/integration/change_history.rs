@@ -1,7 +1,15 @@
 use crate::repos::test_file::ExpectedLineExt;
 use crate::repos::test_repo::TestRepo;
-use git_ai::authorship::authorship_log_serialization::ChangeHistoryEntry;
+use git_ai::authorship::authorship_log_serialization::{ChangeHistoryEntry, FileChangeDetail};
+use git_ai::authorship::secrets::redact_secrets_from_change_history;
+use git_ai::authorship::working_log::CheckpointLineStats;
 use insta::assert_debug_snapshot;
+use std::collections::BTreeMap;
+
+
+/// NOTE: The snapshots for these tests look weird because of how `set_contents` is implemented.
+///  For an AI change, it adds a human checkpoint with "||__AI LINE__ PENDING__||" before adding the AI checkpoint. 
+
 
 /// Sanitize non-deterministic fields in change_history entries so snapshots are stable.
 /// Keeps: kind, agent_type, model, files (with all line details), line_stats.
@@ -148,6 +156,9 @@ fn deleted_untracked_file_change_history() {
     // Delete the file before committing
     std::fs::remove_file(ephemeral.file_path.clone()).expect("should delete file");
 
+    // Keep one real staged change so git commit succeeds.
+    std::fs::write(repo.path().join("keepalive.txt"), "keepalive\n").unwrap();
+
     let commit = repo.stage_all_and_commit("Delete ephemeral").unwrap();
 
     let change_history = commit
@@ -173,4 +184,139 @@ fn deleted_untracked_file_change_history() {
 
     let sanitized = sanitize_change_history(&change_history);
     assert_debug_snapshot!(sanitized);
+}
+
+/// Secrets in prompt_text should be redacted in change_history.
+/// A student might paste an API key directly in their prompt to the AI tool.
+///
+/// Uses direct construction because the mock checkpoint infrastructure
+/// does not support injecting transcript/prompt data.
+#[test]
+fn secret_in_prompt_text_redacted_in_change_history() {
+    let mut files = BTreeMap::new();
+    files.insert(
+        "main.py".to_string(),
+        FileChangeDetail {
+            added_lines: vec!["1".to_string()],
+            deleted_lines: vec![],
+            added_line_contents: vec!["1: import requests".to_string()],
+            deleted_line_contents: vec![],
+        },
+    );
+
+    let mut change_history = vec![ChangeHistoryEntry {
+        timestamp: 1000,
+        kind: "ai_agent".to_string(),
+        conversation_id: Some("abc123".to_string()),
+        agent_type: Some("cursor".to_string()),
+        prompt_id: None,
+        model: Some("claude-4.5-sonnet".to_string()),
+        prompt_text: Some(
+            "Use this API key sk_test_4eC39HqLyjWDarjtT1zdp7dc to connect to Stripe".to_string(),
+        ),
+        files,
+        line_stats: CheckpointLineStats::default(),
+    }];
+
+    let count = redact_secrets_from_change_history(&mut change_history);
+    assert!(count >= 1, "Should redact at least 1 secret in prompt_text, got {}", count);
+
+    let prompt = change_history[0].prompt_text.as_ref().unwrap();
+    assert!(
+        !prompt.contains("sk_test_4eC39HqLyjWDarjtT1zdp7dc"),
+        "Raw secret in prompt_text should be redacted.\nGot: {}",
+        prompt
+    );
+    assert!(
+        prompt.contains("sk_t********p7dc"),
+        "Redacted secret should appear in prompt_text.\nGot: {}",
+        prompt
+    );
+    assert!(
+        prompt.contains("Stripe"),
+        "Normal text should remain in prompt_text.\nGot: {}",
+        prompt
+    );
+}
+
+/// Secrets in added and deleted line contents should be redacted in change_history.
+/// AI adds 2 lines with hardcoded secrets, then the human deletes one and
+/// replaces it with an env var lookup. All secret values must be masked.
+#[test]
+fn secrets_in_added_and_deleted_line_contents_redacted_in_change_history() {
+    let repo = TestRepo::new();
+
+    let mut readme = repo.filename("README.md");
+    readme.set_contents(crate::lines!["# Project"]);
+    repo.stage_all_and_commit("Initial commit").unwrap();
+
+    // AI creates a file with 2 hardcoded secrets
+    let mut config = repo.filename("config.py");
+    config.set_contents(crate::lines![
+        "STRIPE_KEY = \"sk_test_4eC39HqLyjWDarjtT1zdp7dc\"".ai(),
+        "AWS_KEY = \"AKIAIOSFODNN7EXAMPLE\"".ai(),
+    ]);
+
+    // Human deletes the Stripe key line and replaces it with an env var lookup
+    std::fs::write(
+        config.file_path.clone(),
+        "STRIPE_KEY = os.environ[\"STRIPE_KEY\"]\nAWS_KEY = \"AKIAIOSFODNN7EXAMPLE\"",
+    )
+    .unwrap();
+
+    let commit = repo.stage_all_and_commit("Add config").unwrap();
+
+    let change_history = commit
+        .authorship_log
+        .metadata
+        .change_history
+        .expect("change_history should be present");
+
+    // Collect all added_line_contents across all entries
+    let all_added: Vec<&str> = change_history
+        .iter()
+        .flat_map(|e| e.files.values())
+        .flat_map(|d| d.added_line_contents.iter())
+        .map(|s| s.as_str())
+        .collect();
+
+    // Collect all deleted_line_contents across all entries
+    let all_deleted: Vec<&str> = change_history
+        .iter()
+        .flat_map(|e| e.files.values())
+        .flat_map(|d| d.deleted_line_contents.iter())
+        .map(|s| s.as_str())
+        .collect();
+
+    // Raw secrets must NOT appear in added or deleted contents
+    let all_contents: Vec<&str> = all_added.iter().chain(all_deleted.iter()).copied().collect();
+    assert!(
+        !all_contents.iter().any(|l| l.contains("sk_test_4eC39HqLyjWDarjtT1zdp7dc")),
+        "Raw Stripe key should be redacted.\nAdded: {:#?}\nDeleted: {:#?}",
+        all_added, all_deleted
+    );
+    assert!(
+        !all_contents.iter().any(|l| l.contains("AKIAIOSFODNN7EXAMPLE")),
+        "Raw AWS key should be redacted.\nAdded: {:#?}\nDeleted: {:#?}",
+        all_added, all_deleted
+    );
+
+    // Variable names should remain intact
+    assert!(
+        all_contents.iter().any(|l| l.contains("STRIPE_KEY")),
+        "Variable name STRIPE_KEY should remain.\nAdded: {:#?}\nDeleted: {:#?}",
+        all_added, all_deleted
+    );
+    assert!(
+        all_contents.iter().any(|l| l.contains("AWS_KEY")),
+        "Variable name AWS_KEY should remain.\nAdded: {:#?}\nDeleted: {:#?}",
+        all_added, all_deleted
+    );
+
+    // The safe env var replacement should be untouched
+    assert!(
+        all_added.iter().any(|l| l.contains("os.environ")),
+        "Safe replacement line should remain intact.\nGot: {:#?}",
+        all_added
+    );
 }
