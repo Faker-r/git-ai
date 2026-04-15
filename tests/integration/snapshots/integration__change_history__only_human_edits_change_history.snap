@@ -1,0 +1,38 @@
+---
+source: tests/integration/change_history.rs
+expression: sanitized
+---
+[
+    ChangeHistoryEntry {
+        timestamp: 0,
+        kind: "human",
+        conversation_id: None,
+        agent_type: None,
+        prompt_id: None,
+        model: None,
+        prompt_text: None,
+        files: {
+            "notes.txt": FileChangeDetail {
+                added_lines: [
+                    "2-3",
+                ],
+                deleted_lines: [
+                    "2",
+                ],
+                added_line_contents: [
+                    "2: Line 2",
+                    "3: Line 3",
+                ],
+                deleted_line_contents: [
+                    "2: Line 2",
+                ],
+            },
+        },
+        line_stats: CheckpointLineStats {
+            additions: 2,
+            deletions: 1,
+            additions_sloc: 2,
+            deletions_sloc: 1,
+        },
+    },
+]
