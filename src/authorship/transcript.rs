@@ -1,5 +1,6 @@
 use chrono::DateTime;
 use serde::{Deserialize, Serialize};
+use std::fmt;
 
 /// Represents a single message in an AI transcript
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -9,51 +10,87 @@ pub enum Message {
         text: String,
         #[serde(skip_serializing_if = "Option::is_none")]
         timestamp: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        id: Option<String>,
     },
     Assistant {
         text: String,
         #[serde(skip_serializing_if = "Option::is_none")]
         timestamp: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        id: Option<String>,
     },
     Thinking {
         text: String,
         #[serde(skip_serializing_if = "Option::is_none")]
         timestamp: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        id: Option<String>,
     },
     Plan {
         text: String,
         #[serde(skip_serializing_if = "Option::is_none")]
         timestamp: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        id: Option<String>,
     },
     ToolUse {
         name: String,
         input: serde_json::Value,
         #[serde(skip_serializing_if = "Option::is_none")]
         timestamp: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        id: Option<String>,
     },
 }
 
 impl Message {
     /// Create a user message
     pub fn user(text: String, timestamp: Option<String>) -> Self {
-        Message::User { text, timestamp }
+        Message::User { text, timestamp, id: None }
+    }
+
+    /// Create a user message with prompt id (e.g. Cursor bubble_id)
+    pub fn user_with_id(text: String, timestamp: Option<String>, id: Option<String>) -> Self {
+        Message::User { text, timestamp, id}
     }
 
     /// Create an assistant message
     pub fn assistant(text: String, timestamp: Option<String>) -> Self {
-        Message::Assistant { text, timestamp }
+        Message::Assistant { text, timestamp, id: None }
+    }
+
+    /// Create an assistant message with an optional id
+    pub fn assistant_with_id(
+        text: String,
+        timestamp: Option<String>,
+        id: Option<String>,
+    ) -> Self {
+        Message::Assistant  { text, timestamp, id}
     }
 
     /// Create a thinking message
     #[allow(dead_code)]
     pub fn thinking(text: String, timestamp: Option<String>) -> Self {
-        Message::Thinking { text, timestamp }
+        Message::Thinking { text, timestamp, id: None }
+    }
+
+    /// Create a thinking message with an optional id
+    #[allow(dead_code)]
+    pub fn thinking_with_id(text: String, timestamp: Option<String>, id: Option<String>) -> Self {
+        Message::Thinking { text, timestamp, id }
     }
 
     /// Create a plan message
     #[allow(dead_code)]
     pub fn plan(text: String, timestamp: Option<String>) -> Self {
-        Message::Plan { text, timestamp }
+        Message::Plan { text, timestamp, id: None }
+    }
+
+    /// Create a plan message with an optional id
+    #[allow(dead_code)]
+    pub fn plan_with_id(text: String, timestamp: Option<String>, id: Option<String>) -> Self {
+        Message::Plan { text, timestamp, id }
     }
 
     /// Create a tool use message
@@ -62,6 +99,27 @@ impl Message {
             name,
             input,
             timestamp: None,
+            id: None
+        }
+    }
+
+    /// Create a tool use message with an optional id
+    pub fn tool_use_with_id(name: String, input: serde_json::Value, id: Option<String>) -> Self {
+        Message::ToolUse {
+            name,
+            input,
+            timestamp: None,
+            id
+        }
+    }
+
+    /// Create a tool use message with an optional timestamp
+    pub fn tool_use_with_timestamp(name: String, input: serde_json::Value, timestamp: Option<String>) -> Self {
+        Message::ToolUse {
+            name,
+            input,
+            timestamp,
+            id: None
         }
     }
 
@@ -81,6 +139,17 @@ impl Message {
     #[allow(dead_code)]
     pub fn is_tool_use(&self) -> bool {
         matches!(self, Message::ToolUse { .. })
+    }
+
+    /// Get the message id if present
+    pub fn id(&self) -> Option<&String> {
+        match self {
+            Message::User { id, .. }
+            | Message::Assistant { id, .. }
+            | Message::Thinking { id, .. }
+            | Message::Plan { id, .. }
+            | Message::ToolUse { id, .. } => id.as_ref(),
+        }
     }
 
     /// Get the timestamp if present
@@ -161,6 +230,96 @@ impl Default for AiTranscript {
     }
 }
 
+impl fmt::Display for AiTranscript {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.messages.is_empty() {
+            return write!(f, "[empty transcript]");
+        }
+
+        for (idx, message) in self.messages.iter().enumerate() {
+            if idx > 0 {
+                writeln!(f)?;
+            }
+
+            match message {
+                Message::User {
+                    text,
+                    timestamp,
+                    id,
+                } => {
+                    write!(f, "[user:")?;
+                    if let Some(ts) = timestamp {
+                        write!(f, " ts={}", ts)?;
+                    }
+                    if let Some(msg_id) = id {
+                        write!(f, " id={}", msg_id)?;
+                    }
+                    write!(f, "] {}", text)?;
+                }
+                Message::Assistant {
+                    text,
+                    timestamp,
+                    id,
+                } => {
+                    write!(f, "[assistant:")?;
+                    if let Some(ts) = timestamp {
+                        write!(f, " ts={}", ts)?;
+                    }
+                    if let Some(msg_id) = id {
+                        write!(f, " id={}", msg_id)?;
+                    }
+                    write!(f, "] {}", text)?;
+                }
+                Message::Thinking {
+                    text,
+                    timestamp,
+                    id,
+                } => {
+                    write!(f, "[thinking:")?;
+                    if let Some(ts) = timestamp {
+                        write!(f, " ts={}", ts)?;
+                    }
+                    if let Some(msg_id) = id {
+                        write!(f, " id={}", msg_id)?;
+                    }
+                    write!(f, "] {}", text)?;
+                }
+                Message::Plan {
+                    text,
+                    timestamp,
+                    id,
+                } => {
+                    write!(f, "[plan:")?;
+                    if let Some(ts) = timestamp {
+                        write!(f, " ts={}", ts)?;
+                    }
+                    if let Some(msg_id) = id {
+                        write!(f, " id={}", msg_id)?;
+                    }
+                    write!(f, "] {}", text)?;
+                }
+                Message::ToolUse {
+                    name,
+                    input,
+                    timestamp,
+                    id,
+                } => {
+                    write!(f, "[tool_use: name={}", name)?;
+                    if let Some(ts) = timestamp {
+                        write!(f, " ts={}", ts)?;
+                    }
+                    if let Some(msg_id) = id {
+                        write!(f, " id={}", msg_id)?;
+                    }
+                    write!(f, "] {}", input)?;
+                }
+            }
+        }
+
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -173,9 +332,10 @@ mod tests {
             Some("2024-01-01T00:00:00Z".to_string()),
         );
         match msg {
-            Message::User { text, timestamp } => {
+            Message::User { text, timestamp, id } => {
                 assert_eq!(text, "Hello");
                 assert_eq!(timestamp, Some("2024-01-01T00:00:00Z".to_string()));
+                assert_eq!(id, None);
             }
             _ => panic!("Expected User message"),
         }
@@ -188,7 +348,7 @@ mod tests {
             Some("2024-01-01T00:00:01Z".to_string()),
         );
         match msg {
-            Message::Assistant { text, timestamp } => {
+            Message::Assistant { text, timestamp, .. } => {
                 assert_eq!(text, "Response");
                 assert_eq!(timestamp, Some("2024-01-01T00:00:01Z".to_string()));
             }
@@ -203,7 +363,7 @@ mod tests {
             Some("2024-01-01T00:00:02Z".to_string()),
         );
         match msg {
-            Message::Thinking { text, timestamp } => {
+            Message::Thinking { text, timestamp, .. } => {
                 assert_eq!(text, "Thinking...");
                 assert_eq!(timestamp, Some("2024-01-01T00:00:02Z".to_string()));
             }
@@ -218,7 +378,7 @@ mod tests {
             Some("2024-01-01T00:00:03Z".to_string()),
         );
         match msg {
-            Message::Plan { text, timestamp } => {
+            Message::Plan { text, timestamp, .. } => {
                 assert_eq!(text, "Plan step");
                 assert_eq!(timestamp, Some("2024-01-01T00:00:03Z".to_string()));
             }
@@ -235,6 +395,7 @@ mod tests {
                 name,
                 input: tool_input,
                 timestamp,
+                ..
             } => {
                 assert_eq!(name, "read_file");
                 assert_eq!(tool_input, input);
@@ -407,9 +568,10 @@ mod tests {
         let json = r#"{"type":"user","text":"Hello","timestamp":"2024-01-01T00:00:00Z"}"#;
         let msg: Message = serde_json::from_str(json).unwrap();
         match msg {
-            Message::User { text, timestamp } => {
+            Message::User { text, timestamp, id} => {
                 assert_eq!(text, "Hello");
                 assert_eq!(timestamp, Some("2024-01-01T00:00:00Z".to_string()));
+                assert_eq!(id, None);
             }
             _ => panic!("Expected User message"),
         }
@@ -466,5 +628,30 @@ mod tests {
 
         assert_eq!(t1, t2);
         assert_ne!(t1, t3);
+    }
+
+    #[test]
+    fn test_ai_transcript_display_empty() {
+        let transcript = AiTranscript::new();
+        assert_eq!(format!("{}", transcript), "[empty transcript]");
+    }
+
+    #[test]
+    fn test_ai_transcript_display_messages() {
+        let mut transcript = AiTranscript::new();
+        transcript.add_message(Message::user_with_id(
+            "hello".to_string(),
+            Some("2024-01-01T00:00:00Z".to_string()),
+            Some("u1".to_string()),
+        ));
+        transcript.add_message(Message::tool_use_with_id(
+            "ReadFile".to_string(),
+            json!({"path":"a.txt"}),
+            Some("t1".to_string()),
+        ));
+
+        let rendered = format!("{}", transcript);
+        assert!(rendered.contains("[user: ts=2024-01-01T00:00:00Z id=u1] hello"));
+        assert!(rendered.contains("[tool_use: name=ReadFile id=t1] {\"path\":\"a.txt\"}"));
     }
 }

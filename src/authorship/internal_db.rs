@@ -1107,6 +1107,7 @@ mod tests {
         transcript.add_message(Message::User {
             text: "Test message".to_string(),
             timestamp: None,
+            id: None,
         });
 
         PromptDbRecord {
@@ -1320,6 +1321,7 @@ mod tests {
         transcript.add_message(Message::User {
             text: "Test".to_string(),
             timestamp: None,
+            id: None,
         });
 
         checkpoint.agent_id = Some(AgentId {

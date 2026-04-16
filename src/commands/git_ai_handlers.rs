@@ -869,7 +869,7 @@ fn handle_checkpoint(args: &[String]) {
             || commands::git_hook_handlers::is_repo_explicitly_disabled(repo))
     {
         eprintln!(
-            "Skipping checkpoint because repository is excluded or not in allow_repositories list"
+            "Skipping checkpoint because git-ai is diabled on the repo"
         );
         std::process::exit(0);
     }
