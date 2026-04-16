@@ -689,15 +689,15 @@ impl OpenCodePreset {
                         let trimmed = text.trim();
                         if !trimmed.is_empty() {
                             if message.role == "user" {
-                                transcript.add_message(Message::User {
-                                    text: trimmed.to_string(),
-                                    timestamp: timestamp.clone(),
-                                });
+                                transcript.add_message(Message::user (
+                                    trimmed.to_string(),
+                                    timestamp.clone(),
+                                ));
                             } else if message.role == "assistant" {
-                                transcript.add_message(Message::Assistant {
-                                    text: trimmed.to_string(),
-                                    timestamp: timestamp.clone(),
-                                });
+                                transcript.add_message(Message::assistant (
+                                    trimmed.to_string(),
+                                    timestamp.clone(),
+                                ));
                             }
                         }
                     }
@@ -710,11 +710,11 @@ impl OpenCodePreset {
                             let tool_input = input
                                 .or_else(|| state.and_then(|s| s.input))
                                 .unwrap_or(serde_json::Value::Object(serde_json::Map::new()));
-                            transcript.add_message(Message::ToolUse {
-                                name: tool,
-                                input: tool_input,
-                                timestamp: timestamp.clone(),
-                            });
+                            transcript.add_message(Message::tool_use_with_timestamp(
+                                tool,
+                                tool_input,
+                                timestamp.clone(),
+                            ));
                         }
                     }
                     OpenCodePart::StepStart { .. } | OpenCodePart::StepFinish { .. } => {

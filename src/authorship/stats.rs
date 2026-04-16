@@ -1557,6 +1557,7 @@ mod tests {
             messages: vec![Message::User {
                 text: "Hello".to_string(),
                 timestamp: Some("2024-01-01T12:00:00Z".to_string()),
+                id: None,
             }],
         };
         assert_eq!(calculate_waiting_time(&transcript), 0);
@@ -1570,14 +1571,17 @@ mod tests {
                 Message::User {
                     text: "Question".to_string(),
                     timestamp: Some("2024-01-01T12:00:00Z".to_string()),
+                    id: None,
                 },
                 Message::Assistant {
                     text: "Answer".to_string(),
                     timestamp: Some("2024-01-01T12:00:05Z".to_string()),
+                    id: None,
                 },
                 Message::User {
                     text: "Follow-up".to_string(),
                     timestamp: Some("2024-01-01T12:00:10Z".to_string()),
+                    id: None,
                 },
             ],
         };
@@ -1593,10 +1597,12 @@ mod tests {
                 Message::User {
                     text: "Question".to_string(),
                     timestamp: Some("2024-01-01T12:00:00Z".to_string()),
+                    id: None,
                 },
                 Message::Assistant {
                     text: "Answer".to_string(),
                     timestamp: Some("2024-01-01T12:00:05Z".to_string()),
+                    id: None,
                 },
             ],
         };
@@ -1612,18 +1618,22 @@ mod tests {
                 Message::User {
                     text: "Q1".to_string(),
                     timestamp: Some("2024-01-01T12:00:00Z".to_string()),
+                    id: None,
                 },
                 Message::Assistant {
                     text: "A1".to_string(),
                     timestamp: Some("2024-01-01T12:00:03Z".to_string()),
+                    id: None,
                 },
                 Message::User {
                     text: "Q2".to_string(),
                     timestamp: Some("2024-01-01T12:00:10Z".to_string()),
+                    id: None,
                 },
                 Message::Assistant {
                     text: "A2".to_string(),
                     timestamp: Some("2024-01-01T12:00:17Z".to_string()),
+                    id: None,
                 },
             ],
         };
@@ -1639,10 +1649,12 @@ mod tests {
                 Message::User {
                     text: "Question".to_string(),
                     timestamp: Some("2024-01-01T12:00:00Z".to_string()),
+                    id: None,
                 },
                 Message::Thinking {
                     text: "Analyzing...".to_string(),
                     timestamp: Some("2024-01-01T12:00:02Z".to_string()),
+                    id: None,
                 },
             ],
         };
@@ -1658,10 +1670,12 @@ mod tests {
                 Message::User {
                     text: "Request".to_string(),
                     timestamp: Some("2024-01-01T12:00:00Z".to_string()),
+                    id: None,
                 },
                 Message::Plan {
                     text: "Step 1...".to_string(),
                     timestamp: Some("2024-01-01T12:00:04Z".to_string()),
+                    id: None,
                 },
             ],
         };
@@ -1677,10 +1691,12 @@ mod tests {
                 Message::User {
                     text: "Question".to_string(),
                     timestamp: None,
+                    id: None,
                 },
                 Message::Assistant {
                     text: "Answer".to_string(),
                     timestamp: None,
+                    id: None,
                 },
             ],
         };

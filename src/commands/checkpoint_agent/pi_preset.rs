@@ -418,6 +418,7 @@ impl PiPreset {
                     transcript.add_message(Message::User {
                         text: text.to_string(),
                         timestamp,
+                        id: None,
                     });
                 }
             }
@@ -430,6 +431,7 @@ impl PiPreset {
                         transcript.add_message(Message::User {
                             text: text.to_string(),
                             timestamp: timestamp.clone(),
+                            id: None,
                         });
                     }
                 }
@@ -456,6 +458,7 @@ impl PiPreset {
                         transcript.add_message(Message::Assistant {
                             text: text.to_string(),
                             timestamp: timestamp.clone(),
+                            id: None,
                         });
                     }
                 }
@@ -466,6 +469,7 @@ impl PiPreset {
                         transcript.add_message(Message::Thinking {
                             text: text.to_string(),
                             timestamp: timestamp.clone(),
+                            id: None,
                         });
                     }
                 }
@@ -479,6 +483,7 @@ impl PiPreset {
                             name: name.to_string(),
                             input,
                             timestamp: timestamp.clone(),
+                            id: None,
                         });
                     }
                 }
@@ -504,6 +509,7 @@ impl PiPreset {
                 transcript.add_message(Message::Assistant {
                     text: text.to_string(),
                     timestamp: timestamp.clone(),
+                    id: None,
                 });
             }
         }
