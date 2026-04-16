@@ -34,7 +34,6 @@ mod continue_session;
 mod cross_repo_cwd_attribution;
 mod change_history;
 mod cursor;
-mod cursor_perf;
 mod diff;
 mod diff_comprehensive;
 mod diff_ignore_binary;
