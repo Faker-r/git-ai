@@ -1868,201 +1868,89 @@ impl CursorPreset {
         Ok(None)
     }
 
-    /// Return all Cursor conversation UUIDs present in the database.
-    /// Reads every `composerData:<uuid>` key from `cursorDiskKV` and strips the prefix.
-    pub fn list_all_cursor_conversation_ids(
-        db_path: &Path,
-    ) -> Result<Vec<String>, GitAiError> {
-        let conn = Self::open_sqlite_readonly(db_path)?;
+    /// List all Cursor conversation IDs that belong to the given workspace, along with
+    /// their `lastUpdatedAt` timestamps (seconds since epoch).
+    ///
+    /// Reads `composer.composerHeaders` from the global `ItemTable`. This key contains
+    /// an `allComposers` array where each entry has a `workspaceIdentifier.uri.fsPath`
+    /// that identifies the workspace the conversation belongs to. Cursor stamps this
+    /// field on every conversation header when a workspace is opened, so it covers all
+    /// recent conversations including subagents.
+    ///
+    /// See documentation/cursor_conversation_db_system.md for details.
+    pub fn list_workspace_conversation_ids(
+        global_db_path: &Path,
+        workspace_path: &Path,
+    ) -> Result<Vec<(String, u64)>, GitAiError> {
+        let conn = Self::open_sqlite_readonly(global_db_path)?;
+
         let mut stmt = conn
-            .prepare("SELECT key FROM cursorDiskKV WHERE key LIKE 'composerData:%'")
+            .prepare("SELECT value FROM ItemTable WHERE key = 'composer.composerHeaders'")
             .map_err(|e| GitAiError::Generic(format!("Query failed: {}", e)))?;
+
         let mut rows = stmt
             .query([])
             .map_err(|e| GitAiError::Generic(format!("Query failed: {}", e)))?;
 
-        let mut ids = Vec::new();
-        while let Ok(Some(row)) = rows.next() {
-            let key: String = row
-                .get(0)
-                .map_err(|e| GitAiError::Generic(format!("Failed to read key: {}", e)))?;
-            if let Some(uuid) = key.strip_prefix("composerData:") {
-                ids.push(uuid.to_string());
-            }
-        }
-        Ok(ids)
-    }
-
-    /// Return the Unix timestamp (seconds) of the last bubble in a conversation,
-    /// or `None` if the conversation is missing, uses a legacy format, or has no
-    /// parseable timestamp.
-    pub fn get_last_bubble_timestamp(db_path: &Path, conversation_id: &str) -> Option<u64> {
-        let data = Self::fetch_composer_payload(db_path, conversation_id).ok()?;
-
-        let headers = data
-            .get("fullConversationHeadersOnly")
-            .and_then(|v| v.as_array())?;
-
-        let last_bubble_id = headers
-            .iter()
-            .rev()
-            .find_map(|h| h.get("bubbleId").and_then(|v| v.as_str()).map(|s| s.to_string()))?;
-
-        let bubble = Self::fetch_bubble_content_from_db(db_path, conversation_id, &last_bubble_id)
-            .ok()
-            .flatten()?;
-
-        let created_at = bubble.get("createdAt").and_then(|v| v.as_str())?;
-
-        chrono::DateTime::parse_from_rfc3339(created_at)
-            .ok()
-            .map(|dt| dt.timestamp() as u64)
-    }
-
-    /// Return the workspace root path for a conversation by inspecting `messageRequestContext`
-    /// rows in the Cursor DB.
-    ///
-    /// Each `messageRequestContext:<conversation_id>:<bubble_id>` row (excluding the special
-    /// `WARM_SUBMIT` key) contains a `projectLayouts` array whose first element is a
-    /// JSON-encoded string with `listDirV2Result.directoryTreeRoot.absPath` equal to the
-    /// workspace root that was open when the conversation was running.
-    ///
-    /// Returns `None` when:
-    /// - No matching rows exist (older Cursor version, conversation without tool use)
-    /// - The JSON structure is unexpected
-    pub fn get_conversation_workspace_root(
-        db_path: &Path,
-        conversation_id: &str,
-    ) -> Option<String> {
-        let conn = Self::open_sqlite_readonly(db_path).ok()?;
-
-        let like_pattern = format!("messageRequestContext:{}:%", conversation_id);
-        let warm_submit_key = format!("messageRequestContext:{}:WARM_SUBMIT", conversation_id);
-
-        let mut stmt = conn
-            .prepare(
-                "SELECT value FROM cursorDiskKV WHERE key LIKE ? AND key != ? LIMIT 1",
-            )
-            .ok()?;
-
-        let mut rows = stmt.query([&like_pattern, &warm_submit_key]).ok()?;
-
-        let row = rows.next().ok()??;
-        let value_text: String = row.get(0).ok()?;
-        let data: serde_json::Value = serde_json::from_str(&value_text).ok()?;
-
-        let layouts = data.get("projectLayouts")?.as_array()?;
-        let first_layout_str = layouts.first()?.as_str()?;
-        let first_layout: serde_json::Value = serde_json::from_str(first_layout_str).ok()?;
-
-        first_layout
-            .get("listDirV2Result")?
-            .get("directoryTreeRoot")?
-            .get("absPath")?
-            .as_str()
-            .map(|s| s.to_string())
-    }
-
-    /// Return the path to Cursor's per-workspace storage directory.
-    ///
-    /// Respects `GIT_AI_CURSOR_WORKSPACE_STORAGE_PATH` for testability,
-    /// otherwise uses the platform-specific default.
-    pub fn cursor_workspace_storage_path() -> Result<PathBuf, GitAiError> {
-        if let Ok(p) = std::env::var("GIT_AI_CURSOR_WORKSPACE_STORAGE_PATH") {
-            return Ok(PathBuf::from(p));
-        }
-        let user_dir = Self::cursor_user_dir()?;
-        Ok(user_dir.join("workspaceStorage"))
-    }
-
-    /// Build a map from conversation (composer) ID to workspace path by scanning
-    /// all per-workspace Cursor databases.
-    ///
-    /// Each workspace directory contains:
-    /// - `workspace.json` with a `folder` URI (e.g. `file:///Users/…`)
-    /// - `state.vscdb` with an `ItemTable` row keyed `composer.composerData`
-    ///   whose JSON value contains an `allComposers` array of `{composerId, …}`.
-    ///
-    /// This covers all conversation types (agent, chat, read-only) regardless of
-    /// Cursor version, unlike `messageRequestContext` which only exists for a
-    /// subset of conversations.
-    pub fn build_workspace_composer_map() -> HashMap<String, PathBuf> {
-        let ws_storage = match Self::cursor_workspace_storage_path() {
-            Ok(p) => p,
-            Err(_) => return HashMap::new(),
-        };
-        Self::build_workspace_composer_map_from(&ws_storage)
-    }
-
-    /// Build the composer map from an explicit workspace storage directory path.
-    pub fn build_workspace_composer_map_from(ws_storage: &Path) -> HashMap<String, PathBuf> {
-        if !ws_storage.is_dir() {
-            return HashMap::new();
-        }
-
-        let mut map = HashMap::new();
-
-        let entries = match std::fs::read_dir(ws_storage) {
-            Ok(e) => e,
-            Err(_) => return map,
+        let row = match rows.next() {
+            Ok(Some(r)) => r,
+            _ => return Ok(Vec::new()),
         };
 
-        for entry in entries.flatten() {
-            let ws_dir = entry.path();
-            if !ws_dir.is_dir() {
-                continue;
-            }
+        let value_text: String = row
+            .get(0)
+            .map_err(|e| GitAiError::Generic(format!("Failed to read value: {}", e)))?;
 
-            let ws_json_path = ws_dir.join("workspace.json");
-            let db_path = ws_dir.join("state.vscdb");
+        let data: serde_json::Value = serde_json::from_str(&value_text)
+            .map_err(|e| GitAiError::Generic(format!("Failed to parse JSON: {}", e)))?;
 
-            if !ws_json_path.is_file() || !db_path.is_file() {
-                continue;
-            }
+        let all_composers = match data.get("allComposers").and_then(|v| v.as_array()) {
+            Some(arr) => arr,
+            None => return Ok(Vec::new()),
+        };
 
-            // Parse workspace.json to get the folder path from its file:// URI
-            let folder_path = match std::fs::read_to_string(&ws_json_path)
-                .ok()
-                .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
-                .and_then(|v| v.get("folder")?.as_str().map(|s| s.to_string()))
-                .and_then(|uri| url::Url::parse(&uri).ok())
-                .and_then(|u| u.to_file_path().ok())
-            {
-                Some(p) => p.to_string_lossy().to_string(),
+        let canonical_workspace = workspace_path
+            .canonicalize()
+            .unwrap_or_else(|_| workspace_path.to_path_buf());
+
+        let mut results = Vec::new();
+        for entry in all_composers {
+            let composer_id = match entry.get("composerId").and_then(|v| v.as_str()) {
+                Some(id) => id,
                 None => continue,
             };
 
-            // Read allComposers from the workspace DB
-            let conn = match Self::open_sqlite_readonly(&db_path) {
-                Ok(c) => c,
-                Err(_) => continue,
+            // Extract fsPath from workspaceIdentifier.uri.fsPath
+            let fs_path = entry
+                .get("workspaceIdentifier")
+                .and_then(|ws| ws.get("uri"))
+                .and_then(|uri| uri.get("fsPath"))
+                .and_then(|p| p.as_str());
+
+            let matches = match fs_path {
+                Some(p) => {
+                    let entry_path = PathBuf::from(p);
+                    let canonical_entry = entry_path
+                        .canonicalize()
+                        .unwrap_or_else(|_| entry_path);
+                    canonical_entry == canonical_workspace
+                }
+                None => false,
             };
 
-            let composer_ids: Vec<String> = (|| -> Option<Vec<String>> {
-                let mut stmt = conn
-                    .prepare("SELECT value FROM ItemTable WHERE key = 'composer.composerData'")
-                    .ok()?;
-                let mut rows = stmt.query([]).ok()?;
-                let row = rows.next().ok()??;
-                let value_text: String = row.get(0).ok()?;
-                let data: serde_json::Value = serde_json::from_str(&value_text).ok()?;
-                let all_composers = data.get("allComposers")?.as_array()?;
-                Some(
-                    all_composers
-                        .iter()
-                        .filter_map(|c| c.get("composerId")?.as_str().map(|s| s.to_string()))
-                        .collect(),
-                )
-            })()
-            .unwrap_or_default();
+            if matches {
+                // lastUpdatedAt is epoch milliseconds; convert to seconds
+                let last_updated_at = entry
+                    .get("lastUpdatedAt")
+                    .and_then(|v| v.as_u64())
+                    .map(|ms| ms / 1000)
+                    .unwrap_or(0);
 
-            let ws_path = PathBuf::from(&folder_path);
-            for cid in composer_ids {
-                map.insert(cid, ws_path.clone());
+                results.push((composer_id.to_string(), last_updated_at));
             }
         }
 
-        map
+        Ok(results)
     }
 
     /// Return the path to Cursor's per-project agent-transcripts directory.

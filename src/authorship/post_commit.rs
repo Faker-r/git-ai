@@ -803,7 +803,7 @@ fn collect_context_conversations(
     use crate::commands::checkpoint_agent::agent_presets::CursorPreset;
 
     // Lower-bound timestamp: the moment the parent commit was made. Any conversation whose last
-    // bubble was created after this point is a candidate for inclusion.
+    // activity was after this point is a candidate for inclusion.
     let lower_bound_ts: u64 = if parent_sha == "initial" {
         0
     } else {
@@ -819,7 +819,6 @@ fn collect_context_conversations(
         }
     };
 
-    // Resolve the repo working directory once for workspace-scoping comparisons.
     let repo_workdir = match repo.workdir() {
         Ok(p) => p,
         Err(e) => {
@@ -840,73 +839,29 @@ fn collect_context_conversations(
         return Vec::new();
     }
 
-    let all_ids = match CursorPreset::list_all_cursor_conversation_ids(&db_path) {
-        Ok(ids) => ids,
-        Err(e) => {
-            debug_log(&format!(
-                "[context_conversations] Failed to list Cursor conversation IDs: {}",
-                e
-            ));
-            return Vec::new();
-        }
-    };
-
-    // Build a composerId → workspace path map from per-workspace Cursor databases.
-    // This is the primary method for workspace scoping and covers all conversation types.
-    let workspace_map = CursorPreset::build_workspace_composer_map();
-
-    let canonical_repo = repo_workdir
-        .canonicalize()
-        .unwrap_or_else(|_| repo_workdir.clone());
+    // Single query: get all conversation IDs for this workspace with their timestamps
+    // from composer.composerHeaders in the global ItemTable.
+    let workspace_ids =
+        match CursorPreset::list_workspace_conversation_ids(&db_path, &repo_workdir) {
+            Ok(ids) => ids,
+            Err(e) => {
+                debug_log(&format!(
+                    "[context_conversations] Failed to list workspace conversation IDs: {}",
+                    e
+                ));
+                return Vec::new();
+            }
+        };
 
     let mut results = Vec::new();
 
-    for conversation_id in all_ids {
+    for (conversation_id, last_updated_at) in workspace_ids {
         if already_tracked_ids.contains(&conversation_id) {
             continue;
         }
 
-        let last_ts = match CursorPreset::get_last_bubble_timestamp(&db_path, &conversation_id) {
-            Some(ts) => ts,
-            None => continue,
-        };
-
-        if last_ts <= lower_bound_ts {
+        if last_updated_at <= lower_bound_ts {
             continue;
-        }
-
-        // Workspace-scoping: only include conversations from the current repo's workspace.
-        // 1. Check the per-workspace DB map (covers all conversation types)
-        // 2. Fall back to messageRequestContext rows in the global DB
-        // 3. If neither resolves → exclude (not include)
-        let conv_workspace: Option<std::path::PathBuf> = workspace_map
-            .get(&conversation_id)
-            .cloned()
-            .or_else(|| {
-                CursorPreset::get_conversation_workspace_root(&db_path, &conversation_id)
-                    .map(std::path::PathBuf::from)
-            });
-
-        match conv_workspace {
-            Some(ws) => {
-                let canonical_conv = ws.canonicalize().unwrap_or(ws);
-                if canonical_conv != canonical_repo {
-                    debug_log(&format!(
-                        "[context_conversations] Skipping conversation {} (workspace {} != repo {})",
-                        conversation_id,
-                        canonical_conv.display(),
-                        repo_workdir.display()
-                    ));
-                    continue;
-                }
-            }
-            None => {
-                debug_log(&format!(
-                    "[context_conversations] Skipping conversation {} (workspace unknown)",
-                    conversation_id,
-                ));
-                continue;
-            }
         }
 
         match CursorPreset::fetch_cursor_conversation_from_db(&db_path, &conversation_id) {
