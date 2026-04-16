@@ -11,7 +11,7 @@ pub fn pre_commit(repo: &Repository, default_author: String) -> Result<(), GitAi
         checkpoint_kind,
         true,
         agent_run_result,
-        true, // should skip if NO AI CHECKPOINTS
+        true, // enables lightweight human-only file processing
     );
     result.map(|_| ())
 }
