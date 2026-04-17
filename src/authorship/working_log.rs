@@ -42,7 +42,7 @@ impl WorkingLogEntry {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AgentId {
     pub tool: String, // e.g., "cursor", "windsurf"
-    pub id: String,   // id in their domain
+    pub id: String,   // id in their domain (conversation id)
     pub model: String,
 }
 
@@ -136,7 +136,7 @@ pub struct Checkpoint {
     pub git_ai_version: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub known_human_metadata: Option<KnownHumanMetadata>,
-    /// The id of the user prompt that triggered this checkpoint (e.g. Cursor bubble_id).
+    /// The id of the user prompt that triggered this checkpoint
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub prompt_id: Option<String>,
 }
@@ -210,6 +210,7 @@ mod tests {
         assert_eq!(deserialized.timestamp, checkpoint.timestamp);
         assert!(deserialized.transcript.is_none());
         assert!(deserialized.agent_id.is_none());
+        assert!(deserialized.prompt_id.is_none());
     }
 
     #[test]
