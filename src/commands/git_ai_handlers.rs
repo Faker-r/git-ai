@@ -511,7 +511,7 @@ fn handle_checkpoint(args: &[String]) {
                         agent_run_result = Some(agent_run);
                     }
                     Err(e) => {
-                        eprintln!("Error running Cursor preset: {}", e);
+                        tracing::debug!("Cursor preset error (exiting cleanly): {}", e);
                         std::process::exit(0);
                     }
                 }

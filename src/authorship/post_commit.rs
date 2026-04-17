@@ -147,6 +147,23 @@ pub fn post_commit_with_final_state(
         pathspecs.insert(file_path.clone());
     }
 
+    tracing::debug!(
+        "Post-commit checkpoint summary: {} checkpoints",
+        parent_working_log.len()
+    );
+    for (i, cp) in parent_working_log.iter().enumerate() {
+        tracing::debug!(
+            "  [{}] kind={}, agent={:?}, model={:?}, files=[{}], user_prompt_id={:?}",
+            i,
+            cp.kind.to_str(),
+            cp.agent_id.as_ref().map(|a| format!("{}:{}", a.tool, a.id)),
+            cp.agent_id.as_ref().map(|a| a.model.as_str()),
+            cp.entries.iter().map(|e| e.file.as_str()).collect::<Vec<_>>().join(", "),
+            cp.user_prompt_id
+        );
+    }
+
+
     let (mut authorship_log, initial_attributions) = working_va
         .to_authorship_log_and_initial_working_log(
             repo,

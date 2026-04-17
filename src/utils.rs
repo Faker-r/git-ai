@@ -6,10 +6,10 @@ use std::process::{Command, Stdio};
 
 static IS_TERMINAL: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
 static IS_IN_BACKGROUND_AGENT: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-/// Resolved path to the main debug log, cached once per process.
-static DEBUG_LOG_FILE: std::sync::OnceLock<Option<PathBuf>> = std::sync::OnceLock::new();
-/// Separate log for [BENCHMARK] timing lines to keep the main log readable.
-static BENCHMARK_LOG_FILE: std::sync::OnceLock<Option<PathBuf>> = std::sync::OnceLock::new();
+// /// Resolved path to the main debug log, cached once per process.
+// static DEBUG_LOG_FILE: std::sync::OnceLock<Option<PathBuf>> = std::sync::OnceLock::new();
+// /// Separate log for [BENCHMARK] timing lines to keep the main log readable.
+// static BENCHMARK_LOG_FILE: std::sync::OnceLock<Option<PathBuf>> = std::sync::OnceLock::new();
 
 /// Print a git diff in a readable format
 ///
