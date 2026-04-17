@@ -14,6 +14,7 @@ use crate::{
 use chrono::{TimeZone, Utc};
 use dirs;
 use glob::glob;
+use rusqlite::{Connection, OpenFlags};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::env;
@@ -1912,17 +1913,17 @@ impl AgentCheckpointPreset for CursorPreset {
             });
         }
 
-        // Read transcript from JSONL file if available
+        crate::utils::debug_log(&format!(
+            "CursorPreset: hook_event_name={}, conversation_id={}, workspace_roots={:?}",
+            hook_event_name, conversation_id, workspace_roots
+        ));
+
+        // Option 1: Read transcript from JSONL file if available
         let transcript_path = hook_data
             .get("transcript_path")
             .and_then(|v| v.as_str())
             .map(|s| s.to_string());
-
-        crate::utils::debug_log(&format!(
-            "CursorPreset: hook_event_name={}, conversation_id={}, workspace_roots={:?}, transcript_path={:?}",
-            hook_event_name, conversation_id, workspace_roots, transcript_path,
-        ));
-
+        crate::utils::debug_log(&format!("CursorPreset: transcript_path={:?}", transcript_path));
         let transcript = if let Some(ref tp) = transcript_path {
             match Self::transcript_and_model_from_cursor_jsonl(tp) {
                 Ok((transcript, _)) => transcript,
@@ -1938,6 +1939,49 @@ impl AgentCheckpointPreset for CursorPreset {
             eprintln!("[Warning] No transcript_path in Cursor hook input. Will retry at commit.");
             AiTranscript::new()
         };
+
+
+        // // Option 2: Fetch the composer data and extract transcript from global db
+        // let global_db = Self::cursor_global_database_path()?;
+        // if !global_db.exists() {
+        //     return Err(GitAiError::PresetError(format!(
+        //         "Cursor global state database not found at {:?}. \
+        //         Make sure Cursor is installed and has been used at least once. \
+        //         Expected location: {:?}",
+        //         global_db, global_db,
+        //     )));
+        // }
+        // let transcript: AiTranscript = match Self::fetch_composer_payload(&global_db, &conversation_id) {
+        //     Ok(payload) => Self::transcript_data_from_composer_payload(
+        //         &payload,
+        //         &global_db,
+        //         &conversation_id,
+        //     )?
+        //     .map(|(transcript, _db_model)| transcript)
+        //     .unwrap_or_else(|| {
+        //         // Return empty transcript as default
+        //         // There's a race condition causing new threads to sometimes not show up.
+        //         // We refresh and grab all the messages in post-commit so we're ok with returning an empty (placeholder) transcript here and not throwing
+        //         eprintln!(
+        //             "[Warning] Could not extract transcript from Cursor composer. Retrying at commit."
+        //         );
+        //         crate::utils::debug_log(&format!("CursorPreset: [Warning] Could not extract transcript from Cursor composer. Retrying at commit."));
+        //         AiTranscript::new()
+        //     }),
+        //     Err(GitAiError::PresetError(msg))
+        //         if msg == "No conversation data found in database" =>
+        //     {
+        //         // Gracefully continue when the conversation hasn't been written yet due to Cursor race conditions
+        //         eprintln!(
+        //             "[Warning] No conversation data found in Cursor DB for this thread. Proceeding and will re-sync at commit."
+        //         );
+        //         crate::utils::debug_log(&format!("CursorPreset: [Warning] No conversation data found in Cursor DB for this thread. Proceeding and will re-sync at commit."));
+        //         AiTranscript::new()
+        //     }
+        //     Err(e) => return Err(e),
+        // };
+
+        crate::utils::debug_log(&format!("CursorPreset: transcript:\n{}", transcript));
 
         let edited_filepaths = if !file_path.is_empty() {
             Some(vec![file_path.to_string()])
@@ -2041,11 +2085,13 @@ impl CursorPreset {
         let mut transcript = AiTranscript::new();
         let mut plan_states = std::collections::HashMap::new();
 
-        for line in jsonl_content.lines() {
+        for (line_idx, line) in jsonl_content.lines().enumerate() {
             let trimmed = line.trim();
             if trimmed.is_empty() {
                 continue;
             }
+            let line_id = Some(format!("jsonl_line_{}", line_idx + 1));
+
 
             // Skip malformed lines (file may be partially written)
             let raw_entry: serde_json::Value = match serde_json::from_str(trimmed) {
@@ -2058,6 +2104,7 @@ impl CursorPreset {
                     if let Some(content_array) = raw_entry["message"]["content"].as_array() {
                         for item in content_array {
                             if item["type"].as_str() == Some("tool_result") {
+                                crate::utils::debug_log(&format!("CursorPreset: user msg, tool_result: {}", item["text"]));
                                 continue;
                             }
                             if item["type"].as_str() == Some("text")
@@ -2065,7 +2112,11 @@ impl CursorPreset {
                             {
                                 let cleaned = Self::strip_user_query_tags(text);
                                 if !cleaned.is_empty() {
-                                    transcript.add_message(Message::user(cleaned, None));
+                                    transcript.add_message(Message::user_with_id(
+                                        cleaned,
+                                        None,
+                                        line_id.clone(),
+                                    ));
                                 }
                             }
                         }
@@ -2079,9 +2130,10 @@ impl CursorPreset {
                                     if let Some(text) = item["text"].as_str()
                                         && !text.trim().is_empty()
                                     {
-                                        transcript.add_message(Message::assistant(
+                                        transcript.add_message(Message::assistant_with_id(
                                             text.to_string(),
                                             None,
+                                            line_id.clone(),
                                         ));
                                     }
                                 }
@@ -2089,9 +2141,10 @@ impl CursorPreset {
                                     if let Some(thinking) = item["thinking"].as_str()
                                         && !thinking.trim().is_empty()
                                     {
-                                        transcript.add_message(Message::assistant(
+                                        transcript.add_message(Message::assistant_with_id(
                                             thinking.to_string(),
                                             None,
+                                            line_id.clone(),
                                         ));
                                     }
                                 }
@@ -2111,7 +2164,7 @@ impl CursorPreset {
                                             transcript.add_message(Message::Plan {
                                                 text: plan_text,
                                                 timestamp: None,
-                                                id: None,
+                                                id: line_id.clone(),
                                             });
                                         } else {
                                             // Apply same tool filtering as SQLite path
@@ -2119,6 +2172,7 @@ impl CursorPreset {
                                                 &mut transcript,
                                                 name,
                                                 &normalized_input,
+                                                line_id.clone(),
                                             );
                                         }
                                     }
@@ -2180,6 +2234,7 @@ impl CursorPreset {
         transcript: &mut AiTranscript,
         tool_name: &str,
         normalized_input: &serde_json::Value,
+        message_id: Option<String>,
     ) {
         match tool_name {
             // Edit tools: store only file_path (content is too large)
@@ -2197,20 +2252,239 @@ impl CursorPreset {
                     .get("file_path")
                     .and_then(|v| v.as_str())
                     .or_else(|| normalized_input.get("target_file").and_then(|v| v.as_str()));
-                transcript.add_message(Message::tool_use(
+                transcript.add_message(Message::tool_use_with_id(
                     tool_name.to_string(),
                     serde_json::json!({ "file_path": file_path.unwrap_or("") }),
+                    message_id,
                 ));
             }
             // Everything else: store full args
             _ => {
-                transcript.add_message(Message::tool_use(
+                transcript.add_message(Message::tool_use_with_id(
                     tool_name.to_string(),
                     normalized_input.clone(),
+                    message_id,
                 ));
             }
         }
     }
+
+    // Get the Cursor database path
+    pub fn cursor_global_database_path() -> Result<PathBuf, GitAiError> {
+        if let Ok(global_db_path) = std::env::var("GIT_AI_CURSOR_GLOBAL_DB_PATH") {
+            return Ok(PathBuf::from(global_db_path));
+        }
+        let user_dir = Self::cursor_user_dir()?;
+        let global_db = user_dir.join("globalStorage").join("state.vscdb");
+        Ok(global_db)
+    }
+
+    fn cursor_user_dir() -> Result<PathBuf, GitAiError> {
+        #[cfg(target_os = "windows")]
+        {
+            // Windows: %APPDATA%\Cursor\User
+            let appdata = env::var("APPDATA")
+                .map_err(|e| GitAiError::Generic(format!("APPDATA not set: {}", e)))?;
+            Ok(Path::new(&appdata).join("Cursor").join("User"))
+        }
+        #[cfg(target_os = "macos")]
+        {
+            // macOS: ~/Library/Application Support/Cursor/User
+            let home = dirs::home_dir().ok_or_else(|| {
+                GitAiError::Generic("Could not determine home directory".to_string())
+            })?;
+            Ok(home
+                .join("Library")
+                .join("Application Support")
+                .join("Cursor")
+                .join("User"))
+        }
+        #[cfg(target_os = "linux")]
+        {
+            // Linux: ~/.config/Cursor/User
+            let config_dir = dirs::config_dir().ok_or_else(|| {
+                GitAiError::Generic("Could not determine user config directory".to_string())
+            })?;
+            Ok(config_dir.join("Cursor").join("User"))
+        }
+        #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+        {
+            Err(GitAiError::PresetError(
+                "Cursor is only supported on Windows and macOS platforms".to_string(),
+            ))
+        }
+    }
+
+    pub fn fetch_composer_payload(
+        global_db_path: &Path,
+        composer_id: &str,
+    ) -> Result<serde_json::Value, GitAiError> {
+        let conn = Self::open_sqlite_readonly(global_db_path)?;
+        // Look for the composer data in cursorDiskKV
+        let key_pattern = format!("composerData:{}", composer_id);
+        let mut stmt = conn
+            .prepare("SELECT value FROM cursorDiskKV WHERE key = ?")
+            .map_err(|e| GitAiError::Generic(format!("Query failed: {}", e)))?;
+        let mut rows = stmt
+            .query([&key_pattern])
+            .map_err(|e| GitAiError::Generic(format!("Query failed: {}", e)))?;
+        if let Ok(Some(row)) = rows.next() {
+            let value_text: String = row
+                .get(0)
+                .map_err(|e| GitAiError::Generic(format!("Failed to read value: {}", e)))?;
+            let data = serde_json::from_str::<serde_json::Value>(&value_text)
+                .map_err(|e| GitAiError::Generic(format!("Failed to parse JSON: {}", e)))?;
+            return Ok(data);
+        }
+        Err(GitAiError::PresetError(
+            "No conversation data found in database".to_string(),
+        ))
+    }
+
+    fn open_sqlite_readonly(path: &Path) -> Result<Connection, GitAiError> {
+        Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_ONLY)
+            .map_err(|e| GitAiError::Generic(format!("Failed to open {:?}: {}", path, e)))
+    }
+
+    pub fn transcript_data_from_composer_payload(
+        data: &serde_json::Value,
+        global_db_path: &Path,
+        composer_id: &str,
+    ) -> Result<Option<(AiTranscript, String)>, GitAiError> {
+        // Only support fullConversationHeadersOnly (bubbles format) - the current Cursor format
+        // All conversations since April 2025 use this format exclusively
+        let conv = data
+            .get("fullConversationHeadersOnly")
+            .and_then(|v| v.as_array())
+            .ok_or_else(|| {
+                GitAiError::PresetError(
+                    "Conversation uses unsupported legacy format. Only conversations created after April 2025 are supported.".to_string()
+                )
+            })?;
+        let mut transcript = AiTranscript::new();
+        let mut model = None;
+        for header in conv.iter() {
+            if let Some(bubble_id) = header.get("bubbleId").and_then(|v| v.as_str())
+                && let Ok(Some(bubble_content)) =
+                    Self::fetch_bubble_content_from_db(global_db_path, composer_id, bubble_id)
+            {
+                // Get bubble created at (ISO 8601 UTC string)
+                let bubble_created_at = bubble_content
+                    .get("createdAt")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+                // Extract model from bubble (first value wins)
+                if model.is_none()
+                    && let Some(model_info) = bubble_content.get("modelInfo")
+                    && let Some(model_name) = model_info.get("modelName").and_then(|v| v.as_str())
+                {
+                    model = Some(model_name.to_string());
+                }
+
+                let bid = Some(bubble_id.to_string());
+
+                // Extract text from bubble
+                if let Some(text) = bubble_content.get("text").and_then(|v| v.as_str()) {
+                    let trimmed = text.trim();
+                    if !trimmed.is_empty() {
+                        let role = header.get("type").and_then(|v| v.as_i64()).unwrap_or(0);
+                        if role == 1 {
+                            transcript.add_message(Message::user_with_id(
+                                trimmed.to_string(),
+                                bubble_created_at.clone(),
+                                bid.clone(),
+                            ));
+                        } else {
+                            transcript.add_message(Message::assistant_with_id(
+                                trimmed.to_string(),
+                                bubble_created_at.clone(),
+                                bid.clone(),
+                            ));
+                        }
+                    }
+                }
+                // Handle tool calls and edits
+                if let Some(tool_former_data) = bubble_content.get("toolFormerData") {
+                    let tool_name = tool_former_data
+                        .get("name")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("unknown");
+                    let raw_args_str = tool_former_data
+                        .get("rawArgs")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("{}");
+                    let raw_args_json = serde_json::from_str::<serde_json::Value>(raw_args_str)
+                        .unwrap_or(serde_json::Value::Null);
+                    match tool_name {
+                        "edit_file" => {
+                            let target_file =
+                                raw_args_json.get("target_file").and_then(|v| v.as_str());
+                            transcript.add_message(Message::tool_use_with_id(
+                                tool_name.to_string(),
+                                serde_json::json!({ "file_path": target_file.unwrap_or("") }),
+                                bid.clone(),
+                            ));
+                        }
+                        "apply_patch"
+                        | "edit_file_v2_apply_patch"
+                        | "search_replace"
+                        | "edit_file_v2_search_replace"
+                        | "write"
+                        | "MultiEdit" => {
+                            let file_path = raw_args_json.get("file_path").and_then(|v| v.as_str());
+                            transcript.add_message(Message::tool_use_with_id(
+                                tool_name.to_string(),
+                                serde_json::json!({ "file_path": file_path.unwrap_or("") }),
+                                bid.clone(),
+                            ));
+                        }
+                        "codebase_search" | "grep" | "read_file" | "web_search"
+                        | "run_terminal_cmd" | "glob_file_search" | "todo_write"
+                        | "file_search" | "grep_search" | "list_dir" | "ripgrep" => {
+                            transcript.add_message(Message::tool_use_with_id(
+                                tool_name.to_string(),
+                                raw_args_json,
+                                bid.clone(),
+                            ));
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+        if !transcript.messages.is_empty() {
+            Ok(Some((transcript, model.unwrap_or("unknown".to_string()))))
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub fn fetch_bubble_content_from_db(
+        global_db_path: &Path,
+        composer_id: &str,
+        bubble_id: &str,
+    ) -> Result<Option<serde_json::Value>, GitAiError> {
+        let conn = Self::open_sqlite_readonly(global_db_path)?;
+        // Look for bubble data in cursorDiskKV with pattern bubbleId:composerId:bubbleId
+        let bubble_pattern = format!("bubbleId:{}:{}", composer_id, bubble_id);
+        let mut stmt = conn
+            .prepare("SELECT value FROM cursorDiskKV WHERE key = ?")
+            .map_err(|e| GitAiError::Generic(format!("Query failed: {}", e)))?;
+        let mut rows = stmt
+            .query([&bubble_pattern])
+            .map_err(|e| GitAiError::Generic(format!("Query failed: {}", e)))?;
+        if let Ok(Some(row)) = rows.next() {
+            let value_text: String = row
+                .get(0)
+                .map_err(|e| GitAiError::Generic(format!("Failed to read value: {}", e)))?;
+            let data = serde_json::from_str::<serde_json::Value>(&value_text)
+                .map_err(|e| GitAiError::Generic(format!("Failed to parse JSON: {}", e)))?;
+            return Ok(Some(data));
+        }
+
+        Ok(None)
+    }
+
 }
 
 pub struct GithubCopilotPreset;
