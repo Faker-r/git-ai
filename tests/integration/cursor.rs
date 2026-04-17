@@ -234,6 +234,35 @@ fn test_cursor_jsonl_malformed_lines_skipped() {
 }
 
 #[test]
+fn test_cursor_jsonl_message_ids_are_sequenced_per_message() {
+    use git_ai::authorship::transcript::Message;
+    use git_ai::commands::checkpoint_agent::agent_presets::CursorPreset;
+    use std::io::Write;
+    use tempfile::NamedTempFile;
+
+    let mut temp_file = NamedTempFile::new().expect("Should create temp file");
+    writeln!(
+        temp_file,
+        r#"{{"role":"assistant","message":{{"content":[{{"type":"text","text":"Updating test.txt"}},{{"type":"tool_use","name":"ReadFile","input":{{"path":"/tmp/test.txt"}}}}]}}}}"#
+    )
+    .unwrap();
+    temp_file.flush().unwrap();
+
+    let (transcript, _) =
+        CursorPreset::transcript_and_model_from_cursor_jsonl(temp_file.path().to_str().unwrap())
+            .expect("Should parse cursor jsonl with multiple messages on one line");
+
+    let messages = transcript.messages();
+    assert_eq!(messages.len(), 2, "Should parse two assistant-side messages");
+
+    assert_eq!(messages[0].id().map(String::as_str), Some("msg_1"));
+    assert_eq!(messages[1].id().map(String::as_str), Some("msg_2"));
+
+    assert!(matches!(messages[0], Message::Assistant { .. }));
+    assert!(matches!(messages[1], Message::ToolUse { .. }));
+}
+
+#[test]
 fn test_cursor_preset_multi_root_workspace_detection() {
     use git_ai::authorship::working_log::CheckpointKind;
     use git_ai::commands::checkpoint_agent::agent_presets::{
@@ -733,6 +762,7 @@ crate::reuse_tests_in_worktree!(
     test_cursor_jsonl_basic_parsing,
     test_cursor_jsonl_user_query_tag_stripping,
     test_cursor_jsonl_tool_normalization,
+    test_cursor_jsonl_message_ids_are_sequenced_per_message,
     test_cursor_preset_multi_root_workspace_detection,
     test_cursor_preset_human_checkpoint_no_filepath,
     test_cursor_e2e_with_attribution,

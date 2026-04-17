@@ -9,6 +9,7 @@ use crate::authorship::ignore::{
 use crate::authorship::imara_diff_utils::{
     LineChangeTag, compute_line_changes, normalize_line_endings,
 };
+use crate::authorship::transcript::Message;
 use crate::authorship::working_log::CheckpointKind;
 use crate::authorship::working_log::{Checkpoint, WorkingLogEntry};
 use crate::commands::blame::{GitAiBlameOptions, OLDEST_AI_BLAME_DATE};
@@ -178,6 +179,17 @@ pub(crate) fn should_emit_agent_usage(agent_id: &AgentId) -> bool {
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) fn should_emit_agent_usage(_agent_id: &AgentId) -> bool {
     false
+}
+
+fn latest_user_prompt_id(agent_run_result: Option<&AgentRunResult>) -> Option<String> {
+    agent_run_result
+        .and_then(|result| result.transcript.as_ref())
+        .and_then(|transcript| {
+            transcript.messages().iter().rev().find_map(|message| match message {
+                Message::User { id: Some(id), .. } => Some(id.clone()),
+                _ => None,
+            })
+        })
 }
 
 pub fn explicit_capture_target_paths(
@@ -882,6 +894,7 @@ fn execute_resolved_checkpoint(
                 checkpoint.transcript = Some(agent_run.transcript.clone().unwrap_or_default());
                 checkpoint.agent_id = Some(agent_run.agent_id.clone());
                 checkpoint.agent_metadata = agent_run.agent_metadata.clone();
+                checkpoint.prompt_id = latest_user_prompt_id(agent_run_result.as_ref());
             }
         } else if kind == CheckpointKind::KnownHuman
             && let Some(agent_run) = &agent_run_result
@@ -2833,6 +2846,68 @@ mod tests {
         // Should only process the valid file
         assert_eq!(files_len, 1, "Should process 1 valid file");
         assert_eq!(entries_len, 1, "Should create 1 entry");
+    }
+
+    #[test]
+    fn test_ai_checkpoint_sets_prompt_id_from_latest_user_message_id() {
+        use crate::authorship::transcript::{AiTranscript, Message};
+        use crate::authorship::working_log::AgentId;
+        use crate::commands::checkpoint_agent::agent_presets::AgentRunResult;
+
+        let (tmp_repo, mut file, _) = TmpRepo::new_with_base_commit().unwrap();
+        file.append("New line added\n").unwrap();
+
+        let mut transcript = AiTranscript::new();
+        transcript.add_message(Message::user_with_id(
+            "First user prompt".to_string(),
+            None,
+            Some("cursor-bubble-1".to_string()),
+        ));
+        transcript.add_message(Message::assistant("Reply".to_string(), None));
+        transcript.add_message(Message::user_with_id(
+            "Second user prompt".to_string(),
+            None,
+            Some("cursor-bubble-2".to_string()),
+        ));
+        transcript.add_message(Message::assistant("Reply 2".to_string(), None));
+
+        let agent_run_result = AgentRunResult {
+            agent_id: AgentId {
+                tool: "cursor".to_string(),
+                id: "cursor-conversation".to_string(),
+                model: "gpt-5".to_string(),
+            },
+            agent_metadata: None,
+            transcript: Some(transcript),
+            checkpoint_kind: CheckpointKind::AiAgent,
+            repo_working_dir: None,
+            edited_filepaths: Some(vec![file.filename().to_string()]),
+            will_edit_filepaths: None,
+            dirty_files: None,
+            captured_checkpoint_id: None,
+        };
+
+        tmp_repo
+            .trigger_checkpoint_with_agent_result("test_user", Some(agent_run_result))
+            .unwrap();
+
+        let repo =
+            crate::git::repository::find_repository_in_path(tmp_repo.path().to_str().unwrap())
+                .expect("Repository should exist");
+        let base_commit = repo
+            .head()
+            .ok()
+            .and_then(|head| head.target().ok())
+            .unwrap_or_else(|| "initial".to_string());
+        let working_log = repo.storage.working_log_for_base_commit(&base_commit).unwrap();
+        let checkpoints = working_log.read_all_checkpoints().unwrap();
+        let latest = checkpoints.last().expect("Expected checkpoint to exist");
+
+        assert_eq!(
+            latest.prompt_id.as_deref(),
+            Some("cursor-bubble-2"),
+            "Checkpoint should store the latest user message id as prompt_id"
+        );
     }
 
     #[test]

@@ -5,7 +5,7 @@ use std::fmt;
 /// Represents a single message in an AI transcript
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
-pub enum Message {
+pub enum Message { // define "id" as the sequence number of the message in the transcript
     User {
         text: String,
         #[serde(skip_serializing_if = "Option::is_none")]
