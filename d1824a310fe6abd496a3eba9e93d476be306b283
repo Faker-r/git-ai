@@ -1,0 +1,21 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "development:1.3.0",
+  "base_commit_sha": "d1824a310fe6abd496a3eba9e93d476be306b283",
+  "prompts": {
+    "76ddd8bde2dbac9a": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "79f2c295-eabb-42d9-b2eb-d83a8028801e",
+        "model": "default"
+      },
+      "human_author": "Yingying Wang <dora93wang@gmail.com>",
+      "messages": [],
+      "total_additions": 6,
+      "total_deletions": 2,
+      "accepted_lines": 4,
+      "overriden_lines": 0
+    }
+  }
+}
