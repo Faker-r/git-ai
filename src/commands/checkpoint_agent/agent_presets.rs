@@ -1810,6 +1810,7 @@ impl AgentCheckpointPreset for CursorPreset {
 
         let hook_data: serde_json::Value = serde_json::from_str(&hook_input_json)
             .map_err(|e| GitAiError::PresetError(format!("Invalid JSON in hook_input: {}", e)))?;
+        crate::utils::debug_log(&format!("CursorPreset: hook_data={:?}", hook_data));
 
         // Extract conversation_id and workspace_roots from the JSON
         let conversation_id = hook_data
@@ -1918,68 +1919,68 @@ impl AgentCheckpointPreset for CursorPreset {
             hook_event_name, conversation_id, workspace_roots
         ));
 
-        // Option 1: Read transcript from JSONL file if available
-        let transcript_path = hook_data
-            .get("transcript_path")
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_string());
-        crate::utils::debug_log(&format!("CursorPreset: transcript_path={:?}", transcript_path));
-        let transcript = if let Some(ref tp) = transcript_path {
-            match Self::transcript_and_model_from_cursor_jsonl(tp) {
-                Ok((transcript, _)) => transcript,
-                Err(e) => {
-                    eprintln!(
-                        "[Warning] Failed to parse Cursor JSONL at {}: {}. Will retry at commit.",
-                        tp, e
-                    );
-                    AiTranscript::new()
-                }
-            }
-        } else {
-            eprintln!("[Warning] No transcript_path in Cursor hook input. Will retry at commit.");
-            AiTranscript::new()
-        };
-
-
-        // // Option 2: Fetch the composer data and extract transcript from global db
-        // let global_db = Self::cursor_global_database_path()?;
-        // if !global_db.exists() {
-        //     return Err(GitAiError::PresetError(format!(
-        //         "Cursor global state database not found at {:?}. \
-        //         Make sure Cursor is installed and has been used at least once. \
-        //         Expected location: {:?}",
-        //         global_db, global_db,
-        //     )));
-        // }
-        // let transcript: AiTranscript = match Self::fetch_composer_payload(&global_db, &conversation_id) {
-        //     Ok(payload) => Self::transcript_data_from_composer_payload(
-        //         &payload,
-        //         &global_db,
-        //         &conversation_id,
-        //     )?
-        //     .map(|(transcript, _db_model)| transcript)
-        //     .unwrap_or_else(|| {
-        //         // Return empty transcript as default
-        //         // There's a race condition causing new threads to sometimes not show up.
-        //         // We refresh and grab all the messages in post-commit so we're ok with returning an empty (placeholder) transcript here and not throwing
-        //         eprintln!(
-        //             "[Warning] Could not extract transcript from Cursor composer. Retrying at commit."
-        //         );
-        //         crate::utils::debug_log(&format!("CursorPreset: [Warning] Could not extract transcript from Cursor composer. Retrying at commit."));
-        //         AiTranscript::new()
-        //     }),
-        //     Err(GitAiError::PresetError(msg))
-        //         if msg == "No conversation data found in database" =>
-        //     {
-        //         // Gracefully continue when the conversation hasn't been written yet due to Cursor race conditions
-        //         eprintln!(
-        //             "[Warning] No conversation data found in Cursor DB for this thread. Proceeding and will re-sync at commit."
-        //         );
-        //         crate::utils::debug_log(&format!("CursorPreset: [Warning] No conversation data found in Cursor DB for this thread. Proceeding and will re-sync at commit."));
-        //         AiTranscript::new()
+        // // Option 1: Read transcript from JSONL file if available
+        // let transcript_path = hook_data
+        //     .get("transcript_path")
+        //     .and_then(|v| v.as_str())
+        //     .map(|s| s.to_string());
+        // crate::utils::debug_log(&format!("CursorPreset: transcript_path={:?}", transcript_path));
+        // let transcript = if let Some(ref tp) = transcript_path {
+        //     match Self::transcript_and_model_from_cursor_jsonl(tp) {
+        //         Ok((transcript, _)) => transcript,
+        //         Err(e) => {
+        //             eprintln!(
+        //                 "[Warning] Failed to parse Cursor JSONL at {}: {}. Will retry at commit.",
+        //                 tp, e
+        //             );
+        //             AiTranscript::new()
+        //         }
         //     }
-        //     Err(e) => return Err(e),
+        // } else {
+        //     eprintln!("[Warning] No transcript_path in Cursor hook input. Will retry at commit.");
+        //     AiTranscript::new()
         // };
+
+
+        // Option 2: Fetch the composer data and extract transcript from global db
+        let global_db = Self::cursor_global_database_path()?;
+        if !global_db.exists() {
+            return Err(GitAiError::PresetError(format!(
+                "Cursor global state database not found at {:?}. \
+                Make sure Cursor is installed and has been used at least once. \
+                Expected location: {:?}",
+                global_db, global_db,
+            )));
+        }
+        let transcript: AiTranscript = match Self::fetch_composer_payload(&global_db, &conversation_id) {
+            Ok(payload) => Self::transcript_data_from_composer_payload(
+                &payload,
+                &global_db,
+                &conversation_id,
+            )?
+            .map(|(transcript, _db_model)| transcript)
+            .unwrap_or_else(|| {
+                // Return empty transcript as default
+                // There's a race condition causing new threads to sometimes not show up.
+                // We refresh and grab all the messages in post-commit so we're ok with returning an empty (placeholder) transcript here and not throwing
+                eprintln!(
+                    "[Warning] Could not extract transcript from Cursor composer. Retrying at commit."
+                );
+                crate::utils::debug_log(&format!("CursorPreset: [Warning] Could not extract transcript from Cursor composer. Retrying at commit."));
+                AiTranscript::new()
+            }),
+            Err(GitAiError::PresetError(msg))
+                if msg == "No conversation data found in database" =>
+            {
+                // Gracefully continue when the conversation hasn't been written yet due to Cursor race conditions
+                eprintln!(
+                    "[Warning] No conversation data found in Cursor DB for this thread. Proceeding and will re-sync at commit."
+                );
+                crate::utils::debug_log(&format!("CursorPreset: [Warning] No conversation data found in Cursor DB for this thread. Proceeding and will re-sync at commit."));
+                AiTranscript::new()
+            }
+            Err(e) => return Err(e),
+        };
 
         crate::utils::debug_log(&format!("CursorPreset: transcript:\n{}", transcript));
 
@@ -1995,13 +1996,13 @@ impl AgentCheckpointPreset for CursorPreset {
             model,
         };
 
-        // Store transcript_path in metadata for re-reading at commit time
-        let agent_metadata =
-            transcript_path.map(|tp| HashMap::from([("transcript_path".to_string(), tp)]));
+        // // Store transcript_path in metadata for re-reading at commit time
+        // let agent_metadata =
+        //     transcript_path.map(|tp| HashMap::from([("transcript_path".to_string(), tp)]));
 
         Ok(AgentRunResult {
             agent_id,
-            agent_metadata,
+            agent_metadata: None,
             checkpoint_kind: CheckpointKind::AiAgent,
             transcript: Some(transcript),
             repo_working_dir: Some(repo_working_dir),

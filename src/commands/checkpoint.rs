@@ -906,6 +906,17 @@ fn execute_resolved_checkpoint(
             checkpoint_create_start.elapsed()
         ));
 
+        debug_log(&format!(
+            "Checkpoint created: kind={}, agent_id={:?}, files=[{}], line_stats={{+{} -{}}}, diff_hash={}, user_prompt_id={:?}",
+            checkpoint.kind.to_str(),
+            checkpoint.agent_id.as_ref().map(|a| format!("{}:{}", a.tool, a.id)),
+            checkpoint.entries.iter().map(|e| e.file.as_str()).collect::<Vec<_>>().join(", "),
+            checkpoint.line_stats.additions,
+            checkpoint.line_stats.deletions,
+            checkpoint.diff,
+            checkpoint.user_prompt_id,
+        ));
+
         if kind.is_ai()
             && checkpoint.agent_id.is_some()
             && checkpoint.transcript.is_some()
