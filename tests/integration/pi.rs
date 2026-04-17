@@ -151,18 +151,18 @@ fn test_pi_after_edit_checkpoint_via_cli_creates_ai_checkpoint() {
     repo.sync_daemon_force();
 
     let checkpoints = read_checkpoints(&repo);
-    assert_eq!(checkpoints.len(), 1);
-    assert_eq!(checkpoints[0].kind, CheckpointKind::AiAgent);
+    assert_eq!(checkpoints.len(), 2);
+    assert_eq!(checkpoints[1].kind, CheckpointKind::AiAgent);
     assert_eq!(
-        checkpoints[0].agent_id.as_ref().unwrap().model,
+        checkpoints[1].agent_id.as_ref().unwrap().model,
         "claude-sonnet-4-5"
     );
     assert!(
-        checkpoints[0].transcript.is_none(),
+        checkpoints[1].transcript.is_none(),
         "Pi checkpoints with session_path should persist metadata and drop inline transcript"
     );
     assert_eq!(
-        checkpoints[0]
+        checkpoints[1]
             .agent_metadata
             .as_ref()
             .and_then(|metadata| metadata.get("tool_name_raw"))
