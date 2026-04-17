@@ -945,9 +945,10 @@ mod tests {
         let prompt_id = authorship
             .metadata
             .prompts
-            .keys()
-            .next()
-            .expect("No prompt found")
+            .iter()
+            .find(|(_, p)| p.agent_id.tool == "test_tool")
+            .expect("No test_tool prompt found")
+            .0
             .clone();
 
         // Get HEAD commit SHA
@@ -1029,9 +1030,10 @@ mod tests {
         let prompt_id = authorship1
             .metadata
             .prompts
-            .keys()
-            .next()
-            .expect("No prompt found")
+            .iter()
+            .find(|(_, p)| p.agent_id.tool == "test_tool")
+            .expect("No test_tool prompt found")
+            .0
             .clone();
 
         // Test finding the prompt with offset 0 (most recent)
@@ -1125,9 +1127,10 @@ mod tests {
         let prompt_id = authorship
             .metadata
             .prompts
-            .keys()
-            .next()
-            .expect("No prompt found")
+            .iter()
+            .find(|(_, p)| p.agent_id.tool == "test_tool")
+            .expect("No test_tool prompt found")
+            .0
             .clone();
 
         // Test with commit specified
@@ -1155,9 +1158,10 @@ mod tests {
         let prompt_id = authorship
             .metadata
             .prompts
-            .keys()
-            .next()
-            .expect("No prompt found")
+            .iter()
+            .find(|(_, p)| p.agent_id.tool == "test_tool")
+            .expect("No test_tool prompt found")
+            .0
             .clone();
 
         // Test without commit (searches history)
@@ -1198,9 +1202,10 @@ mod tests {
         let prompt_id = authorship
             .metadata
             .prompts
-            .keys()
-            .next()
-            .expect("No prompt found")
+            .iter()
+            .find(|(_, p)| p.agent_id.tool == "test_tool")
+            .expect("No test_tool prompt found")
+            .0
             .clone();
 
         // Test fallback to repository
