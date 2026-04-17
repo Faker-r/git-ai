@@ -138,7 +138,7 @@ pub struct Checkpoint {
     pub known_human_metadata: Option<KnownHumanMetadata>,
     /// The id of the user prompt that triggered this checkpoint
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub prompt_id: Option<String>,
+    pub user_prompt_id: Option<String>,
 }
 
 impl Checkpoint {
@@ -166,7 +166,7 @@ impl Checkpoint {
             api_version: CHECKPOINT_API_VERSION.to_string(),
             git_ai_version: Some(GIT_AI_VERSION.to_string()),
             known_human_metadata: None,
-            prompt_id: None,
+            user_prompt_id: None,
         }
     }
 }
@@ -210,7 +210,7 @@ mod tests {
         assert_eq!(deserialized.timestamp, checkpoint.timestamp);
         assert!(deserialized.transcript.is_none());
         assert!(deserialized.agent_id.is_none());
-        assert!(deserialized.prompt_id.is_none());
+        assert!(deserialized.user_prompt_id.is_none());
     }
 
     #[test]

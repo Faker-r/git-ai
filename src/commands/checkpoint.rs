@@ -894,7 +894,7 @@ fn execute_resolved_checkpoint(
                 checkpoint.transcript = Some(agent_run.transcript.clone().unwrap_or_default());
                 checkpoint.agent_id = Some(agent_run.agent_id.clone());
                 checkpoint.agent_metadata = agent_run.agent_metadata.clone();
-                checkpoint.prompt_id = latest_user_prompt_id(agent_run_result.as_ref());
+                checkpoint.user_prompt_id = latest_user_prompt_id(agent_run_result.as_ref());
             }
         } else if kind == CheckpointKind::KnownHuman
             && let Some(agent_run) = &agent_run_result
@@ -2904,9 +2904,9 @@ mod tests {
         let latest = checkpoints.last().expect("Expected checkpoint to exist");
 
         assert_eq!(
-            latest.prompt_id.as_deref(),
+            latest.user_prompt_id.as_deref(),
             Some("cursor-bubble-2"),
-            "Checkpoint should store the latest user message id as prompt_id"
+            "Checkpoint should store the latest user message id as user_prompt_id"
         );
     }
 
