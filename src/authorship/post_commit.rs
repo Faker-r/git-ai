@@ -451,6 +451,38 @@ fn count_line_ranges(lines: &[u32]) -> usize {
     ranges
 }
 
+/// Extract the user prompt text for a checkpoint from its conversation transcript.
+/// If `prompt_id` (bubble_id) is set, looks for the matching user message by id.
+/// Falls back to the last user message at or before the checkpoint timestamp.
+fn extract_prompt_text_for_checkpoint(
+    messages: &[crate::authorship::transcript::Message],
+    prompt_id: Option<&str>,
+    checkpoint_ts: u64,
+) -> Option<String> {
+    use crate::authorship::transcript::Message;
+
+    if let Some(pid) = prompt_id {
+        if let Some(msg) = messages.iter().find(|m| {
+            matches!(m, Message::User { id, .. } if id.as_deref() == Some(pid))
+        }) {
+            return msg.text().cloned();
+        }
+    }
+
+    messages
+        .iter()
+        .filter(|m| matches!(m, Message::User { .. }))
+        .filter(|m| {
+            m.timestamp()
+                .and_then(|ts| chrono::DateTime::parse_from_rfc3339(ts).ok())
+                .map(|dt| dt.timestamp() as u64 <= checkpoint_ts)
+                .unwrap_or(true)
+        })
+        .last()
+        .and_then(|m| m.text().cloned())
+}
+
+
 /// Update prompts/transcripts in working log checkpoints to their latest versions.
 /// This helps prevent race conditions where we miss the last message in a conversation.
 ///
@@ -490,6 +522,43 @@ fn update_prompts_to_latest(checkpoints: &mut [Checkpoint]) -> Result<(), GitAiE
             // Apply the update to the last checkpoint only
             match result {
                 PromptUpdateResult::Updated(latest_transcript, latest_model) => {
+                    // Build a timeline of (unix_ts, bubble_id) for user messages so we can
+                    // assign the correct prompt_id to every checkpoint in this conversation.
+                    // If a message has no parseable timestamp we use 0, which matches any
+                    // checkpoint (better to assign something than leave it null).
+                    let user_msg_timeline: Vec<(u64, Option<String>)> = latest_transcript
+                        .messages
+                        .iter()
+                        .filter(|m| {
+                            matches!(m, crate::authorship::transcript::Message::User { .. })
+                        })
+                        .map(|m| {
+                            let ts = m
+                                .timestamp()
+                                .and_then(|ts_str| {
+                                    chrono::DateTime::parse_from_rfc3339(ts_str).ok()
+                                })
+                                .map(|dt| dt.timestamp() as u64)
+                                .unwrap_or(0);
+                            (ts, m.id().cloned())
+                        })
+                        .collect();
+
+                    // Backfill prompt_id for ALL checkpoints in this conversation that lack
+                    // one. At checkpoint creation time, Cursor's SQLite DB may not yet have
+                    // persisted the triggering user message, so earlier checkpoints in a
+                    // prompt batch frequently miss their prompt_id.
+                    // Strategy: assign the last user message whose timestamp <= checkpoint ts.
+                    for &idx in &indices {
+                        if checkpoints[idx].user_prompt_id.is_none() {
+                            let cp_ts = checkpoints[idx].timestamp;
+                            checkpoints[idx].user_prompt_id = user_msg_timeline
+                                .iter()
+                                .filter(|(msg_ts, _)| *msg_ts == 0 || *msg_ts <= cp_ts)
+                                .last()
+                                .and_then(|(_, id)| id.clone());
+                        }
+                    }
                     let checkpoint = &mut checkpoints[last_idx];
                     checkpoint.transcript = Some(latest_transcript);
                     if let Some(agent_id) = &mut checkpoint.agent_id {
