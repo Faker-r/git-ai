@@ -2098,14 +2098,17 @@ impl CursorPreset {
             std::fs::read_to_string(transcript_path).map_err(GitAiError::IoError)?;
         let mut transcript = AiTranscript::new();
         let mut plan_states = std::collections::HashMap::new();
+        let mut message_seq: u64 = 0;
+        let mut next_message_id = || {
+            message_seq += 1;
+            Some(format!("msg_{}", message_seq))
+        };
 
-        for (line_idx, line) in jsonl_content.lines().enumerate() {
+        for line in jsonl_content.lines() {
             let trimmed = line.trim();
             if trimmed.is_empty() {
                 continue;
             }
-            let line_id = Some(format!("jsonl_line_{}", line_idx + 1));
-
 
             // Skip malformed lines (file may be partially written)
             let raw_entry: serde_json::Value = match serde_json::from_str(trimmed) {
@@ -2129,7 +2132,7 @@ impl CursorPreset {
                                     transcript.add_message(Message::user_with_id(
                                         cleaned,
                                         None,
-                                        line_id.clone(),
+                                        next_message_id(),
                                     ));
                                 }
                             }
@@ -2147,7 +2150,7 @@ impl CursorPreset {
                                         transcript.add_message(Message::assistant_with_id(
                                             text.to_string(),
                                             None,
-                                            line_id.clone(),
+                                            next_message_id(),
                                         ));
                                     }
                                 }
@@ -2158,7 +2161,7 @@ impl CursorPreset {
                                         transcript.add_message(Message::assistant_with_id(
                                             thinking.to_string(),
                                             None,
-                                            line_id.clone(),
+                                            next_message_id(),
                                         ));
                                     }
                                 }
@@ -2178,7 +2181,7 @@ impl CursorPreset {
                                             transcript.add_message(Message::Plan {
                                                 text: plan_text,
                                                 timestamp: None,
-                                                id: line_id.clone(),
+                                                id: next_message_id(),
                                             });
                                         } else {
                                             // Apply same tool filtering as SQLite path
@@ -2186,7 +2189,7 @@ impl CursorPreset {
                                                 &mut transcript,
                                                 name,
                                                 &normalized_input,
-                                                line_id.clone(),
+                                                next_message_id(),
                                             );
                                         }
                                     }
