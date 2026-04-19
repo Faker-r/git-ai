@@ -233,7 +233,7 @@ A checkpoint is a diff between previously captured file contents and the file co
 #### When checkpointing occurs
 Checkpointing occurs at the boundary between human and AI changes. 
 When an AI tool uses a fileEdit command, it will fire a preToolUse hook, initiating a human checkpoint. All file changes detected during this checkpoint will be attributed to the human developer. 
-This captures all previous human changes before AI tools begin making changes. 
+This captures human changes before AI tools begin making changes. 
 
 Then, a postToolUse hook is fired after the AI tool completes editing. This initiates an AI checkpoint and attributes changes made by the AI during that fileEdit command. 
 
@@ -243,17 +243,18 @@ You can see a visualization at https://usegitai.com/docs/cli/how-git-ai-works#pa
 
 
 #### Prompt association
-For AI checkpoints, the prompt that generated the fileEdit will be saved. 
+For AI checkpoints, the prompt that generated the fileEdit will be saved.  
+
 This results in a 1 to N relationship between prompts and checkpoints, as a single prompt can lead to multiple fileEdits.
 
 
-#### What files are compared during checkpointing
+#### What files are tracked during checkpointing
 A checkpoint only diffs file contents for tracked files. 
 Tracked files have the following inclusion-exclusion criteria:
 
 Inclusion:
-- git status output - all modified files reported by git status, including `Untracked files` files. 
-- files with previous checkpoint - all files that were included in a previous checkpoint for this base commit. 
+- git status output - all modified files reported by git status, including `Untracked files`. 
+- files with a previous checkpoint - all files that were included in a previous checkpoint for this base commit. 
   This includes untracked + deleted files which would not get picked up by git status' output (enables tracking of temporary files that get deleted)
 
 Exclusion:
@@ -261,9 +262,7 @@ Exclusion:
 
 #### Human Change Tracking
 
-**NEW in v4.0.0.** Implementations MUST capture human changes at pre-commit time, not just AI changes. The pre-commit checkpoint MUST NOT skip early when there are no AI edits. This ensures that every commit produces authorship data, including purely human work.
-
-For human-only files during pre-commit, the implementation MUST still create working log entries with line stats and line change ranges, even though no AI attributions are recorded.
+**NEW in v4.0.0.** Implementations MUST capture human changes during each checkpoint. 
 
 #### Deleted File Tracking
 
