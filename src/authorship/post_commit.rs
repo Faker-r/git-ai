@@ -180,6 +180,16 @@ pub fn post_commit_with_final_state(
     // update_prompts_to_latest only attaches the refreshed transcript to the LAST checkpoint per
     // conversation. Build a fallback map so earlier checkpoints in the same conversation can still
     // resolve their prompt_text.
+    let conv_transcripts: HashMap<&str, &crate::authorship::transcript::AiTranscript> = {
+        let mut m = HashMap::new();
+        for cp in &parent_working_log {
+            if let (Some(aid), Some(t)) = (&cp.agent_id, &cp.transcript) {
+                m.insert(aid.id.as_str(), t);
+            }
+        }
+        m
+    };
+
     let change_history: Vec<crate::authorship::authorship_log_serialization::ChangeHistoryEntry> =
         parent_working_log
             .iter()
@@ -233,7 +243,11 @@ pub fn post_commit_with_final_state(
                     );
                 }
 
-                let transcript = cp.transcript.as_ref();
+                let transcript = cp.transcript.as_ref().or_else(|| {
+                    cp.agent_id
+                        .as_ref()
+                        .and_then(|aid| conv_transcripts.get(aid.id.as_str()).copied())
+                });
                 let prompt_text = transcript.and_then(|t| {
                     extract_prompt_text_for_checkpoint(&t.messages, cp.user_prompt_id.as_deref(), cp.timestamp)
                 });
@@ -256,6 +270,21 @@ pub fn post_commit_with_final_state(
         authorship_log.metadata.change_history = Some(change_history);
     }
 
+    
+    // Collect context-only conversations (planning, research, Q&A) that had activity since the
+    // parent commit but made no code changes. They are inserted into prompts with zero stats so
+    // that they travel through the same storage pipeline (secrets redaction, CAS upload, etc.)
+    // as code-touching conversations without requiring any schema changes.
+    {
+        let tracked_ids: HashSet<String> = parent_working_log
+            .iter()
+            .filter_map(|cp| cp.agent_id.as_ref().map(|a| a.id.clone()))
+            .collect();
+        let context_convs = collect_context_conversations(repo, &parent_sha, &tracked_ids, &human_author);
+        for (short_hash, record) in context_convs {
+            authorship_log.metadata.prompts.entry(short_hash).or_insert(record);
+        }
+    }
     
     // For Cursor conversations, check for subagent IDs by scanning the
     // agent-transcripts/<conversation_id>/subagents/ directory on disk.
@@ -741,6 +770,120 @@ fn batch_upsert_prompts_to_db(
     db_guard.batch_upsert_prompts(&records)?;
 
     Ok(())
+}
+
+/// Scan the Cursor DB for conversations that had activity after the parent commit but did not
+/// touch any code (planning, research, Q&A). Returns `(short_hash, PromptRecord)` pairs ready
+/// to be inserted into `authorship_log.metadata.prompts` with zero code-change stats.
+///
+/// Failures are non-fatal: each step logs a debug message and returns an empty vec or skips
+/// the offending conversation, so this function never propagates errors to the caller.
+fn collect_context_conversations(
+    repo: &Repository,
+    parent_sha: &str,
+    already_tracked_ids: &HashSet<String>,
+    human_author: &str,
+) -> Vec<(String, crate::authorship::authorship_log::PromptRecord)> {
+    use crate::authorship::authorship_log::PromptRecord;
+    use crate::authorship::authorship_log_serialization::generate_short_hash;
+    use crate::authorship::working_log::AgentId;
+    use crate::commands::checkpoint_agent::agent_presets::CursorPreset;
+
+    // Lower-bound timestamp: the moment the parent commit was made. Any conversation whose last
+    // activity was after this point is a candidate for inclusion.
+    let lower_bound_ts: u64 = if parent_sha == "initial" {
+        0
+    } else {
+        match repo.git(&["log", "-1", "--format=%ct", parent_sha]) {
+            Ok(output) => output.trim().parse::<u64>().unwrap_or(0),
+            Err(e) => {
+                debug_log(&format!(
+                    "[context_conversations] Failed to get parent commit timestamp: {}",
+                    e
+                ));
+                return Vec::new();
+            }
+        }
+    };
+
+    let repo_workdir = match repo.workdir() {
+        Ok(p) => p,
+        Err(e) => {
+            debug_log(&format!(
+                "[context_conversations] Failed to get repo workdir: {}",
+                e
+            ));
+            return Vec::new();
+        }
+    };
+
+    let db_path = match CursorPreset::cursor_global_database_path() {
+        Ok(p) => p,
+        Err(_) => return Vec::new(),
+    };
+
+    if !db_path.exists() {
+        return Vec::new();
+    }
+
+    // Single query: get all conversation IDs for this workspace with their timestamps
+    // from composer.composerHeaders in the global ItemTable.
+    let workspace_ids =
+        match CursorPreset::list_workspace_conversation_ids(&db_path, &repo_workdir) {
+            Ok(ids) => ids,
+            Err(e) => {
+                debug_log(&format!(
+                    "[context_conversations] Failed to list workspace conversation IDs: {}",
+                    e
+                ));
+                return Vec::new();
+            }
+        };
+
+    let mut results = Vec::new();
+
+    for (conversation_id, last_updated_at) in workspace_ids {
+        if already_tracked_ids.contains(&conversation_id) {
+            continue;
+        }
+
+        if last_updated_at <= lower_bound_ts {
+            continue;
+        }
+
+        match CursorPreset::fetch_cursor_conversation_from_db(&db_path, &conversation_id) {
+            Ok(Some((transcript, model))) => {
+                let short_hash = generate_short_hash(&conversation_id, "cursor");
+                let agent_id = AgentId {
+                    tool: "cursor".to_string(),
+                    id: conversation_id.clone(),
+                    model,
+                };
+                let record = PromptRecord {
+                    agent_id,
+                    human_author: Some(human_author.to_string()),
+                    messages: transcript.messages().to_vec(),
+                    total_additions: 0,
+                    total_deletions: 0,
+                    accepted_lines: 0,
+                    overriden_lines: 0,
+                    messages_url: None,
+                    custom_attributes: None,
+                    cursor_subagents: None,
+                };
+                results.push((short_hash, record));
+            }
+            Ok(None) => {}
+            Err(e) => {
+                debug_log(&format!(
+                    "[context_conversations] Failed to fetch conversation {}: {}",
+                    conversation_id, e
+                ));
+            }
+        }
+    }
+
+    results
 }
 
 /// Enqueue prompt messages to CAS for external storage.

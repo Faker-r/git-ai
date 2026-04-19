@@ -2089,6 +2089,36 @@ impl CursorPreset {
         path.to_string()
     }
 
+    /// Fetch the latest version of a Cursor conversation from the database
+    pub fn fetch_latest_cursor_conversation(
+        conversation_id: &str,
+    ) -> Result<Option<(AiTranscript, String)>, GitAiError> {
+        let global_db = Self::cursor_global_database_path()?;
+        Self::fetch_cursor_conversation_from_db(&global_db, conversation_id)
+    }
+
+      /// Fetch a Cursor conversation from a specific database path
+      pub fn fetch_cursor_conversation_from_db(
+        db_path: &std::path::Path,
+        conversation_id: &str,
+    ) -> Result<Option<(AiTranscript, String)>, GitAiError> {
+        if !db_path.exists() {
+            return Ok(None);
+        }
+
+        // Fetch composer payload
+        let composer_payload = Self::fetch_composer_payload(db_path, conversation_id)?;
+
+        // Extract transcript and model
+        let transcript_data = Self::transcript_data_from_composer_payload(
+            &composer_payload,
+            db_path,
+            conversation_id,
+        )?;
+
+        Ok(transcript_data)
+    }
+
     /// Parse a Cursor JSONL transcript file into a transcript.
     ///
     /// Cursor JSONL uses `role` (not `type`) at the top level, has no timestamps
