@@ -276,10 +276,10 @@ pub fn post_commit_with_final_state(
     if let Some(ref mut ch) = authorship_log.metadata.change_history {
         let count = redact_secrets_from_change_history(ch);
         if count > 0 {
-            debug_log(&format!(
+            tracing::debug!(
                 "Redacted {} secrets from change_history",
                 count
-            ));
+            );
         }
     }
 
@@ -809,10 +809,10 @@ fn collect_context_conversations(
         match repo.git(&["log", "-1", "--format=%ct", parent_sha]) {
             Ok(output) => output.trim().parse::<u64>().unwrap_or(0),
             Err(e) => {
-                debug_log(&format!(
+                tracing::debug!(
                     "[context_conversations] Failed to get parent commit timestamp: {}",
                     e
-                ));
+                );
                 return Vec::new();
             }
         }
@@ -821,10 +821,10 @@ fn collect_context_conversations(
     let repo_workdir = match repo.workdir() {
         Ok(p) => p,
         Err(e) => {
-            debug_log(&format!(
+            tracing::debug!(
                 "[context_conversations] Failed to get repo workdir: {}",
                 e
-            ));
+            );
             return Vec::new();
         }
     };
@@ -844,10 +844,10 @@ fn collect_context_conversations(
         match CursorPreset::list_workspace_conversation_ids(&db_path, &repo_workdir) {
             Ok(ids) => ids,
             Err(e) => {
-                debug_log(&format!(
+                tracing::debug!(
                     "[context_conversations] Failed to list workspace conversation IDs: {}",
                     e
-                ));
+                );
                 return Vec::new();
             }
         };
@@ -887,10 +887,10 @@ fn collect_context_conversations(
             }
             Ok(None) => {}
             Err(e) => {
-                debug_log(&format!(
+                tracing::debug!(
                     "[context_conversations] Failed to fetch conversation {}: {}",
                     conversation_id, e
-                ));
+                );
             }
         }
     }
