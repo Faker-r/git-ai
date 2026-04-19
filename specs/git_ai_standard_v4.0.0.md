@@ -17,9 +17,9 @@ v4.0.0 is a research-oriented extension of the authorship log format. The primar
 1. **Full change history**: Record every checkpoint (both human and AI) that occurred between commits, with line-level detail and the prompt text that triggered each change.
 2. **Human change tracking**: Capture human edits alongside AI edits, not just AI-attributed content.
 3. **Context conversations**: Record planning, research, and Q&A conversations that influenced development but did not directly produce code changes.
-4. **Line-level provenance**: Enable tracing any line back through its edit history via the new `line-history` command.
+4. **Line history command**: Enable tracing any line back through its edit history via the new `line-history` command.
 5. **Cursor subagent tracking**: Link parent Cursor conversations to their spawned subagent conversations.
-6. **Message identity**: Add unique IDs to transcript messages for cross-referencing with IDE-native conversation data.
+6. **Message IDs**: Add IDs to transcript messages for finer prompt traceability
 
 ### Backward Compatibility
 
@@ -186,8 +186,6 @@ Each entry in the `prompts` object MUST contain:
 **NEW in v4.0.0.** Prompt records MAY represent "context conversations" — planning, research, or Q&A sessions that occurred between commits but produced no code changes. These are identified by having `total_additions`, `total_deletions`, `accepted_lines`, and `overriden_lines` all set to `0`.
 
 Context conversations:
-- MUST have their `human_author` field populated
-- MUST contain the full conversation transcript in `messages`
 - MUST be scoped to the current workspace (conversations from unrelated workspaces MUST be excluded)
 - SHOULD be included to provide a complete picture of the development process, even though they did not directly produce code
 
@@ -208,12 +206,10 @@ Each message in the `messages` array MUST contain:
 | `type` | string | One of: `"user"`, `"assistant"`, `"thinking"`, `"plan"`, `"tool_use"` |
 | `text` | string | The message content (for `user`, `assistant`, `thinking`, and `plan` types) |
 | `timestamp` | string | ISO 8601 timestamp (OPTIONAL) |
-| `id` | string | **NEW in v4.0.0.** OPTIONAL. Unique message identifier from the IDE (e.g., Cursor `bubble_id`). Used for cross-referencing with IDE-native conversation data and for prompt_id backfilling. |
+| `id` | string | **NEW in v4.0.0.** OPTIONAL. Unique message identifier from the AI tool/IDE (e.g., Cursor `bubble_id`). Used for message granularity for prompt to code traceability.
 | `name` | string | Tool name (for `tool_use` type only) |
 | `input` | object | Tool input parameters (for `tool_use` type only) |
 
-**Changes from v3.0.0:**
-- The `id` field is new and enables linking messages to their IDE-native identifiers for prompt backfilling.
 
 #### Message Array Requirements
 
@@ -230,6 +226,38 @@ Tool responses are excluded because they often contain large amounts of file con
 ---
 
 ### 1.2.6 Checkpoint Behavior
+
+Checkpoints are the mechanism with which git-ai captures human vs AI changes. 
+A checkpoint is a diff between previously captured file contents and the file contents at the new checkpoint, with an attribution to either a human or AI author. 
+
+#### When checkpointing occurs
+Checkpointing occurs at the boundary between human and AI changes. 
+When an AI tool uses a fileEdit command, it will fire a preToolUse hook, initiating a human checkpoint. All file changes detected during this checkpoint will be attributed to the human developer. 
+This captures all previous human changes before AI tools begin making changes. 
+
+Then, a postToolUse hook is fired after the AI tool completes editing. This initiates an AI checkpoint and attributes changes made by the AI during that fileEdit command. 
+
+Checkpoint metadata is persisted, with a subset of collected data being placed into the change_history field in the metadata section. 
+
+You can see a visualization at https://usegitai.com/docs/cli/how-git-ai-works#part-1-what-happens-on-a-developers-machine
+
+
+#### Prompt association
+For AI checkpoints, the prompt that generated the fileEdit will be saved. 
+This results in a 1 to N relationship between prompts and checkpoints, as a single prompt can lead to multiple fileEdits.
+
+
+#### What files are compared during checkpointing
+A checkpoint only diffs file contents for tracked files. 
+Tracked files have the following inclusion-exclusion criteria:
+
+Inclusion:
+- git status output - all modified files reported by git status, including `Untracked files` files. 
+- files with previous checkpoint - all files that were included in a previous checkpoint for this base commit. 
+  This includes untracked + deleted files which would not get picked up by git status' output (enables tracking of temporary files that get deleted)
+
+Exclusion:
+- A list of unnecessary generated content, such as node_modules, .DS_store, ...
 
 #### Human Change Tracking
 
@@ -289,79 +317,53 @@ Contiguous single-line changes SHOULD be merged into ranges to avoid O(n) explos
 
 All fields default to `0` if absent.
 
-#### Prompt Text Resolution
-
-When building `change_history` entries during post-commit, the `prompt_text` field SHOULD be resolved using the following strategy:
-
-1. If the checkpoint has a `prompt_id`, look up the user message with that ID in the conversation transcript.
-2. If no match is found by ID, fall back to the last user message in the transcript whose timestamp is <= the checkpoint timestamp.
-3. A `conv_transcripts` map SHOULD be built so earlier checkpoints in the same conversation can resolve `prompt_text` even when the transcript is only attached to the last checkpoint.
-
-#### Prompt ID Backfilling
-
-When checkpoints are created before the IDE's database has fully committed the triggering user message, the `prompt_id` field may initially be `None`. Implementations SHOULD backfill `prompt_id` for ALL checkpoints in a conversation (not just the last one) by building a timeline of user messages from the latest transcript and assigning the last user message whose timestamp <= checkpoint timestamp to each checkpoint.
-
 #### Change History Example
 
 ```json
 {
   "change_history": [
     {
-      "timestamp": 1712000100,
+      "timestamp": 1776571396,
       "kind": "ai_agent",
-      "conversation_id": "d9978a8723e02b52",
+      "conversation_id": "5c9cf6c50078d7f6",
       "agent_type": "cursor",
-      "prompt_id": "bubble-abc-123",
-      "model": "claude-4.5-opus",
-      "prompt_text": "Add error handling to the main function",
+      "prompt_id": "015fc1a5-1fe9-4ebc-a77c-f2461a8ee974",
+      "model": "gpt-5.4-medium",
+      "prompt_text": "edit @test.py to add a comment",
       "files": {
-        "src/main.rs": {
-          "added_lines": ["15-22", "30"],
-          "deleted_lines": ["15-18"],
-          "added_line_contents": [
-            "15:     let result = match parse_args() {",
-            "16:         Ok(args) => args,",
-            "17:         Err(e) => {",
-            "18:             eprintln!(\"Error: {}\", e);",
-            "19:             std::process::exit(1);",
-            "20:         }",
-            "21:     };",
-            "22: ",
-            "30:     Ok(())"
+        "test.py": {
+          "added_lines": [
+            "31"
           ],
-          "deleted_line_contents": [
-            "15:     let args = parse_args();",
-            "16:     // no error handling",
-            "17:     run(args);",
-            "18:     return;"
-          ]
-        }
-      },
-      "line_stats": {
-        "additions": 9,
-        "deletions": 4,
-        "additions_sloc": 8,
-        "deletions_sloc": 3
-      }
-    },
-    {
-      "timestamp": 1712000200,
-      "kind": "human",
-      "files": {
-        "src/main.rs": {
-          "added_lines": ["1"],
           "deleted_lines": [],
           "added_line_contents": [
-            "1: // Author: Human Developer"
-          ]
+            "31: # These lines should be attributed to Cursor (AI)"
+          ],
         }
       },
       "line_stats": {
         "additions": 1,
         "deletions": 0,
-        "additions_sloc": 0,
+        "additions_sloc": 1,
         "deletions_sloc": 0
       }
+    },
+    {
+      "timestamp": 1776571429,
+      "kind": "human",
+      "files": {
+        "tmp_testing.py": {
+          "added_lines": [
+            "15-17"
+          ],
+          "deleted_lines": [],
+          "added_line_contents": [
+            "15: ",
+            "16: ",
+            "17: # human added stuff."
+          ]
+        }
+      },
     }
   ]
 }
@@ -537,7 +539,7 @@ In the above example:
 - The `change_history` shows three checkpoints in chronological order: an AI edit, a human edit, and another AI edit.
 - The context conversation (`1234abcd5678efgh`) has zero stats but preserves the planning discussion.
 - The first prompt record includes `cursor_subagents` linking to two subagent conversations.
-- Messages include the `id` field for cross-referencing with Cursor's native conversation data.
+- Messages include the `id` field for finer granularity in change_history attribution. 
 
 ---
 
@@ -579,12 +581,12 @@ The command outputs a JSON object:
 {
   "file": "src/main.rs",
   "line": 15,
-  "at_commit": "abc123",
+  "at_commit": "HEAD",
   "line_content": "    let result = match parse_args() {",
   "history": [
     {
       "commit_sha": "abc123",
-      "commit_date": "2025-12-05",
+      "commit_date": "2026-03-27T10:11:49-07:00",
       "commit_message": "Add error handling",
       "target_line": 15,
       "checkpoints": [
@@ -592,13 +594,24 @@ The command outputs a JSON object:
           "timestamp": 1733362933,
           "kind": "ai_agent",
           "agent_type": "cursor",
-          "model": "claude-4.5-opus",
-          "prompt_id": "bubble-abc-123",
+          "model": "claude-4.6-sonnet-medium-thinking",
+          "prompt_id": "54e7cc1b-e560-4690-800c-20abcfb028a2",
           "prompt_text": "Add error handling to the main function",
           "line_content": "15:     let result = match parse_args() {",
           "additions": 65,
           "deletions": 5
-        }
+        },
+        {                                                                                                                        
+          "timestamp": 1774631490,                                                                                               
+          "kind": "human",                                                                                                       
+          "agent_type": null,                                                                                                    
+          "model": null,                                                                                                         
+          "prompt_id": null,                                                                                                     
+          "prompt_text": null,  
+          "line_content": "15:     let curr_result = match parse_args() {",                                                                                    
+          "additions": 1,                                                                                                        
+          "deletions": 1                                                                                                         
+        },  
       ]
     }
   ]
@@ -637,7 +650,7 @@ The command outputs a JSON object:
 | `model` | string | OPTIONAL. The AI model used |
 | `prompt_id` | string | OPTIONAL. The IDE-specific message identifier |
 | `prompt_text` | string | OPTIONAL. The user prompt text |
-| `line_content` | string | OPTIONAL. The content of the tracked line after this checkpoint, if the checkpoint introduced or modified the line |
+| `line_content` | string | OPTIONAL. The content of the tracked line after this checkpoint |
 | `additions` | integer | Total lines added at this checkpoint |
 | `deletions` | integer | Total lines deleted at this checkpoint |
 
@@ -647,31 +660,9 @@ The command outputs a JSON object:
 
 **NEW in v4.0.0.** The following extensions support deeper integration with Cursor IDE.
 
-### 3.1 Workspace-Composer Map
-
-Implementations SHOULD build a workspace-composer map to scope conversations to the correct workspace:
-
-1. Scan `~/.cursor/User/workspaceStorage/*/` directories.
-2. Read `workspace.json` for the workspace folder URI.
-3. Read `state.vscdb` for `composer.composerData` to extract conversation IDs.
-4. Return a mapping of conversation IDs to workspace paths.
-
-URI decoding MUST use proper URL parsing (e.g., `url::Url::parse()` + `to_file_path()`) rather than manual percent-decoding, to correctly handle `file://` URIs with percent-encoded characters.
-
-### 3.2 Conversation Workspace Root Resolution
-
-When the workspace-composer map does not contain a conversation, implementations MAY fall back to:
-
-1. Querying `cursorDiskKV` for `messageRequestContext:<conversation_id>:<bubble_id>` rows.
-2. Extracting `projectLayouts[0].listDirV2Result.directoryTreeRoot.absPath` to determine the workspace.
-
-### 3.3 Workspace Scoping
-
-Conversations MUST be excluded (not included) when their workspace cannot be determined. This prevents unrelated conversations from polluting the authorship data. The scoping check SHOULD use canonical paths to handle symlinks and case differences.
-
 ### 3.4 Subagent Discovery
 
-For Cursor conversations, implementations SHOULD scan `~/.cursor/projects/*/agent-transcripts/<conversation_id>/subagents/*.jsonl` to discover subagent conversation IDs and populate the `cursor_subagents` field on the parent `PromptRecord`.
+For Cursor conversations, implementations SHOULD discover subagent conversation IDs and populate the `cursor_subagents` field on the parent `PromptRecord`.
 
 ---
 
@@ -698,4 +689,4 @@ When authorship logs are copied, merged, or split during history rewriting opera
 
 - Implementations of 4.0.0 MUST accept authorship logs with any `schema_version` starting with `"authorship/"` (i.e., v3.x and v4.x notes are both readable).
 - v3.0.0 implementations cannot read v4.0.0 notes. This is a forward-incompatible upgrade.
-- The `change_history`, `cursor_subagents`, and message `id` fields all use `skip_serializing_if` semantics — when absent or empty, they are omitted from the serialized JSON. This means a v4.0.0 note with no change history will look identical to a v3.0.0 note aside from the `schema_version` field.
+- The `change_history`, `cursor_subagents`, and message `id` fields all use `skip_serializing_if` semantics — when absent or empty, they are omitted from the serialized JSON. This means a v4.0.0 note with no change history and message ids will look identical to a v3.0.0 note aside from the `schema_version` field.
