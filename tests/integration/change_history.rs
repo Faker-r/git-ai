@@ -1,7 +1,7 @@
 use crate::repos::test_file::ExpectedLineExt;
 use crate::repos::test_repo::TestRepo;
 use git_ai::authorship::authorship_log_serialization::{ChangeHistoryEntry, FileChangeDetail};
-// use git_ai::authorship::secrets::redact_secrets_from_change_history;
+use git_ai::authorship::secrets::{redact_secrets_from_change_history, redact_secrets_from_prompts, strip_prompt_messages,};
 use git_ai::authorship::working_log::CheckpointLineStats;
 use insta::assert_debug_snapshot;
 use std::collections::BTreeMap;
@@ -203,7 +203,7 @@ fn secret_in_prompt_text_redacted_in_change_history() {
         },
     );
 
-    let change_history = vec![ChangeHistoryEntry {
+    let mut change_history = vec![ChangeHistoryEntry {
         timestamp: 1000,
         kind: "ai_agent".to_string(),
         conversation_id: Some("abc123".to_string()),
@@ -216,9 +216,9 @@ fn secret_in_prompt_text_redacted_in_change_history() {
         files,
         line_stats: CheckpointLineStats::default(),
     }];
-
-    // let count = redact_secrets_from_change_history(&mut change_history);
-    // assert!(count >= 1, "Should redact at least 1 secret in prompt_text, got {}", count);
+    
+    let count = redact_secrets_from_change_history(&mut change_history);
+    assert!(count >= 1, "Should redact at least 1 secret in prompt_text, got {}", count);
 
     let prompt = change_history[0].prompt_text.as_ref().unwrap();
     assert!(

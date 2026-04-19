@@ -499,6 +499,38 @@ pub fn strip_prompt_messages(prompts: &mut BTreeMap<String, PromptRecord>) {
     }
 }
 
+use crate::authorship::authorship_log_serialization::ChangeHistoryEntry;
+
+/// Redact secrets from change_history entries.
+/// Scans prompt_text and line contents (added/deleted) for high-entropy strings
+/// and replaces them with partially masked versions.
+/// Returns the total number of secrets redacted.
+pub fn redact_secrets_from_change_history(change_history: &mut [ChangeHistoryEntry]) -> usize {
+    let mut total_redactions = 0;
+    for entry in change_history.iter_mut() {
+        // Redact prompt_text
+        if let Some(ref mut text) = entry.prompt_text {
+            let (redacted, count) = redact_secrets_in_text(text);
+            *text = redacted;
+            total_redactions += count;
+        }
+        // Redact line contents in each file
+        for detail in entry.files.values_mut() {
+            for line in &mut detail.added_line_contents {
+                let (redacted, count) = redact_secrets_in_text(line);
+                *line = redacted;
+                total_redactions += count;
+            }
+            for line in &mut detail.deleted_line_contents {
+                let (redacted, count) = redact_secrets_in_text(line);
+                *line = redacted;
+                total_redactions += count;
+            }
+        }
+    }
+    total_redactions
+}
+
 #[cfg(test)]
 mod tests {
     use insta::assert_debug_snapshot;
