@@ -256,6 +256,27 @@ pub fn post_commit_with_final_state(
         authorship_log.metadata.change_history = Some(change_history);
     }
 
+    
+    // For Cursor conversations, check for subagent IDs by scanning the
+    // agent-transcripts/<conversation_id>/subagents/ directory on disk.
+    for pr in authorship_log.metadata.prompts.values_mut() {
+        if pr.agent_id.tool == "cursor" {
+            if let Some(subagent_ids) =
+                crate::commands::checkpoint_agent::agent_presets::CursorPreset::find_subagent_ids(
+                    &pr.agent_id.id,
+                )
+            {
+                tracing::debug!(
+                    "Found {} Cursor subagent(s) for conversation {}: {:?}",
+                    subagent_ids.len(),
+                    pr.agent_id.id,
+                    subagent_ids,
+                );
+                pr.cursor_subagents = Some(subagent_ids);
+            }
+        }
+    }
+
     // Long-lived daemon processes should read a fresh config snapshot.
     // Always use Config::fresh() to support runtime config updates
     // (especially important for daemon mode, but also good for consistency)
@@ -327,12 +348,12 @@ pub fn post_commit_with_final_state(
 
     notes_add(repo, &commit_sha, &authorship_json)?;
     
-    debug_log(&format!(
+    tracing::debug!(
         "Git note written for commit {}. Note size: {} bytes\n--- NOTE CONTENT ---\n{}\n--- END NOTE ---",
         commit_sha,
         authorship_json.len(),
         authorship_json,
-    ));
+    );
 
     // Compute stats once (needed for both metrics and terminal output), unless preflight
     // estimate predicts this would be too expensive for the commit hook path.
