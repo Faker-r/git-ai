@@ -1,0 +1,188 @@
+---
+{
+  "schema_version": "authorship/4.0.0",
+  "git_ai_version": "development:1.1.21",
+  "base_commit_sha": "7d2b556769553adf50b685861ce5c707742c76d3",
+  "prompts": {},
+  "change_history": [
+    {
+      "timestamp": 1776573167,
+      "kind": "human",
+      "files": {
+        "specs/git_ai_standard_v4.0.0.md": {
+          "added_lines": [
+            "236"
+          ],
+          "deleted_lines": [
+            "236"
+          ],
+          "added_line_contents": [
+            "236: This captures human changes before AI tools begin making changes. "
+          ],
+          "deleted_line_contents": [
+            "236: This captures all previous human changes before AI tools begin making changes. "
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 1,
+        "deletions": 1,
+        "additions_sloc": 1,
+        "deletions_sloc": 1
+      }
+    },
+    {
+      "timestamp": 1776573198,
+      "kind": "human",
+      "files": {
+        "specs/git_ai_standard_v4.0.0.md": {
+          "added_lines": [
+            "247"
+          ],
+          "deleted_lines": [],
+          "added_line_contents": [
+            "247: "
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 1,
+        "deletions": 0,
+        "additions_sloc": 0,
+        "deletions_sloc": 0
+      }
+    },
+    {
+      "timestamp": 1776573211,
+      "kind": "human",
+      "files": {
+        "specs/git_ai_standard_v4.0.0.md": {
+          "added_lines": [
+            "246"
+          ],
+          "deleted_lines": [
+            "246"
+          ],
+          "added_line_contents": [
+            "246: For AI checkpoints, the prompt that generated the fileEdit will be saved.  "
+          ],
+          "deleted_line_contents": [
+            "246: For AI checkpoints, the prompt that generated the fileEdit will be saved. "
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 1,
+        "deletions": 1,
+        "additions_sloc": 1,
+        "deletions_sloc": 1
+      }
+    },
+    {
+      "timestamp": 1776573221,
+      "kind": "human",
+      "files": {
+        "specs/git_ai_standard_v4.0.0.md": {
+          "added_lines": [
+            "251"
+          ],
+          "deleted_lines": [
+            "251"
+          ],
+          "added_line_contents": [
+            "251: #### What files are tracked during checkpointing"
+          ],
+          "deleted_line_contents": [
+            "251: #### What files are compared during checkpointing"
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 1,
+        "deletions": 1,
+        "additions_sloc": 1,
+        "deletions_sloc": 1
+      }
+    },
+    {
+      "timestamp": 1776573249,
+      "kind": "human",
+      "files": {
+        "specs/git_ai_standard_v4.0.0.md": {
+          "added_lines": [
+            "256"
+          ],
+          "deleted_lines": [
+            "256"
+          ],
+          "added_line_contents": [
+            "256: - git status output - all modified files reported by git status, including `Untracked files`. "
+          ],
+          "deleted_line_contents": [
+            "256: - git status output - all modified files reported by git status, including `Untracked files` files. "
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 1,
+        "deletions": 1,
+        "additions_sloc": 1,
+        "deletions_sloc": 1
+      }
+    },
+    {
+      "timestamp": 1776573258,
+      "kind": "human",
+      "files": {
+        "specs/git_ai_standard_v4.0.0.md": {
+          "added_lines": [
+            "257"
+          ],
+          "deleted_lines": [
+            "257"
+          ],
+          "added_line_contents": [
+            "257: - files with a previous checkpoint - all files that were included in a previous checkpoint for this base commit. "
+          ],
+          "deleted_line_contents": [
+            "257: - files with previous checkpoint - all files that were included in a previous checkpoint for this base commit. "
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 1,
+        "deletions": 1,
+        "additions_sloc": 1,
+        "deletions_sloc": 1
+      }
+    },
+    {
+      "timestamp": 1776573320,
+      "kind": "human",
+      "files": {
+        "specs/git_ai_standard_v4.0.0.md": {
+          "added_lines": [
+            "265"
+          ],
+          "deleted_lines": [
+            "265-267"
+          ],
+          "added_line_contents": [
+            "265: **NEW in v4.0.0.** Implementations MUST capture human changes during each checkpoint. "
+          ],
+          "deleted_line_contents": [
+            "265: **NEW in v4.0.0.** Implementations MUST capture human changes at pre-commit time, not just AI changes. The pre-commit checkpoint MUST NOT skip early when there are no AI edits. This ensures that every commit produces authorship data, including purely human work.",
+            "266: ",
+            "267: For human-only files during pre-commit, the implementation MUST still create working log entries with line stats and line change ranges, even though no AI attributions are recorded."
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 1,
+        "deletions": 3,
+        "additions_sloc": 1,
+        "deletions_sloc": 2
+      }
+    }
+  ]
+}
