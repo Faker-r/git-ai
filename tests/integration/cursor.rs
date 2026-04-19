@@ -758,6 +758,154 @@ fn test_cursor_checkpoint_routes_nested_worktree_file_to_worktree_repo() {
     );
 }
 
+/// Creates a mock global state.vscdb with composer.composerHeaders in ItemTable
+/// for testing list_workspace_conversation_ids.
+fn setup_mock_global_db_with_headers(
+    db_path: &std::path::Path,
+    entries: &[(&str, &str, u64)], // (composer_id, workspace_fs_path, last_updated_at_ms)
+) {
+    let conn = rusqlite::Connection::open(db_path).unwrap();
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS ItemTable (key TEXT UNIQUE ON CONFLICT REPLACE, value BLOB)",
+        [],
+    )
+    .unwrap();
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS cursorDiskKV (key TEXT UNIQUE ON CONFLICT REPLACE, value BLOB)",
+        [],
+    )
+    .unwrap();
+
+    let all_composers: Vec<serde_json::Value> = entries
+        .iter()
+        .map(|(id, ws_path, last_updated)| {
+            serde_json::json!({
+                "composerId": id,
+                "type": "head",
+                "workspaceIdentifier": {
+                    "id": "test-ws-hash",
+                    "uri": { "$mid": 1, "fsPath": ws_path }
+                },
+                "lastUpdatedAt": last_updated,
+            })
+        })
+        .collect();
+
+    let headers = serde_json::json!({ "allComposers": all_composers });
+    conn.execute(
+        "INSERT INTO ItemTable (key, value) VALUES ('composer.composerHeaders', ?)",
+        [serde_json::to_string(&headers).unwrap()],
+    )
+    .unwrap();
+}
+
+#[test]
+fn test_list_workspace_conversation_ids_filters_by_workspace() {
+    use git_ai::commands::checkpoint_agent::agent_presets::CursorPreset;
+
+    let temp_dir = tempfile::TempDir::new().unwrap();
+    let db_path = temp_dir.path().join("state.vscdb");
+
+    setup_mock_global_db_with_headers(
+        &db_path,
+        &[
+            ("conv-aaa-1", "/Users/test/project-a", 1713200000000),
+            ("conv-aaa-2", "/Users/test/project-a", 1713201000000),
+            ("conv-bbb-1", "/Users/test/project-b", 1713202000000),
+            ("conv-ccc-1", "/Users/test/project-c", 1713203000000),
+        ],
+    );
+
+    let results = CursorPreset::list_workspace_conversation_ids(
+        &db_path,
+        &std::path::PathBuf::from("/Users/test/project-a"),
+    )
+    .expect("Should succeed");
+
+    let ids: Vec<&str> = results.iter().map(|(id, _)| id.as_str()).collect();
+    assert_eq!(ids.len(), 2, "Should find 2 conversations for project-a");
+    assert!(ids.contains(&"conv-aaa-1"));
+    assert!(ids.contains(&"conv-aaa-2"));
+    assert!(!ids.contains(&"conv-bbb-1"));
+}
+
+#[test]
+fn test_list_workspace_conversation_ids_returns_timestamps_in_seconds() {
+    use git_ai::commands::checkpoint_agent::agent_presets::CursorPreset;
+
+    let temp_dir = tempfile::TempDir::new().unwrap();
+    let db_path = temp_dir.path().join("state.vscdb");
+
+    setup_mock_global_db_with_headers(
+        &db_path,
+        &[
+            ("conv-1", "/Users/test/project", 1713200000000), // ms
+        ],
+    );
+
+    let results = CursorPreset::list_workspace_conversation_ids(
+        &db_path,
+        &std::path::PathBuf::from("/Users/test/project"),
+    )
+    .expect("Should succeed");
+
+    assert_eq!(results.len(), 1);
+    assert_eq!(results[0].0, "conv-1");
+    assert_eq!(results[0].1, 1713200000, "Should convert ms to seconds");
+}
+
+#[test]
+fn test_list_workspace_conversation_ids_no_matching_workspace() {
+    use git_ai::commands::checkpoint_agent::agent_presets::CursorPreset;
+
+    let temp_dir = tempfile::TempDir::new().unwrap();
+    let db_path = temp_dir.path().join("state.vscdb");
+
+    setup_mock_global_db_with_headers(
+        &db_path,
+        &[
+            ("conv-1", "/Users/test/other-project", 1713200000000),
+        ],
+    );
+
+    let results = CursorPreset::list_workspace_conversation_ids(
+        &db_path,
+        &std::path::PathBuf::from("/Users/test/my-project"),
+    )
+    .expect("Should succeed");
+
+    assert!(results.is_empty(), "Should find no conversations for unrelated workspace");
+}
+
+#[test]
+fn test_list_workspace_conversation_ids_missing_headers_key() {
+    use git_ai::commands::checkpoint_agent::agent_presets::CursorPreset;
+
+    let temp_dir = tempfile::TempDir::new().unwrap();
+    let db_path = temp_dir.path().join("state.vscdb");
+
+    // Create DB without composer.composerHeaders
+    let conn = rusqlite::Connection::open(&db_path).unwrap();
+    conn.execute(
+        "CREATE TABLE ItemTable (key TEXT UNIQUE ON CONFLICT REPLACE, value BLOB)",
+        [],
+    )
+    .unwrap();
+    conn.execute(
+        "CREATE TABLE cursorDiskKV (key TEXT UNIQUE ON CONFLICT REPLACE, value BLOB)",
+        [],
+    )
+    .unwrap();
+
+    let results = CursorPreset::list_workspace_conversation_ids(
+        &db_path,
+        &std::path::PathBuf::from("/Users/test/project"),
+    )
+    .expect("Should succeed with empty results");
+
+    assert!(results.is_empty(), "Should return empty vec when headers key is missing");
+}
+
 crate::reuse_tests_in_worktree!(
     test_cursor_jsonl_basic_parsing,
     test_cursor_jsonl_user_query_tag_stripping,
@@ -767,4 +915,8 @@ crate::reuse_tests_in_worktree!(
     test_cursor_preset_human_checkpoint_no_filepath,
     test_cursor_e2e_with_attribution,
     test_cursor_e2e_with_resync,
+    test_list_workspace_conversation_ids_filters_by_workspace,
+    test_list_workspace_conversation_ids_returns_timestamps_in_seconds,
+    test_list_workspace_conversation_ids_no_matching_workspace,
+    test_list_workspace_conversation_ids_missing_headers_key,
 );

@@ -55,12 +55,13 @@ AuthorshipLogV3 {
         },
     ],
     metadata: AuthorshipMetadata {
-        schema_version: "authorship/3.0.0",
+        schema_version: "authorship/4.0.0",
         git_ai_version: Some(
             "development",
         ),
         base_commit_sha: "abc123",
         prompts: {},
         humans: {},
+        change_history: None,
     },
 }

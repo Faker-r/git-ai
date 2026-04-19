@@ -176,6 +176,87 @@ pub fn post_commit_with_final_state(
 
     authorship_log.metadata.base_commit_sha = commit_sha.clone();
 
+    // Build per-checkpoint change_history for research metrics
+    //
+    // update_prompts_to_latest only attaches the refreshed transcript to the LAST checkpoint per
+    // conversation. Build a fallback map so earlier checkpoints in the same conversation can still
+    // resolve their prompt_text.
+    let change_history: Vec<crate::authorship::authorship_log_serialization::ChangeHistoryEntry> =
+        parent_working_log
+            .iter()
+            .map(|cp| {
+                use crate::authorship::authorship_log_serialization::{
+                    ChangeHistoryEntry, FileChangeDetail,
+                };
+                let (conversation_id, agent_type, model) = if let Some(aid) = &cp.agent_id {
+                    (
+                        Some(crate::authorship::authorship_log_serialization::generate_short_hash(
+                            &aid.id, &aid.tool,
+                        )),
+                        Some(aid.tool.clone()),
+                        Some(aid.model.clone()),
+                    )
+                } else {
+                    (None, None, None)
+                };
+
+                let mut files = std::collections::BTreeMap::new();
+                for entry in &cp.entries {
+                    use crate::authorship::authorship_log_serialization::format_line_range_tuple;
+                    let fmt = |ranges: &[(u32, u32)]| -> Vec<String> {
+                        ranges
+                            .iter()
+                            .map(|&(s, e)| format_line_range_tuple(s, e))
+                            .collect()
+                    };
+                    let fmt_entries = |entries: &[(u32, String)]| -> Vec<String> {
+                        entries
+                            .iter()
+                            .map(|(n, content)| format!("{}: {}", n, content))
+                            .collect()
+                    };
+                    files.insert(
+                        entry.file.clone(),
+                        FileChangeDetail {
+                            added_lines: fmt(
+                                entry.added_line_ranges.as_deref().unwrap_or(&[]),
+                            ),
+                            deleted_lines: fmt(
+                                entry.deleted_line_ranges.as_deref().unwrap_or(&[]),
+                            ),
+                            added_line_contents: fmt_entries(
+                                entry.added_line_entries.as_deref().unwrap_or(&[]),
+                            ),
+                            deleted_line_contents: fmt_entries(
+                                entry.deleted_line_entries.as_deref().unwrap_or(&[]),
+                            ),
+                        },
+                    );
+                }
+
+                let transcript = cp.transcript.as_ref();
+                let prompt_text = transcript.and_then(|t| {
+                    extract_prompt_text_for_checkpoint(&t.messages, cp.user_prompt_id.as_deref(), cp.timestamp)
+                });
+
+                ChangeHistoryEntry {
+                    timestamp: cp.timestamp,
+                    kind: cp.kind.to_str(),
+                    conversation_id,
+                    agent_type,
+                    prompt_id: cp.user_prompt_id.clone(),
+                    model,
+                    prompt_text,
+                    files,
+                    line_stats: cp.line_stats.clone(),
+                }
+            })
+            .collect();
+
+    if !change_history.is_empty() {
+        authorship_log.metadata.change_history = Some(change_history);
+    }
+
     // Long-lived daemon processes should read a fresh config snapshot.
     // Always use Config::fresh() to support runtime config updates
     // (especially important for daemon mode, but also good for consistency)
@@ -249,6 +330,13 @@ pub fn post_commit_with_final_state(
         .map_err(|_| GitAiError::Generic("Failed to serialize authorship log".to_string()))?;
 
     notes_add(repo, &commit_sha, &authorship_json)?;
+    
+    debug_log(&format!(
+        "Git note written for commit {}. Note size: {} bytes\n--- NOTE CONTENT ---\n{}\n--- END NOTE ---",
+        commit_sha,
+        authorship_json.len(),
+        authorship_json,
+    ));
 
     // Compute stats once (needed for both metrics and terminal output), unless preflight
     // estimate predicts this would be too expensive for the commit hook path.

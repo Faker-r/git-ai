@@ -1,5 +1,5 @@
 use crate::authorship::authorship_log::{Author, HumanRecord, LineRange, PromptRecord};
-use crate::authorship::working_log::CheckpointKind;
+use crate::authorship::working_log::{CheckpointKind, CheckpointLineStats};
 use crate::git::repository::Repository;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -9,8 +9,7 @@ use std::io::{BufRead, Write};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Authorship log format version identifier
-pub const AUTHORSHIP_LOG_VERSION: &str = "authorship/3.0.0";
-pub const AUTHORSHIP_LOG_VERSION_4: &str = "authorship/4.0.0";
+pub const AUTHORSHIP_LOG_VERSION: &str = "authorship/4.0.0";
 
 #[cfg(all(debug_assertions, test))]
 pub const GIT_AI_VERSION: &str = "development";
@@ -21,6 +20,48 @@ pub const GIT_AI_VERSION: &str = concat!("development:", env!("CARGO_PKG_VERSION
 #[cfg(not(debug_assertions))]
 pub const GIT_AI_VERSION: &str = env!("CARGO_PKG_VERSION");
 
+/// Per-file change detail within a single checkpoint.
+/// `added_lines` / `deleted_lines` use the compact range format `"n"` or `"n-m"`.
+/// `added_line_contents` / `deleted_line_contents` use the human-readable `"n: <text>"` format.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct FileChangeDetail {
+    pub added_lines: Vec<String>,
+    pub deleted_lines: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub added_line_contents: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub deleted_line_contents: Vec<String>,
+}
+
+/// Format a (start, end) tuple as a compact line range string.
+/// Single lines (start == end) are written as `"n"`, ranges as `"n-m"`.
+pub fn format_line_range_tuple(start: u32, end: u32) -> String {
+    if start == end {
+        start.to_string()
+    } else {
+        format!("{}-{}", start, end)
+    }
+}
+
+/// One entry in the per-checkpoint change history stored in the authorship note
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ChangeHistoryEntry {
+    pub timestamp: u64,
+    pub kind: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub conversation_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent_type: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub prompt_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub prompt_text: Option<String>,
+    pub files: BTreeMap<String, FileChangeDetail>,
+    pub line_stats: CheckpointLineStats,
+}
+
 /// Metadata section that goes below the divider as JSON
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AuthorshipMetadata {
@@ -30,6 +71,8 @@ pub struct AuthorshipMetadata {
     pub prompts: BTreeMap<String, PromptRecord>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub humans: BTreeMap<String, HumanRecord>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub change_history: Option<Vec<ChangeHistoryEntry>>,
 }
 
 impl AuthorshipMetadata {
@@ -40,6 +83,7 @@ impl AuthorshipMetadata {
             base_commit_sha: String::new(),
             prompts: BTreeMap::new(),
             humans: BTreeMap::new(),
+            change_history: None,
         }
     }
 }
