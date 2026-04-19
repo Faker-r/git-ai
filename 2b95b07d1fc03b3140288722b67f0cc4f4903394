@@ -1,0 +1,841 @@
+---
+{
+  "schema_version": "authorship/4.0.0",
+  "git_ai_version": "development:1.1.21",
+  "base_commit_sha": "2b95b07d1fc03b3140288722b67f0cc4f4903394",
+  "prompts": {},
+  "change_history": [
+    {
+      "timestamp": 1776566103,
+      "kind": "human",
+      "files": {
+        "specs/git_ai_standard_v4.0.0.md": {
+          "added_lines": [
+            "20",
+            "22"
+          ],
+          "deleted_lines": [
+            "20",
+            "22"
+          ],
+          "added_line_contents": [
+            "20: 4. **Line history command**: Enable tracing any line back through its edit history via the new `line-history` command.",
+            "22: 6. **Message IDs**: Add IDs to transcript messages for finer prompt traceability"
+          ],
+          "deleted_line_contents": [
+            "20: 4. **Line-level provenance**: Enable tracing any line back through its edit history via the new `line-history` command.",
+            "22: 6. **Message identity**: Add unique IDs to transcript messages for cross-referencing with IDE-native conversation data."
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 2,
+        "deletions": 2,
+        "additions_sloc": 2,
+        "deletions_sloc": 2
+      }
+    },
+    {
+      "timestamp": 1776566327,
+      "kind": "human",
+      "files": {
+        "specs/git_ai_standard_v4.0.0.md": {
+          "added_lines": [],
+          "deleted_lines": [
+            "189-190"
+          ],
+          "deleted_line_contents": [
+            "189: - MUST have their `human_author` field populated",
+            "190: - MUST contain the full conversation transcript in `messages`"
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 0,
+        "deletions": 2,
+        "additions_sloc": 0,
+        "deletions_sloc": 2
+      }
+    },
+    {
+      "timestamp": 1776566427,
+      "kind": "human",
+      "files": {
+        "specs/git_ai_standard_v4.0.0.md": {
+          "added_lines": [
+            "209"
+          ],
+          "deleted_lines": [
+            "209"
+          ],
+          "added_line_contents": [
+            "209: | `id` | string | **NEW in v4.0.0.** OPTIONAL. Unique message identifier from the AI tool/IDE (e.g., Cursor `bubble_id`). Used for message granularity for prompt to code traceability."
+          ],
+          "deleted_line_contents": [
+            "209: | `id` | string | **NEW in v4.0.0.** OPTIONAL. Unique message identifier from the IDE (e.g., Cursor `bubble_id`). Used for cross-referencing with IDE-native conversation data and for prompt_id backfilling. |"
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 1,
+        "deletions": 1,
+        "additions_sloc": 1,
+        "deletions_sloc": 1
+      }
+    },
+    {
+      "timestamp": 1776566444,
+      "kind": "human",
+      "files": {
+        "specs/git_ai_standard_v4.0.0.md": {
+          "added_lines": [],
+          "deleted_lines": [
+            "213-214"
+          ],
+          "deleted_line_contents": [
+            "213: **Changes from v3.0.0:**",
+            "214: - The `id` field is new and enables linking messages to their IDE-native identifiers for prompt backfilling."
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 0,
+        "deletions": 2,
+        "additions_sloc": 0,
+        "deletions_sloc": 2
+      }
+    },
+    {
+      "timestamp": 1776566639,
+      "kind": "human",
+      "files": {
+        "specs/git_ai_standard_v4.0.0.md": {
+          "added_lines": [
+            "230-231"
+          ],
+          "deleted_lines": [],
+          "added_line_contents": [
+            "230: Checkpoints are the mechanism with which git-ai captures human vs AI changes. A checkpoint is a diff between the previous checkpoint's file contents and the file contents at the new checkpoint. ",
+            "231: "
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 2,
+        "deletions": 0,
+        "additions_sloc": 1,
+        "deletions_sloc": 0
+      }
+    },
+    {
+      "timestamp": 1776567196,
+      "kind": "human",
+      "files": {
+        "specs/git_ai_standard_v4.0.0.md": {
+          "added_lines": [
+            "230-244"
+          ],
+          "deleted_lines": [
+            "230"
+          ],
+          "added_line_contents": [
+            "230: Checkpoints are the mechanism with which git-ai captures human vs AI changes. A checkpoint is a diff between previously captured file contents and the file contents at the new checkpoint. ",
+            "231: ",
+            "232: #### When checkpointing occurs",
+            "233: Checkpointing is designed to differentiate between human and AI changes.",
+            "234: When an AI tool uses a fileEdit command, it will fire a preToolUse hook, initiating a human checkpoint. All file changes detected during checkpointing will be attributed to the human developer. ",
+            "235: ",
+            "236: Then, a postToolUse hook is fired after the AI tool completes editing. This initiates an AI checkpoint and detects the changes made by the AI during that fileEdit command. ",
+            "237: ",
+            "238: This will create a log ",
+            "239: ",
+            "240: You can see additional information in https://usegitai.com/docs/cli/how-git-ai-works#part-1-what-happens-on-a-developers-machine",
+            "241: ",
+            "242: #### Checkpointing logic",
+            "243: 1. A checkpoint filters ",
+            "244: "
+          ],
+          "deleted_line_contents": [
+            "230: Checkpoints are the mechanism with which git-ai captures human vs AI changes. A checkpoint is a diff between the previous checkpoint's file contents and the file contents at the new checkpoint. "
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 15,
+        "deletions": 1,
+        "additions_sloc": 9,
+        "deletions_sloc": 1
+      }
+    },
+    {
+      "timestamp": 1776567721,
+      "kind": "human",
+      "files": {
+        "specs/git_ai_standard_v4.0.0.md": {
+          "added_lines": [
+            "230-231",
+            "234-236",
+            "238",
+            "240",
+            "242",
+            "245-251"
+          ],
+          "deleted_lines": [
+            "230",
+            "233-234",
+            "236",
+            "238",
+            "240",
+            "242-243"
+          ],
+          "added_line_contents": [
+            "230: Checkpoints are the mechanism with which git-ai captures human vs AI changes. ",
+            "231: A checkpoint is a diff between previously captured file contents and the file contents at the new checkpoint, with an attribution to either a human or AI author. ",
+            "234: Checkpointing occurs at the boundary between human and AI changes. ",
+            "235: When an AI tool uses a fileEdit command, it will fire a preToolUse hook, initiating a human checkpoint. All file changes detected during this checkpoint will be attributed to the human developer. ",
+            "236: This captures all previous human changes before AI tools begin making changes. ",
+            "238: Then, a postToolUse hook is fired after the AI tool completes editing. This initiates an AI checkpoint and attributes changes made by the AI during that fileEdit command. ",
+            "240: Checkpoint metadata is persisted, then placed into the change_history field in the metadata section. ",
+            "242: You can see a visualization at https://usegitai.com/docs/cli/how-git-ai-works#part-1-what-happens-on-a-developers-machine",
+            "245: #### Prompt association",
+            "246: For AI checkpoints, the prompt that generated the fileEdit will be saved. ",
+            "247: This results in a 1 to N relationship between prompts and checkpoints, as a single prompt can lead to multiple fileEdits.",
+            "248: ",
+            "249: ",
+            "250: #### What files are compared during checkpointing",
+            "251: A checkpoint only diffs file contents for tracked files. "
+          ],
+          "deleted_line_contents": [
+            "230: Checkpoints are the mechanism with which git-ai captures human vs AI changes. A checkpoint is a diff between previously captured file contents and the file contents at the new checkpoint. ",
+            "233: Checkpointing is designed to differentiate between human and AI changes.",
+            "234: When an AI tool uses a fileEdit command, it will fire a preToolUse hook, initiating a human checkpoint. All file changes detected during checkpointing will be attributed to the human developer. ",
+            "236: Then, a postToolUse hook is fired after the AI tool completes editing. This initiates an AI checkpoint and detects the changes made by the AI during that fileEdit command. ",
+            "238: This will create a log ",
+            "240: You can see additional information in https://usegitai.com/docs/cli/how-git-ai-works#part-1-what-happens-on-a-developers-machine",
+            "242: #### Checkpointing logic",
+            "243: 1. A checkpoint filters "
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 15,
+        "deletions": 8,
+        "additions_sloc": 13,
+        "deletions_sloc": 8
+      }
+    },
+    {
+      "timestamp": 1776567911,
+      "kind": "human",
+      "files": {
+        "specs/git_ai_standard_v4.0.0.md": {
+          "added_lines": [
+            "252"
+          ],
+          "deleted_lines": [],
+          "added_line_contents": [
+            "252: Tracked files have the following inclusion-exclusion criteria."
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 1,
+        "deletions": 0,
+        "additions_sloc": 1,
+        "deletions_sloc": 0
+      }
+    },
+    {
+      "timestamp": 1776567912,
+      "kind": "human",
+      "files": {
+        "specs/git_ai_standard_v4.0.0.md": {
+          "added_lines": [
+            "252-253"
+          ],
+          "deleted_lines": [
+            "252"
+          ],
+          "added_line_contents": [
+            "252: Tracked files have the following inclusion-exclusion criteria:",
+            "253: "
+          ],
+          "deleted_line_contents": [
+            "252: Tracked files have the following inclusion-exclusion criteria."
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 2,
+        "deletions": 1,
+        "additions_sloc": 1,
+        "deletions_sloc": 1
+      }
+    },
+    {
+      "timestamp": 1776569801,
+      "kind": "human",
+      "files": {
+        "specs/git_ai_standard_v4.0.0.md": {
+          "added_lines": [
+            "254-260"
+          ],
+          "deleted_lines": [],
+          "added_line_contents": [
+            "254: Inclusion:",
+            "255: - git status output - all modified files reported by git status, including `Untracked files` files. ",
+            "256: - files with previous checkpoint - all files that were included in a previous checkpoint for this base commit ",
+            "257: - ",
+            "258: ",
+            "259: Exclusion:",
+            "260: - A hardcoded list of unnecessary generated content, such as node_modules, .DS_store, ..."
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 7,
+        "deletions": 0,
+        "additions_sloc": 6,
+        "deletions_sloc": 0
+      }
+    },
+    {
+      "timestamp": 1776570661,
+      "kind": "human",
+      "files": {
+        "specs/git_ai_standard_v4.0.0.md": {
+          "added_lines": [
+            "257"
+          ],
+          "deleted_lines": [
+            "257"
+          ],
+          "added_line_contents": [
+            "257: "
+          ],
+          "deleted_line_contents": [
+            "257: - "
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 1,
+        "deletions": 1,
+        "additions_sloc": 0,
+        "deletions_sloc": 1
+      }
+    },
+    {
+      "timestamp": 1776571699,
+      "kind": "human",
+      "files": {
+        "specs/git_ai_standard_v4.0.0.md": {
+          "added_lines": [
+            "240",
+            "256-257",
+            "260"
+          ],
+          "deleted_lines": [
+            "240",
+            "256-257",
+            "260",
+            "326"
+          ],
+          "added_line_contents": [
+            "240: Checkpoint metadata is persisted, with a subset of collected data being placed into the change_history field in the metadata section. ",
+            "256: - files with previous checkpoint - all files that were included in a previous checkpoint for this base commit. ",
+            "257:   This includes untracked + deleted files which would not get picked up by git status' output (enables tracking of temporary files that get deleted)",
+            "260: - A list of unnecessary generated content, such as node_modules, .DS_store, ..."
+          ],
+          "deleted_line_contents": [
+            "240: Checkpoint metadata is persisted, then placed into the change_history field in the metadata section. ",
+            "256: - files with previous checkpoint - all files that were included in a previous checkpoint for this base commit ",
+            "257: ",
+            "260: - A hardcoded list of unnecessary generated content, such as node_modules, .DS_store, ...",
+            "326: 3. A `conv_transcripts` map SHOULD be built so earlier checkpoints in the same conversation can resolve `prompt_text` even when the transcript is only attached to the last checkpoint."
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 4,
+        "deletions": 5,
+        "additions_sloc": 4,
+        "deletions_sloc": 4
+      }
+    },
+    {
+      "timestamp": 1776571718,
+      "kind": "human",
+      "files": {
+        "specs/git_ai_standard_v4.0.0.md": {
+          "added_lines": [],
+          "deleted_lines": [
+            "320-330"
+          ],
+          "deleted_line_contents": [
+            "320: #### Prompt Text Resolution",
+            "321: ",
+            "322: When building `change_history` entries during post-commit, the `prompt_text` field SHOULD be resolved using the following strategy:",
+            "323: ",
+            "324: 1. If the checkpoint has a `prompt_id`, look up the user message with that ID in the conversation transcript.",
+            "325: 2. If no match is found by ID, fall back to the last user message in the transcript whose timestamp is <= the checkpoint timestamp.",
+            "326: ",
+            "327: #### Prompt ID Backfilling",
+            "328: ",
+            "329: When checkpoints are created before the IDE's database has fully committed the triggering user message, the `prompt_id` field may initially be `None`. Implementations SHOULD backfill `prompt_id` for ALL checkpoints in a conversation (not just the last one) by building a timeline of user messages from the latest transcript and assigning the last user message whose timestamp <= checkpoint timestamp to each checkpoint.",
+            "330: "
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 0,
+        "deletions": 11,
+        "additions_sloc": 0,
+        "deletions_sloc": 6
+      }
+    },
+    {
+      "timestamp": 1776571858,
+      "kind": "human",
+      "files": {
+        "specs/git_ai_standard_v4.0.0.md": {
+          "added_lines": [
+            "326",
+            "328",
+            "330-332",
+            "334-338",
+            "340",
+            "345-348",
+            "352",
+            "355-358",
+            "361-363"
+          ],
+          "deleted_lines": [
+            "326",
+            "328",
+            "330-332",
+            "334-336",
+            "338-346",
+            "348-353",
+            "357-360",
+            "364",
+            "367-368",
+            "371",
+            "375-380"
+          ],
+          "added_line_contents": [
+            "326:       \"timestamp\": 1776571396,",
+            "328:       \"conversation_id\": \"5c9c********d7f6\",",
+            "330:       \"prompt_id\": \"015fc1a5-1fe9-4ebc-a77c-f2461a8ee974\",",
+            "331:       \"model\": \"gpt-5.4-medium\",",
+            "332:       \"prompt_text\": \"edit @test.py to add a comment\",",
+            "334:         \"test.py\": {",
+            "335:           \"added_lines\": [",
+            "336:             \"31\"",
+            "337:           ],",
+            "338:           \"deleted_lines\": [],",
+            "340:             \"31: # These lines should be attributed to Cursor (AI)\"",
+            "345:         \"additions\": 1,",
+            "346:         \"deletions\": 0,",
+            "347:         \"additions_sloc\": 1,",
+            "348:         \"deletions_sloc\": 0",
+            "352:       \"timestamp\": 1776571429,",
+            "355:         \"tmp_testing.py\": {",
+            "356:           \"added_lines\": [",
+            "357:             \"15-17\"",
+            "358:           ],",
+            "361:             \"15: \",",
+            "362:             \"16: \",",
+            "363:             \"17: # human added stuff that shouldnt be tracked.\""
+          ],
+          "deleted_line_contents": [
+            "326:       \"timestamp\": 1712000100,",
+            "328:       \"conversation_id\": \"d997********2b52\",",
+            "330:       \"prompt_id\": \"bubble-abc-123\",",
+            "331:       \"model\": \"claude-4.5-opus\",",
+            "332:       \"prompt_text\": \"Add error handling to the main function\",",
+            "334:         \"src/main.rs\": {",
+            "335:           \"added_lines\": [\"15-22\", \"30\"],",
+            "336:           \"deleted_lines\": [\"15-18\"],",
+            "338:             \"15:     let result = match parse_args() {\",",
+            "339:             \"16:         Ok(args) => args,\",",
+            "340:             \"17:         Err(e) => {\",",
+            "341:             \"18:             eprintln!(\\\"Error: {}\\\", e);\",",
+            "342:             \"19:             std::process::exit(1);\",",
+            "343:             \"20:         }\",",
+            "344:             \"21:     };\",",
+            "345:             \"22: \",",
+            "346:             \"30:     Ok(())\"",
+            "348:           \"deleted_line_contents\": [",
+            "349:             \"15:     let args = parse_args();\",",
+            "350:             \"16:     // no error handling\",",
+            "351:             \"17:     run(args);\",",
+            "352:             \"18:     return;\"",
+            "353:           ]",
+            "357:         \"additions\": 9,",
+            "358:         \"deletions\": 4,",
+            "359:         \"additions_sloc\": 8,",
+            "360:         \"deletions_sloc\": 3",
+            "364:       \"timestamp\": 1712000200,",
+            "367:         \"src/main.rs\": {",
+            "368:           \"added_lines\": [\"1\"],",
+            "371:             \"1: // Author: Human Developer\"",
+            "375:       \"line_stats\": {",
+            "376:         \"additions\": 1,",
+            "377:         \"deletions\": 0,",
+            "378:         \"additions_sloc\": 0,",
+            "379:         \"deletions_sloc\": 0",
+            "380:       }"
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 23,
+        "deletions": 37,
+        "additions_sloc": 23,
+        "deletions_sloc": 37
+      }
+    },
+    {
+      "timestamp": 1776571865,
+      "kind": "human",
+      "files": {
+        "specs/git_ai_standard_v4.0.0.md": {
+          "added_lines": [
+            "363"
+          ],
+          "deleted_lines": [
+            "363"
+          ],
+          "added_line_contents": [
+            "363:             \"17: # human added stuff that should be tracked.\""
+          ],
+          "deleted_line_contents": [
+            "363:             \"17: # human added stuff that shouldnt be tracked.\""
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 1,
+        "deletions": 1,
+        "additions_sloc": 1,
+        "deletions_sloc": 1
+      }
+    },
+    {
+      "timestamp": 1776571870,
+      "kind": "human",
+      "files": {
+        "specs/git_ai_standard_v4.0.0.md": {
+          "added_lines": [
+            "363"
+          ],
+          "deleted_lines": [
+            "363"
+          ],
+          "added_line_contents": [
+            "363:             \"17: # human added stuff.\""
+          ],
+          "deleted_line_contents": [
+            "363:             \"17: # human added stuff that should be tracked.\""
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 1,
+        "deletions": 1,
+        "additions_sloc": 1,
+        "deletions_sloc": 1
+      }
+    },
+    {
+      "timestamp": 1776572351,
+      "kind": "human",
+      "files": {
+        "specs/git_ai_standard_v4.0.0.md": {
+          "added_lines": [
+            "542"
+          ],
+          "deleted_lines": [
+            "542"
+          ],
+          "added_line_contents": [
+            "542: - Messages include the `id` field for finer granularity in change_history attribution. "
+          ],
+          "deleted_line_contents": [
+            "542: - Messages include the `id` field for cross-referencing with Cursor's native conversation data."
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 1,
+        "deletions": 1,
+        "additions_sloc": 1,
+        "deletions_sloc": 1
+      }
+    },
+    {
+      "timestamp": 1776572531,
+      "kind": "human",
+      "files": {
+        "specs/git_ai_standard_v4.0.0.md": {
+          "added_lines": [
+            "584",
+            "589"
+          ],
+          "deleted_lines": [
+            "584",
+            "589",
+            "591"
+          ],
+          "added_line_contents": [
+            "584:   \"at_commit\": \"HEAD\",",
+            "589:       \"commit_date\": \"2026-03-27T10:11:49-07:00\","
+          ],
+          "deleted_line_contents": [
+            "584:   \"at_commit\": \"abc123\",",
+            "589:       \"commit_date\": \"2025-12-05\",",
+            "591:       \"target_line\": 15,"
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 2,
+        "deletions": 3,
+        "additions_sloc": 2,
+        "deletions_sloc": 3
+      }
+    },
+    {
+      "timestamp": 1776572543,
+      "kind": "human",
+      "files": {
+        "specs/git_ai_standard_v4.0.0.md": {
+          "added_lines": [
+            "591"
+          ],
+          "deleted_lines": [],
+          "added_line_contents": [
+            "591:       \"target_line\": 15,"
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 1,
+        "deletions": 0,
+        "additions_sloc": 1,
+        "deletions_sloc": 0
+      }
+    },
+    {
+      "timestamp": 1776572556,
+      "kind": "human",
+      "files": {
+        "specs/git_ai_standard_v4.0.0.md": {
+          "added_lines": [
+            "597"
+          ],
+          "deleted_lines": [
+            "597"
+          ],
+          "added_line_contents": [
+            "597:           \"model\": \"claude-4.6-sonnet-medium-thinking\","
+          ],
+          "deleted_line_contents": [
+            "597:           \"model\": \"claude-4.5-opus\","
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 1,
+        "deletions": 1,
+        "additions_sloc": 1,
+        "deletions_sloc": 1
+      }
+    },
+    {
+      "timestamp": 1776572564,
+      "kind": "human",
+      "files": {
+        "specs/git_ai_standard_v4.0.0.md": {
+          "added_lines": [
+            "598"
+          ],
+          "deleted_lines": [
+            "598"
+          ],
+          "added_line_contents": [
+            "598:           \"prompt_id\": \"54e7cc1b-e560-4690-800c-20abcfb028a2\","
+          ],
+          "deleted_line_contents": [
+            "598:           \"prompt_id\": \"bubble-abc-123\","
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 1,
+        "deletions": 1,
+        "additions_sloc": 1,
+        "deletions_sloc": 1
+      }
+    },
+    {
+      "timestamp": 1776572632,
+      "kind": "human",
+      "files": {
+        "specs/git_ai_standard_v4.0.0.md": {
+          "added_lines": [
+            "603-614"
+          ],
+          "deleted_lines": [
+            "603"
+          ],
+          "added_line_contents": [
+            "603:         },",
+            "604:         {                                                                                                                        ",
+            "605:           \"timestamp\": 1774631490,                                                                                               ",
+            "606:           \"kind\": \"human\",                                                                                                       ",
+            "607:           \"agent_type\": null,                                                                                                    ",
+            "608:           \"model\": null,                                                                                                         ",
+            "609:           \"prompt_id\": null,                                                                                                     ",
+            "610:           \"prompt_text\": null,  ",
+            "611:           \"line_content\": \"15:     let curr_result = match parse_args() {\",                                                                                    ",
+            "612:           \"additions\": 1,                                                                                                        ",
+            "613:           \"deletions\": 1                                                                                                         ",
+            "614:         },  "
+          ],
+          "deleted_line_contents": [
+            "603:         }"
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 12,
+        "deletions": 1,
+        "additions_sloc": 12,
+        "deletions_sloc": 1
+      }
+    },
+    {
+      "timestamp": 1776572683,
+      "kind": "human",
+      "files": {
+        "specs/git_ai_standard_v4.0.0.md": {
+          "added_lines": [
+            "653"
+          ],
+          "deleted_lines": [
+            "653"
+          ],
+          "added_line_contents": [
+            "653: | `line_content` | string | OPTIONAL. The content of the tracked line after this checkpoint |"
+          ],
+          "deleted_line_contents": [
+            "653: | `line_content` | string | OPTIONAL. The content of the tracked line after this checkpoint, if the checkpoint introduced or modified the line |"
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 1,
+        "deletions": 1,
+        "additions_sloc": 1,
+        "deletions_sloc": 1
+      }
+    },
+    {
+      "timestamp": 1776572714,
+      "kind": "human",
+      "files": {
+        "specs/git_ai_standard_v4.0.0.md": {
+          "added_lines": [],
+          "deleted_lines": [
+            "663-680"
+          ],
+          "deleted_line_contents": [
+            "663: ### 3.1 Workspace-Composer Map",
+            "664: ",
+            "665: Implementations SHOULD build a workspace-composer map to scope conversations to the correct workspace:",
+            "666: ",
+            "667: 1. Scan `~/.cursor/User/workspaceStorage/*/` directories.",
+            "668: 2. Read `workspace.json` for the workspace folder URI.",
+            "669: 3. Read `state.vscdb` for `composer.composerData` to extract conversation IDs.",
+            "670: 4. Return a mapping of conversation IDs to workspace paths.",
+            "671: ",
+            "672: URI decoding MUST use proper URL parsing (e.g., `url::Url::parse()` + `to_file_path()`) rather than manual percent-decoding, to correctly handle `file://` URIs with percent-encoded characters.",
+            "673: ",
+            "674: ### 3.2 Conversation Workspace Root Resolution",
+            "675: ",
+            "676: When the workspace-composer map does not contain a conversation, implementations MAY fall back to:",
+            "677: ",
+            "678: 1. Querying `cursorDiskKV` for `messageRequestContext:<conversation_id>:<bubble_id>` rows.",
+            "679: 2. Extracting `projectLayouts[0].listDirV2Result.directoryTreeRoot.absPath` to determine the workspace.",
+            "680: "
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 0,
+        "deletions": 18,
+        "additions_sloc": 0,
+        "deletions_sloc": 11
+      }
+    },
+    {
+      "timestamp": 1776572729,
+      "kind": "human",
+      "files": {
+        "specs/git_ai_standard_v4.0.0.md": {
+          "added_lines": [
+            "665"
+          ],
+          "deleted_lines": [
+            "663-666",
+            "669"
+          ],
+          "added_line_contents": [
+            "665: For Cursor conversations, implementations SHOULD discover subagent conversation IDs and populate the `cursor_subagents` field on the parent `PromptRecord`."
+          ],
+          "deleted_line_contents": [
+            "663: ### 3.3 Workspace Scoping",
+            "664: ",
+            "665: Conversations MUST be excluded (not included) when their workspace cannot be determined. This prevents unrelated conversations from polluting the authorship data. The scoping check SHOULD use canonical paths to handle symlinks and case differences.",
+            "666: ",
+            "669: For Cursor conversations, implementations SHOULD scan `~/.cursor/projects/*/agent-transcripts/<conversation_id>/subagents/*.jsonl` to discover subagent conversation IDs and populate the `cursor_subagents` field on the parent `PromptRecord`."
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 1,
+        "deletions": 5,
+        "additions_sloc": 1,
+        "deletions_sloc": 3
+      }
+    },
+    {
+      "timestamp": 1776572798,
+      "kind": "human",
+      "files": {
+        "specs/git_ai_standard_v4.0.0.md": {
+          "added_lines": [
+            "692"
+          ],
+          "deleted_lines": [
+            "692"
+          ],
+          "added_line_contents": [
+            "692: - The `change_history`, `cursor_subagents`, and message `id` fields all use `skip_serializing_if` semantics — when absent or empty, they are omitted from the serialized JSON. This means a v4.0.0 note with no change history and message ids will look identical to a v3.0.0 note aside from the `schema_version` field."
+          ],
+          "deleted_line_contents": [
+            "692: - The `change_history`, `cursor_subagents`, and message `id` fields all use `skip_serializing_if` semantics — when absent or empty, they are omitted from the serialized JSON. This means a v4.0.0 note with no change history will look identical to a v3.0.0 note aside from the `schema_version` field."
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 1,
+        "deletions": 1,
+        "additions_sloc": 1,
+        "deletions_sloc": 1
+      }
+    }
+  ]
+}
