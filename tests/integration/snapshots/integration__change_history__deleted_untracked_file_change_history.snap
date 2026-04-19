@@ -1,0 +1,115 @@
+---
+source: tests/integration/change_history.rs
+expression: sanitized
+---
+[
+    ChangeHistoryEntry {
+        timestamp: 0,
+        kind: "human",
+        conversation_id: None,
+        agent_type: None,
+        prompt_id: None,
+        model: None,
+        prompt_text: None,
+        files: {
+            "ephemeral.txt": FileChangeDetail {
+                added_lines: [
+                    "1-3",
+                ],
+                deleted_lines: [],
+                added_line_contents: [
+                    "1: ||__AI LINE__ PENDING__||",
+                    "2: ||__AI LINE__ PENDING__||",
+                    "3: ||__AI LINE__ PENDING__||",
+                ],
+                deleted_line_contents: [],
+            },
+        },
+        line_stats: CheckpointLineStats {
+            additions: 3,
+            deletions: 0,
+            additions_sloc: 3,
+            deletions_sloc: 0,
+        },
+    },
+    ChangeHistoryEntry {
+        timestamp: 0,
+        kind: "ai_agent",
+        conversation_id: Some(
+            "CONV_ID",
+        ),
+        agent_type: Some(
+            "mock_ai",
+        ),
+        prompt_id: None,
+        model: Some(
+            "unknown",
+        ),
+        prompt_text: None,
+        files: {
+            "ephemeral.txt": FileChangeDetail {
+                added_lines: [
+                    "1-3",
+                ],
+                deleted_lines: [
+                    "1-3",
+                ],
+                added_line_contents: [
+                    "1: temporary line 1",
+                    "2: temporary line 2",
+                    "3: temporary line 3",
+                ],
+                deleted_line_contents: [
+                    "1: ||__AI LINE__ PENDING__||",
+                    "2: ||__AI LINE__ PENDING__||",
+                    "3: ||__AI LINE__ PENDING__||",
+                ],
+            },
+        },
+        line_stats: CheckpointLineStats {
+            additions: 3,
+            deletions: 3,
+            additions_sloc: 3,
+            deletions_sloc: 3,
+        },
+    },
+    ChangeHistoryEntry {
+        timestamp: 0,
+        kind: "human",
+        conversation_id: None,
+        agent_type: None,
+        prompt_id: None,
+        model: None,
+        prompt_text: None,
+        files: {
+            "ephemeral.txt": FileChangeDetail {
+                added_lines: [],
+                deleted_lines: [
+                    "1-3",
+                ],
+                added_line_contents: [],
+                deleted_line_contents: [
+                    "1: temporary line 1",
+                    "2: temporary line 2",
+                    "3: temporary line 3",
+                ],
+            },
+            "keepalive.txt": FileChangeDetail {
+                added_lines: [
+                    "1",
+                ],
+                deleted_lines: [],
+                added_line_contents: [
+                    "1: keepalive",
+                ],
+                deleted_line_contents: [],
+            },
+        },
+        line_stats: CheckpointLineStats {
+            additions: 1,
+            deletions: 3,
+            additions_sloc: 1,
+            deletions_sloc: 3,
+        },
+    },
+]

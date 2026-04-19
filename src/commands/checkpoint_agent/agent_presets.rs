@@ -2505,6 +2505,156 @@ impl CursorPreset {
         Ok(None)
     }
 
+
+    /// List all Cursor conversation IDs that belong to the given workspace, along with
+    /// their `lastUpdatedAt` timestamps (seconds since epoch).
+    ///
+    /// Reads `composer.composerHeaders` from the global `ItemTable`. This key contains
+    /// an `allComposers` array where each entry has a `workspaceIdentifier.uri.fsPath`
+    /// that identifies the workspace the conversation belongs to. Cursor stamps this
+    /// field on every conversation header when a workspace is opened, so it covers all
+    /// recent conversations including subagents.
+    ///
+    /// See documentation/cursor_conversation_db_system.md for details.
+    pub fn list_workspace_conversation_ids(
+        global_db_path: &Path,
+        workspace_path: &Path,
+    ) -> Result<Vec<(String, u64)>, GitAiError> {
+        let conn = Self::open_sqlite_readonly(global_db_path)?;
+
+        let mut stmt = conn
+            .prepare("SELECT value FROM ItemTable WHERE key = 'composer.composerHeaders'")
+            .map_err(|e| GitAiError::Generic(format!("Query failed: {}", e)))?;
+
+        let mut rows = stmt
+            .query([])
+            .map_err(|e| GitAiError::Generic(format!("Query failed: {}", e)))?;
+
+        let row = match rows.next() {
+            Ok(Some(r)) => r,
+            _ => return Ok(Vec::new()),
+        };
+
+        let value_text: String = row
+            .get(0)
+            .map_err(|e| GitAiError::Generic(format!("Failed to read value: {}", e)))?;
+
+        let data: serde_json::Value = serde_json::from_str(&value_text)
+            .map_err(|e| GitAiError::Generic(format!("Failed to parse JSON: {}", e)))?;
+
+        let all_composers = match data.get("allComposers").and_then(|v| v.as_array()) {
+            Some(arr) => arr,
+            None => return Ok(Vec::new()),
+        };
+
+        let canonical_workspace = workspace_path
+            .canonicalize()
+            .unwrap_or_else(|_| workspace_path.to_path_buf());
+
+        let mut results = Vec::new();
+        for entry in all_composers {
+            let composer_id = match entry.get("composerId").and_then(|v| v.as_str()) {
+                Some(id) => id,
+                None => continue,
+            };
+
+            // Extract fsPath from workspaceIdentifier.uri.fsPath
+            let fs_path = entry
+                .get("workspaceIdentifier")
+                .and_then(|ws| ws.get("uri"))
+                .and_then(|uri| uri.get("fsPath"))
+                .and_then(|p| p.as_str());
+
+            let matches = match fs_path {
+                Some(p) => {
+                    let entry_path = PathBuf::from(p);
+                    let canonical_entry = entry_path
+                        .canonicalize()
+                        .unwrap_or_else(|_| entry_path);
+                    canonical_entry == canonical_workspace
+                }
+                None => false,
+            };
+
+            if matches {
+                // lastUpdatedAt is epoch milliseconds; convert to seconds
+                let last_updated_at = entry
+                    .get("lastUpdatedAt")
+                    .and_then(|v| v.as_u64())
+                    .map(|ms| ms / 1000)
+                    .unwrap_or(0);
+
+                results.push((composer_id.to_string(), last_updated_at));
+            }
+        }
+
+        Ok(results)
+    }
+
+    /// Return the path to Cursor's per-project agent-transcripts directory.
+    ///
+    /// Respects `GIT_AI_CURSOR_AGENT_TRANSCRIPTS_PATH` for testability,
+    /// otherwise scans `~/.cursor/projects/*/agent-transcripts/`.
+    fn cursor_agent_transcripts_dirs() -> Vec<PathBuf> {
+        if let Ok(p) = std::env::var("GIT_AI_CURSOR_AGENT_TRANSCRIPTS_PATH") {
+            return vec![PathBuf::from(p)];
+        }
+        let home = match dirs::home_dir() {
+            Some(h) => h,
+            None => return vec![],
+        };
+        let projects_dir = home.join(".cursor").join("projects");
+        if !projects_dir.is_dir() {
+            return vec![];
+        }
+        let mut dirs = Vec::new();
+        if let Ok(entries) = std::fs::read_dir(&projects_dir) {
+            for entry in entries.flatten() {
+                let at_dir = entry.path().join("agent-transcripts");
+                if at_dir.is_dir() {
+                    dirs.push(at_dir);
+                }
+            }
+        }
+        dirs
+    }
+
+    /// Find subagent conversation IDs for a given Cursor conversation.
+    ///
+    /// Scans `~/.cursor/projects/*/agent-transcripts/<conversation_id>/subagents/`
+    /// for `.jsonl` files and returns the UUIDs extracted from filenames.
+    /// Returns `None` if no subagents exist.
+    pub fn find_subagent_ids(conversation_id: &str) -> Option<Vec<String>> {
+        for transcripts_dir in Self::cursor_agent_transcripts_dirs() {
+            let subagents_dir = transcripts_dir
+                .join(conversation_id)
+                .join("subagents");
+
+            if !subagents_dir.is_dir() {
+                continue;
+            }
+
+            let entries = match std::fs::read_dir(&subagents_dir) {
+                Ok(e) => e,
+                Err(_) => continue,
+            };
+
+            let mut ids = Vec::new();
+            for entry in entries.flatten() {
+                let filename = entry.file_name().to_string_lossy().to_string();
+                if let Some(id) = filename.strip_suffix(".jsonl") {
+                    ids.push(id.to_string());
+                }
+            }
+
+            if !ids.is_empty() {
+                ids.sort();
+                return Some(ids);
+            }
+        }
+
+        None
+    }
 }
 
 pub struct GithubCopilotPreset;

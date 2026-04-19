@@ -197,6 +197,9 @@ pub fn handle_git_ai(args: &[String]) {
         "flush-metrics-db" => {
             commands::flush_metrics_db::handle_flush_metrics_db(&args[1..]);
         }
+        "line-history" => {
+            commands::line_history::handle_line_history(&args[1..]);
+        }
         "login" => {
             commands::login::handle_login(&args[1..]);
         }
@@ -318,6 +321,7 @@ fn print_help() {
     eprintln!("    enable                 Enable git-ai tracking in this repository");
     eprintln!("    disable                Disable git-ai tracking in this repository");
     eprintln!("    status                 Show git-ai tracking status and reason");
+    eprintln!("  line-history       Show history of a line in a file");
     eprintln!("  ci                 Continuous integration utilities");
     eprintln!("    github                 GitHub CI helpers");
     eprintln!("  squash-authorship  Generate authorship log for squashed commits");
