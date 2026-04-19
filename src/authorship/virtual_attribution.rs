@@ -389,6 +389,7 @@ impl VirtualAttributions {
                     overriden_lines: 0,
                     messages_url: None,
                     custom_attributes: None,
+                    cursor_subagents: None,
                 };
 
                 prompts
@@ -548,6 +549,7 @@ impl VirtualAttributions {
                     overriden_lines: 0,
                     messages_url: None,
                     custom_attributes: None,
+                    cursor_subagents: None,
                 };
 
                 prompts
@@ -698,6 +700,7 @@ impl VirtualAttributions {
                     overriden_lines: 0,
                     messages_url: None,
                     custom_attributes: None,
+                    cursor_subagents: None,
                 };
 
                 prompts
@@ -2642,6 +2645,7 @@ mod tests {
             overriden_lines: 0,
             messages_url: None,
             custom_attributes: None,
+            cursor_subagents: None,
         };
         let mut prompt_a_commits = BTreeMap::new();
         prompt_a_commits.insert(String::new(), prompt_a_record);
@@ -2662,6 +2666,7 @@ mod tests {
             overriden_lines: 0,
             messages_url: None,
             custom_attributes: None,
+            cursor_subagents: None,
         };
         let mut prompt_b_commits = BTreeMap::new();
         prompt_b_commits.insert(String::new(), prompt_b_record);
@@ -2730,6 +2735,7 @@ mod tests {
             overriden_lines: 0,
             messages_url: None,
             custom_attributes: None,
+            cursor_subagents: None,
         };
         let mut commits = BTreeMap::new();
         commits.insert("abc123".to_string(), prompt_record);

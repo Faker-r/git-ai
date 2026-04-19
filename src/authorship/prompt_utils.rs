@@ -763,6 +763,7 @@ mod tests {
             overriden_lines: 2,
             messages_url: None,
             custom_attributes: None,
+            cursor_subagents: None,
         }
     }
 
