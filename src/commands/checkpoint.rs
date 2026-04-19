@@ -648,6 +648,21 @@ fn resolve_live_checkpoint_execution(
     );
 
     if is_pre_commit && base_commit_override.is_none() {
+        // let has_no_ai_edits = working_log
+        //     .all_ai_touched_files()
+        //     .map(|files| files.is_empty())
+        //     .unwrap_or(true);
+        // let has_initial_attributions = !working_log.read_initial_attributions().files.is_empty();
+        // let has_explicit_ai_agent_context = kind.is_ai() && agent_run_result.is_some();
+
+        // if has_no_ai_edits
+        //     && !has_initial_attributions
+        //     && !Config::get().get_feature_flags().inter_commit_move
+        //     && !has_explicit_ai_agent_context
+        // {
+        //     tracing::debug!("No AI edits in pre-commit checkpoint, skipping");
+        //     return Ok(None);
+        // }
         tracing::debug!("Pre-commit checkpoint: capturing human change history");
     }
 

@@ -1,7 +1,7 @@
 use crate::repos::test_file::ExpectedLineExt;
 use crate::repos::test_repo::TestRepo;
 use git_ai::authorship::authorship_log_serialization::{ChangeHistoryEntry, FileChangeDetail};
-use git_ai::authorship::secrets::{redact_secrets_from_change_history, redact_secrets_from_prompts, strip_prompt_messages,};
+use git_ai::authorship::secrets::redact_secrets_from_change_history;
 use git_ai::authorship::working_log::CheckpointLineStats;
 use insta::assert_debug_snapshot;
 use std::collections::BTreeMap;
