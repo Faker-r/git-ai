@@ -412,25 +412,6 @@ src/lib.rs
       "overriden_lines": 0,
       "cursor_subagents": ["sub-conv-001", "sub-conv-002"]
     },
-    "efgh5678efgh5678": {
-      "agent_id": {
-        "tool": "cursor",
-        "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-        "model": "claude-3-sonnet"
-      },
-      "human_author": "Developer <dev@example.com>",
-      "messages": [
-        {
-          "type": "user",
-          "text": "Add logging",
-          "timestamp": "2025-12-05T02:00:00.000Z"
-        }
-      ],
-      "total_additions": 6,
-      "total_deletions": 0,
-      "accepted_lines": 6,
-      "overriden_lines": 0
-    },
     "1234abcd5678efgh": {
       "agent_id": {
         "tool": "cursor",
@@ -535,7 +516,7 @@ src/lib.rs
 ```
 
 In the above example:
-- Three prompt sessions are recorded: two that produced code changes and one context conversation (planning session) with zero code stats.
+- Two prompt sessions are recorded: one that produced code changes and one context conversation (planning session) with zero code stats.
 - The `change_history` shows three checkpoints in chronological order: an AI edit, a human edit, and another AI edit.
 - The context conversation (`1234abcd5678efgh`) has zero stats but preserves the planning discussion.
 - The first prompt record includes `cursor_subagents` linking to two subagent conversations.
