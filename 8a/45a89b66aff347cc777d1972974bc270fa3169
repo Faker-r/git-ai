@@ -1,0 +1,1887 @@
+src/commands/git_handlers.rs
+  41f2cb949e3c4ae3 105-106
+src/observability/mod.rs
+  41f2cb949e3c4ae3 12-19,22-26,29-40,42-71,76-77,81-84
+  dfd7c048c561e1e9 2,20-21,27-28,41,72-75,78-79
+src/commands/git_ai_handlers.rs
+  41f2cb949e3c4ae3 36-37
+---
+{
+  "schema_version": "authorship/4.0.0",
+  "git_ai_version": "development:1.3.1",
+  "base_commit_sha": "8a45a89b66aff347cc777d1972974bc270fa3169",
+  "prompts": {
+    "41f2cb949e3c4ae3": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "9791e340-00da-4b4c-8d80-03af664c3456",
+        "model": "default"
+      },
+      "human_author": "Yingying Wang <dora93wang@gmail.com>",
+      "messages": [],
+      "total_additions": 90,
+      "total_deletions": 134,
+      "accepted_lines": 67,
+      "overriden_lines": 0
+    },
+    "6ea243e7b9dc1388": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "86e48602-40dd-4ef7-9252-2143fd9ce11f",
+        "model": "default"
+      },
+      "human_author": "Yingying Wang <dora93wang@gmail.com>",
+      "messages": [],
+      "total_additions": 10,
+      "total_deletions": 5,
+      "accepted_lines": 6,
+      "overriden_lines": 0
+    },
+    "9d7030aa675abb04": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "b3f1ecf7-1377-47ac-bcda-0a3385407afc",
+        "model": "default"
+      },
+      "human_author": "Yingying Wang <dora93wang@gmail.com>",
+      "messages": [],
+      "total_additions": 1,
+      "total_deletions": 0,
+      "accepted_lines": 0,
+      "overriden_lines": 0
+    },
+    "adb3cce91c57e0a4": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "7f2375d5-8336-4bef-85d9-7df34aa7cfe9",
+        "model": "default"
+      },
+      "human_author": "Yingying Wang <dora93wang@gmail.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 2,
+      "accepted_lines": 0,
+      "overriden_lines": 0,
+      "subagents": [
+        "30577a13-e606-4c85-8f0b-00a9eb0f161c",
+        "6271856c-98ac-4189-965a-2ec339d51f1b",
+        "b3f1ecf7-1377-47ac-bcda-0a3385407afc"
+      ]
+    },
+    "b62b10ead45c66c1": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "0b63a4e1-69ec-499f-97b0-a48049f3c43b",
+        "model": "default"
+      },
+      "human_author": "Yingying Wang <dora93wang@gmail.com>",
+      "messages": [],
+      "total_additions": 60,
+      "total_deletions": 28,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    },
+    "cd68ddbbb9df56a7": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "51c55057-dafd-4711-85d8-3a4657cda371",
+        "model": "default"
+      },
+      "human_author": "Yingying Wang <dora93wang@gmail.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 0,
+      "overriden_lines": 0
+    },
+    "d125b30592b3d4fa": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "bd932b5a-b138-423f-abeb-39fd5f97d9e8",
+        "model": "composer-2"
+      },
+      "human_author": "Yingying Wang <dora93wang@gmail.com>",
+      "messages": [],
+      "total_additions": 50,
+      "total_deletions": 14,
+      "accepted_lines": 13,
+      "overriden_lines": 0
+    },
+    "d8fe2793f846280d": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "d7b78efc-ceda-4c0d-8a28-f6a12e39982f",
+        "model": "default"
+      },
+      "human_author": "Yingying Wang <dora93wang@gmail.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 0,
+      "overriden_lines": 0
+    },
+    "dfd7c048c561e1e9": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "604d0071-b580-4466-b56b-461ce419b426",
+        "model": "composer-2"
+      },
+      "human_author": "Yingying Wang <dora93wang@gmail.com>",
+      "messages": [],
+      "total_additions": 124,
+      "total_deletions": 39,
+      "accepted_lines": 13,
+      "overriden_lines": 2
+    },
+    "e27ec346c6755300": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "30577a13-e606-4c85-8f0b-00a9eb0f161c",
+        "model": "default"
+      },
+      "human_author": "Yingying Wang <dora93wang@gmail.com>",
+      "messages": [],
+      "total_additions": 1,
+      "total_deletions": 0,
+      "accepted_lines": 0,
+      "overriden_lines": 0
+    },
+    "e40367b76892f1e4": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "6271856c-98ac-4189-965a-2ec339d51f1b",
+        "model": "default"
+      },
+      "human_author": "Yingying Wang <dora93wang@gmail.com>",
+      "messages": [],
+      "total_additions": 18,
+      "total_deletions": 17,
+      "accepted_lines": 0,
+      "overriden_lines": 0
+    }
+  },
+  "humans": {
+    "h_ebff0bc7bb81ae": {
+      "author": "Yingying Wang"
+    }
+  },
+  "change_history": [
+    {
+      "timestamp": 1776686697,
+      "kind": "ai_agent",
+      "conversation_id": "e40367b76892f1e4",
+      "agent_type": "cursor",
+      "prompt_id": "bf96d6bd-a3e8-4ad6-b2aa-2861cb11143b",
+      "model": "default",
+      "files": {
+        "test.txt": {
+          "added_lines": [
+            "1-17"
+          ],
+          "deleted_lines": [],
+          "added_line_contents": [
+            "1: line 1",
+            "2: cursor line 1",
+            "3: cursor line 2",
+            "4: cursor line 3",
+            "5: cursor line 4",
+            "6: cursor line 5",
+            "7: cursor line 6",
+            "8: cursor line 7",
+            "9: cursor line 8",
+            "10: ",
+            "11: ",
+            "12: line 11",
+            "13: ",
+            "14: line 13",
+            "15: line 14",
+            "16: line 15",
+            "17: line 16"
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 17,
+        "deletions": 0,
+        "additions_sloc": 14,
+        "deletions_sloc": 0
+      }
+    },
+    {
+      "timestamp": 1776686707,
+      "kind": "ai_agent",
+      "conversation_id": "e40367b76892f1e4",
+      "agent_type": "cursor",
+      "prompt_id": "bf96d6bd-a3e8-4ad6-b2aa-2861cb11143b",
+      "model": "default",
+      "files": {
+        "test.txt": {
+          "added_lines": [
+            "1"
+          ],
+          "deleted_lines": [
+            "1-17"
+          ],
+          "added_line_contents": [
+            "1: line 1"
+          ],
+          "deleted_line_contents": [
+            "1: line 1",
+            "2: cursor line 1",
+            "3: cursor line 2",
+            "4: cursor line 3",
+            "5: cursor line 4",
+            "6: cursor line 5",
+            "7: cursor line 6",
+            "8: cursor line 7",
+            "9: cursor line 8",
+            "10: ",
+            "11: ",
+            "12: line 11",
+            "13: ",
+            "14: line 13",
+            "15: line 14",
+            "16: line 15",
+            "17: line 16"
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 1,
+        "deletions": 17,
+        "additions_sloc": 1,
+        "deletions_sloc": 14
+      }
+    },
+    {
+      "timestamp": 1776688344,
+      "kind": "ai_agent",
+      "conversation_id": "b62b10ead45c66c1",
+      "agent_type": "cursor",
+      "prompt_id": "f30b8110-1c9a-4ee8-acbf-f6c6dace8d13",
+      "model": "default",
+      "files": {
+        "src/logging.rs": {
+          "added_lines": [
+            "1-28"
+          ],
+          "deleted_lines": [],
+          "added_line_contents": [
+            "1: use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};",
+            "2: ",
+            "3: fn default_env_filter() -> EnvFilter {",
+            "4:     if std::env::var(\"GIT_AI_DEBUG\").as_deref() == Ok(\"1\") {",
+            "5:         // Simple \"turn everything on\" switch for local debugging.",
+            "6:         EnvFilter::new(\"debug\")",
+            "7:     } else {",
+            "8:         // Standard tracing control (e.g. `RUST_LOG=git_ai=debug`).",
+            "9:         EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(\"info\"))",
+            "10:     }",
+            "11: }",
+            "12: ",
+            "13: /// Initialize a basic `tracing` subscriber for non-daemon commands.",
+            "14: ///",
+            "15: /// Most of the codebase uses `tracing::*` macros; without a subscriber, events are dropped.",
+            "16: /// This is intentionally best-effort: if another subscriber is already installed, it no-ops.",
+            "17: pub fn init_tracing_cli() {",
+            "18:     let _ = tracing_subscriber::registry()",
+            "19:         .with(default_env_filter())",
+            "20:         .with(",
+            "21:             tracing_subscriber::fmt::layer()",
+            "22:                 .with_target(false)",
+            "23:                 .with_thread_ids(false)",
+            "24:                 .with_ansi(false),",
+            "25:         )",
+            "26:         .try_init();",
+            "27: }",
+            "28: "
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 28,
+        "deletions": 0,
+        "additions_sloc": 25,
+        "deletions_sloc": 0
+      }
+    },
+    {
+      "timestamp": 1776688522,
+      "kind": "ai_agent",
+      "conversation_id": "b62b10ead45c66c1",
+      "agent_type": "cursor",
+      "prompt_id": "f30b8110-1c9a-4ee8-acbf-f6c6dace8d13",
+      "model": "default",
+      "files": {
+        "src/logging.rs": {
+          "added_lines": [
+            "28-55"
+          ],
+          "deleted_lines": [],
+          "added_line_contents": [
+            "28: ",
+            "29: use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};",
+            "30: ",
+            "31: fn default_env_filter() -> EnvFilter {",
+            "32:     if std::env::var(\"GIT_AI_DEBUG\").as_deref() == Ok(\"1\") {",
+            "33:         // Simple \"turn everything on\" switch for local debugging.",
+            "34:         EnvFilter::new(\"debug\")",
+            "35:     } else {",
+            "36:         // Standard tracing control (e.g. `RUST_LOG=git_ai=debug`).",
+            "37:         EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(\"info\"))",
+            "38:     }",
+            "39: }",
+            "40: ",
+            "41: /// Initialize a basic `tracing` subscriber for non-daemon commands.",
+            "42: ///",
+            "43: /// Most of the codebase uses `tracing::*` macros; without a subscriber, events are dropped.",
+            "44: /// This is intentionally best-effort: if another subscriber is already installed, it no-ops.",
+            "45: pub fn init_tracing_cli() {",
+            "46:     let _ = tracing_subscriber::registry()",
+            "47:         .with(default_env_filter())",
+            "48:         .with(",
+            "49:             tracing_subscriber::fmt::layer()",
+            "50:                 .with_target(false)",
+            "51:                 .with_thread_ids(false)",
+            "52:                 .with_ansi(false),",
+            "53:         )",
+            "54:         .try_init();",
+            "55: }"
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 28,
+        "deletions": 0,
+        "additions_sloc": 25,
+        "deletions_sloc": 0
+      }
+    },
+    {
+      "timestamp": 1776688562,
+      "kind": "ai_agent",
+      "conversation_id": "b62b10ead45c66c1",
+      "agent_type": "cursor",
+      "prompt_id": "f30b8110-1c9a-4ee8-acbf-f6c6dace8d13",
+      "model": "default",
+      "files": {
+        "src/lib.rs": {
+          "added_lines": [
+            "12"
+          ],
+          "deleted_lines": [],
+          "added_line_contents": [
+            "12: pub mod logging;"
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 1,
+        "deletions": 0,
+        "additions_sloc": 1,
+        "deletions_sloc": 0
+      }
+    },
+    {
+      "timestamp": 1776688606,
+      "kind": "ai_agent",
+      "conversation_id": "b62b10ead45c66c1",
+      "agent_type": "cursor",
+      "prompt_id": "f30b8110-1c9a-4ee8-acbf-f6c6dace8d13",
+      "model": "default",
+      "files": {
+        "src/main.rs": {
+          "added_lines": [
+            "3",
+            "16-17"
+          ],
+          "deleted_lines": [],
+          "added_line_contents": [
+            "3: use git_ai::logging::init_tracing_cli;",
+            "16:     init_tracing_cli();",
+            "17: "
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 3,
+        "deletions": 0,
+        "additions_sloc": 2,
+        "deletions_sloc": 0
+      }
+    },
+    {
+      "timestamp": 1776688675,
+      "kind": "ai_agent",
+      "conversation_id": "b62b10ead45c66c1",
+      "agent_type": "cursor",
+      "prompt_id": "f30b8110-1c9a-4ee8-acbf-f6c6dace8d13",
+      "model": "default",
+      "files": {
+        "src/logging.rs": {
+          "added_lines": [],
+          "deleted_lines": [
+            "28-55"
+          ],
+          "deleted_line_contents": [
+            "28: ",
+            "29: use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};",
+            "30: ",
+            "31: fn default_env_filter() -> EnvFilter {",
+            "32:     if std::env::var(\"GIT_AI_DEBUG\").as_deref() == Ok(\"1\") {",
+            "33:         // Simple \"turn everything on\" switch for local debugging.",
+            "34:         EnvFilter::new(\"debug\")",
+            "35:     } else {",
+            "36:         // Standard tracing control (e.g. `RUST_LOG=git_ai=debug`).",
+            "37:         EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(\"info\"))",
+            "38:     }",
+            "39: }",
+            "40: ",
+            "41: /// Initialize a basic `tracing` subscriber for non-daemon commands.",
+            "42: ///",
+            "43: /// Most of the codebase uses `tracing::*` macros; without a subscriber, events are dropped.",
+            "44: /// This is intentionally best-effort: if another subscriber is already installed, it no-ops.",
+            "45: pub fn init_tracing_cli() {",
+            "46:     let _ = tracing_subscriber::registry()",
+            "47:         .with(default_env_filter())",
+            "48:         .with(",
+            "49:             tracing_subscriber::fmt::layer()",
+            "50:                 .with_target(false)",
+            "51:                 .with_thread_ids(false)",
+            "52:                 .with_ansi(false),",
+            "53:         )",
+            "54:         .try_init();",
+            "55: }"
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 0,
+        "deletions": 28,
+        "additions_sloc": 0,
+        "deletions_sloc": 25
+      }
+    },
+    {
+      "timestamp": 1776689147,
+      "kind": "ai_agent",
+      "conversation_id": "e27ec346c6755300",
+      "agent_type": "cursor",
+      "prompt_id": "7eafab56-ec4e-477e-9696-3a0ab422a1ba",
+      "model": "default",
+      "files": {
+        "test.txt": {
+          "added_lines": [
+            "1"
+          ],
+          "deleted_lines": [],
+          "added_line_contents": [
+            "1: line 1"
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 1,
+        "deletions": 0,
+        "additions_sloc": 1,
+        "deletions_sloc": 0
+      }
+    },
+    {
+      "timestamp": 1776689156,
+      "kind": "ai_agent",
+      "conversation_id": "9d7030aa675abb04",
+      "agent_type": "cursor",
+      "prompt_id": "e01cd0c4-4fa6-47c1-a828-5dc12f4246de",
+      "model": "default",
+      "files": {
+        "test.txt": {
+          "added_lines": [
+            "2"
+          ],
+          "deleted_lines": [],
+          "added_line_contents": [
+            "2: line 1"
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 1,
+        "deletions": 0,
+        "additions_sloc": 1,
+        "deletions_sloc": 0
+      }
+    },
+    {
+      "timestamp": 1776689169,
+      "kind": "ai_agent",
+      "conversation_id": "adb3cce91c57e0a4",
+      "agent_type": "cursor",
+      "prompt_id": "ed67d279-bfca-431e-a8bc-07f510e036a7",
+      "model": "default",
+      "files": {
+        "test.txt": {
+          "added_lines": [],
+          "deleted_lines": [
+            "1-2"
+          ],
+          "deleted_line_contents": [
+            "1: line 1",
+            "2: line 1"
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 0,
+        "deletions": 2,
+        "additions_sloc": 0,
+        "deletions_sloc": 2
+      }
+    },
+    {
+      "timestamp": 1776690033,
+      "kind": "ai_agent",
+      "conversation_id": "d125b30592b3d4fa",
+      "agent_type": "cursor",
+      "prompt_id": "fc04ecd3-3aba-4999-a4fb-1df39af7f551",
+      "model": "composer-2",
+      "files": {
+        "src/main.rs": {
+          "added_lines": [
+            "3"
+          ],
+          "deleted_lines": [
+            "3",
+            "16-17"
+          ],
+          "added_line_contents": [
+            "3: use git_ai::observability;"
+          ],
+          "deleted_line_contents": [
+            "3: use git_ai::logging::init_tracing_cli;",
+            "16:     init_tracing_cli();",
+            "17: "
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 1,
+        "deletions": 3,
+        "additions_sloc": 1,
+        "deletions_sloc": 2
+      }
+    },
+    {
+      "timestamp": 1776690033,
+      "kind": "ai_agent",
+      "conversation_id": "d125b30592b3d4fa",
+      "agent_type": "cursor",
+      "prompt_id": "fc04ecd3-3aba-4999-a4fb-1df39af7f551",
+      "model": "composer-2",
+      "files": {
+        "src/observability/mod.rs": {
+          "added_lines": [
+            "2",
+            "6-8",
+            "12-45"
+          ],
+          "deleted_lines": [],
+          "added_line_contents": [
+            "2: use std::io::{IsTerminal, stderr};",
+            "6: use tracing_subscriber::EnvFilter;",
+            "7: use tracing_subscriber::layer::SubscriberExt;",
+            "8: use tracing_subscriber::util::SubscriberInitExt;",
+            "12: /// Same rules as the daemon: `GIT_AI_DEBUG=1` → debug level; else `RUST_LOG` if set; else `info`.",
+            "13: pub fn tracing_env_filter() -> EnvFilter {",
+            "14:     if std::env::var(\"GIT_AI_DEBUG\").as_deref() == Ok(\"1\") {",
+            "15:         EnvFilter::new(\"debug\")",
+            "16:     } else {",
+            "17:         EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(\"info\"))",
+            "18:     }",
+            "19: }",
+            "20: ",
+            "21: /// `git-ai daemon run` / `d run` / `bg run` — the daemon process installs tracing before stderr",
+            "22: /// redirection; skip early init so `run_daemon` remains the single subscriber setup for that path.",
+            "23: pub fn tracing_deferred_to_daemon_run(git_ai_trailing_args: &[String]) -> bool {",
+            "24:     if git_ai_trailing_args.len() < 2 {",
+            "25:         return false;",
+            "26:     }",
+            "27:     matches!(",
+            "28:         git_ai_trailing_args[0].as_str(),",
+            "29:         \"daemon\" | \"d\" | \"bg\" if git_ai_trailing_args[1] == \"run\"",
+            "30:     )",
+            "31: }",
+            "32: ",
+            "33: /// Install `tracing_subscriber` for CLI and git-wrapper processes. No-op if already initialized.",
+            "34: pub fn try_init_process_tracing() {",
+            "35:     let _ = tracing_subscriber::registry()",
+            "36:         .with(tracing_env_filter())",
+            "37:         .with(",
+            "38:             tracing_subscriber::fmt::layer()",
+            "39:                 .with_target(false)",
+            "40:                 .with_thread_ids(false)",
+            "41:                 .with_ansi(stderr().is_terminal()),",
+            "42:         )",
+            "43:         .try_init();",
+            "44: }",
+            "45: "
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 38,
+        "deletions": 0,
+        "additions_sloc": 35,
+        "deletions_sloc": 0
+      }
+    },
+    {
+      "timestamp": 1776690033,
+      "kind": "ai_agent",
+      "conversation_id": "d125b30592b3d4fa",
+      "agent_type": "cursor",
+      "prompt_id": "fc04ecd3-3aba-4999-a4fb-1df39af7f551",
+      "model": "composer-2",
+      "files": {
+        "src/daemon.rs": {
+          "added_lines": [
+            "7902-7903",
+            "7905-7906",
+            "7914"
+          ],
+          "deleted_lines": [
+            "7902",
+            "7904-7911",
+            "7919"
+          ],
+          "added_line_contents": [
+            "7902:         use tracing_subscriber::layer::SubscriberExt;",
+            "7903:         use tracing_subscriber::util::SubscriberInitExt;",
+            "7905:         let _ = tracing_subscriber::registry()",
+            "7906:             .with(crate::observability::tracing_env_filter())",
+            "7914:             .try_init();"
+          ],
+          "deleted_line_contents": [
+            "7902:         use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};",
+            "7904:         let env_filter = if std::env::var(\"GIT_AI_DEBUG\").as_deref() == Ok(\"1\") {",
+            "7905:             EnvFilter::new(\"debug\")",
+            "7906:         } else {",
+            "7907:             EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(\"info\"))",
+            "7908:         };",
+            "7909: ",
+            "7910:         tracing_subscriber::registry()",
+            "7911:             .with(env_filter)",
+            "7919:             .init();"
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 5,
+        "deletions": 10,
+        "additions_sloc": 5,
+        "deletions_sloc": 9
+      }
+    },
+    {
+      "timestamp": 1776690033,
+      "kind": "ai_agent",
+      "conversation_id": "d125b30592b3d4fa",
+      "agent_type": "cursor",
+      "prompt_id": "fc04ecd3-3aba-4999-a4fb-1df39af7f551",
+      "model": "composer-2",
+      "files": {
+        "src/main.rs": {
+          "added_lines": [
+            "40-44",
+            "53"
+          ],
+          "deleted_lines": [
+            "48"
+          ],
+          "added_line_contents": [
+            "40:     let is_git_ai_invocation = binary_name == \"git-ai\" || binary_name == \"git-ai.exe\";",
+            "41:     if !is_git_ai_invocation || !observability::tracing_deferred_to_daemon_run(&cli.args) {",
+            "42:         observability::try_init_process_tracing();",
+            "43:     }",
+            "44: ",
+            "53:     if is_git_ai_invocation {"
+          ],
+          "deleted_line_contents": [
+            "48:     if binary_name == \"git-ai\" || binary_name == \"git-ai.exe\" {"
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 6,
+        "deletions": 1,
+        "additions_sloc": 5,
+        "deletions_sloc": 1
+      }
+    },
+    {
+      "timestamp": 1776690303,
+      "kind": "ai_agent",
+      "conversation_id": "6ea243e7b9dc1388",
+      "agent_type": "cursor",
+      "prompt_id": "ffa8f50f-a433-4c2c-bed8-0187da1d0623",
+      "model": "default",
+      "files": {
+        "test.txt": {
+          "added_lines": [
+            "1-2"
+          ],
+          "deleted_lines": [
+            "1"
+          ],
+          "added_line_contents": [
+            "1: line 1",
+            "2: line 2"
+          ],
+          "deleted_line_contents": [
+            "1: line 1"
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 2,
+        "deletions": 1,
+        "additions_sloc": 2,
+        "deletions_sloc": 1
+      }
+    },
+    {
+      "timestamp": 1776690421,
+      "kind": "ai_agent",
+      "conversation_id": "dfd7c048c561e1e9",
+      "agent_type": "cursor",
+      "prompt_id": "534f5229-e918-462c-bb04-900bda14b520",
+      "model": "composer-2",
+      "files": {
+        "src/observability/mod.rs": {
+          "added_lines": [
+            "12-13",
+            "18-24"
+          ],
+          "deleted_lines": [
+            "12",
+            "17"
+          ],
+          "added_line_contents": [
+            "12: /// Tracing filter: `GIT_AI_DEBUG=1` → debug; else `RUST_LOG` if set; else `debug` for dev builds",
+            "13: /// (`cargo build`, including `scripts/dev.sh`) and `info` for release builds.",
+            "18:         EnvFilter::try_from_default_env().unwrap_or_else(|_| {",
+            "19:             EnvFilter::new(if cfg!(debug_assertions) {",
+            "20:                 \"debug\"",
+            "21:             } else {",
+            "22:                 \"info\"",
+            "23:             })",
+            "24:         })"
+          ],
+          "deleted_line_contents": [
+            "12: /// Same rules as the daemon: `GIT_AI_DEBUG=1` → debug level; else `RUST_LOG` if set; else `info`.",
+            "17:         EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(\"info\"))"
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 9,
+        "deletions": 2,
+        "additions_sloc": 9,
+        "deletions_sloc": 2
+      }
+    },
+    {
+      "timestamp": 1776690421,
+      "kind": "ai_agent",
+      "conversation_id": "dfd7c048c561e1e9",
+      "agent_type": "cursor",
+      "prompt_id": "534f5229-e918-462c-bb04-900bda14b520",
+      "model": "composer-2",
+      "files": {
+        "CONTRIBUTING.md": {
+          "added_lines": [
+            "44-45"
+          ],
+          "deleted_lines": [
+            "44-45"
+          ],
+          "added_line_contents": [
+            "44: sh scripts/dev.sh          # debug build (default); tracing defaults to debug level",
+            "45: sh scripts/dev.sh --release  # release build; tracing defaults to info unless RUST_LOG / GIT_AI_DEBUG"
+          ],
+          "deleted_line_contents": [
+            "44: sh scripts/dev.sh          # debug build (default)",
+            "45: sh scripts/dev.sh --release  # release build"
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 2,
+        "deletions": 2,
+        "additions_sloc": 2,
+        "deletions_sloc": 2
+      }
+    },
+    {
+      "timestamp": 1776690450,
+      "kind": "known_human",
+      "files": {
+        "CONTRIBUTING.md": {
+          "added_lines": [
+            "44-45"
+          ],
+          "deleted_lines": [
+            "44-45"
+          ],
+          "added_line_contents": [
+            "44: sh scripts/dev.sh          # debug build (default)",
+            "45: sh scripts/dev.sh --release  # release build"
+          ],
+          "deleted_line_contents": [
+            "44: sh scripts/dev.sh          # debug build (default); tracing defaults to debug level",
+            "45: sh scripts/dev.sh --release  # release build; tracing defaults to info unless RUST_LOG / GIT_AI_DEBUG"
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 2,
+        "deletions": 2,
+        "additions_sloc": 2,
+        "deletions_sloc": 2
+      }
+    },
+    {
+      "timestamp": 1776690534,
+      "kind": "known_human",
+      "files": {
+        "scripts/dev.sh": {
+          "added_lines": [
+            "11-12"
+          ],
+          "deleted_lines": [],
+          "added_line_contents": [
+            "11: GIT_AI_DEBUG=1.",
+            "12: "
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 2,
+        "deletions": 0,
+        "additions_sloc": 1,
+        "deletions_sloc": 0
+      }
+    },
+    {
+      "timestamp": 1776690536,
+      "kind": "known_human",
+      "files": {
+        "scripts/dev.sh": {
+          "added_lines": [
+            "11"
+          ],
+          "deleted_lines": [
+            "11"
+          ],
+          "added_line_contents": [
+            "11: GIT_AI_DEBUG=1"
+          ],
+          "deleted_line_contents": [
+            "11: GIT_AI_DEBUG=1."
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 1,
+        "deletions": 1,
+        "additions_sloc": 1,
+        "deletions_sloc": 1
+      }
+    },
+    {
+      "timestamp": 1776690565,
+      "kind": "ai_agent",
+      "conversation_id": "6ea243e7b9dc1388",
+      "agent_type": "cursor",
+      "prompt_id": "ffa8f50f-a433-4c2c-bed8-0187da1d0623",
+      "model": "default",
+      "files": {
+        "test.txt": {
+          "added_lines": [
+            "2-3"
+          ],
+          "deleted_lines": [
+            "2"
+          ],
+          "added_line_contents": [
+            "2: line 2",
+            "3: line 3"
+          ],
+          "deleted_line_contents": [
+            "2: line 2"
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 2,
+        "deletions": 1,
+        "additions_sloc": 2,
+        "deletions_sloc": 1
+      }
+    },
+    {
+      "timestamp": 1776690845,
+      "kind": "ai_agent",
+      "conversation_id": "dfd7c048c561e1e9",
+      "agent_type": "cursor",
+      "prompt_id": "b3b48129-585e-4a61-978b-c7200be121e2",
+      "model": "composer-2",
+      "files": {
+        "src/observability/mod.rs": {
+          "added_lines": [
+            "2",
+            "4-5"
+          ],
+          "deleted_lines": [],
+          "added_line_contents": [
+            "2: use std::fs::{File, OpenOptions};",
+            "4: use std::path::PathBuf;",
+            "5: use std::sync::Mutex;"
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 3,
+        "deletions": 0,
+        "additions_sloc": 3,
+        "deletions_sloc": 0
+      }
+    },
+    {
+      "timestamp": 1776690845,
+      "kind": "ai_agent",
+      "conversation_id": "dfd7c048c561e1e9",
+      "agent_type": "cursor",
+      "prompt_id": "b3b48129-585e-4a61-978b-c7200be121e2",
+      "model": "composer-2",
+      "files": {
+        "src/observability/mod.rs": {
+          "added_lines": [
+            "43-59",
+            "61-63",
+            "65-83"
+          ],
+          "deleted_lines": [
+            "45-53"
+          ],
+          "added_line_contents": [
+            "43: /// Log file for [`try_init_process_tracing`] (same events as stderr, subject to [`tracing_env_filter`]).",
+            "44: /// Typically `~/.git-ai/internal/cli-tracing.log` when the standard install layout exists.",
+            "45: pub fn cli_tracing_log_path() -> Option<PathBuf> {",
+            "46:     crate::config::internal_dir_path().map(|dir| dir.join(\"cli-tracing.log\"))",
+            "47: }",
+            "48: ",
+            "49: fn try_open_cli_tracing_log() -> Option<File> {",
+            "50:     let dir = crate::config::internal_dir_path()?;",
+            "51:     let _ = std::fs::create_dir_all(&dir);",
+            "52:     let path = dir.join(\"cli-tracing.log\");",
+            "53:     OpenOptions::new()",
+            "54:         .create(true)",
+            "55:         .append(true)",
+            "56:         .open(path)",
+            "57:         .ok()",
+            "58: }",
+            "59: ",
+            "61: ///",
+            "62: /// Writes a copy of all emitted traces to [`cli_tracing_log_path`] when that file can be opened",
+            "63: /// (in addition to stderr).",
+            "65:     let stderr_layer = tracing_subscriber::fmt::layer()",
+            "66:         .with_target(false)",
+            "67:         .with_thread_ids(false)",
+            "68:         .with_ansi(stderr().is_terminal());",
+            "69: ",
+            "70:     let registry = tracing_subscriber::registry().with(tracing_env_filter());",
+            "71: ",
+            "72:     let registry = if let Some(file) = try_open_cli_tracing_log() {",
+            "73:         let file_layer = tracing_subscriber::fmt::layer()",
+            "74:             .with_target(false)",
+            "75:             .with_thread_ids(false)",
+            "76:             .with_ansi(false)",
+            "77:             .with_writer(Mutex::new(file));",
+            "78:         registry.with(file_layer)",
+            "79:     } else {",
+            "80:         registry",
+            "81:     };",
+            "82: ",
+            "83:     let _ = registry.with(stderr_layer).try_init();"
+          ],
+          "deleted_line_contents": [
+            "45:     let _ = tracing_subscriber::registry()",
+            "46:         .with(tracing_env_filter())",
+            "47:         .with(",
+            "48:             tracing_subscriber::fmt::layer()",
+            "49:                 .with_target(false)",
+            "50:                 .with_thread_ids(false)",
+            "51:                 .with_ansi(stderr().is_terminal()),",
+            "52:         )",
+            "53:         .try_init();"
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 39,
+        "deletions": 9,
+        "additions_sloc": 34,
+        "deletions_sloc": 9
+      }
+    },
+    {
+      "timestamp": 1776690848,
+      "kind": "ai_agent",
+      "conversation_id": "dfd7c048c561e1e9",
+      "agent_type": "cursor",
+      "prompt_id": "b3b48129-585e-4a61-978b-c7200be121e2",
+      "model": "composer-2",
+      "files": {
+        "src/observability/mod.rs": {
+          "added_lines": [
+            "50-51"
+          ],
+          "deleted_lines": [
+            "50-52"
+          ],
+          "added_line_contents": [
+            "50:     let path = cli_tracing_log_path()?;",
+            "51:     let _ = std::fs::create_dir_all(path.parent()?);"
+          ],
+          "deleted_line_contents": [
+            "50:     let dir = crate::config::internal_dir_path()?;",
+            "51:     let _ = std::fs::create_dir_all(&dir);",
+            "52:     let path = dir.join(\"cli-tracing.log\");"
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 2,
+        "deletions": 3,
+        "additions_sloc": 2,
+        "deletions_sloc": 3
+      }
+    },
+    {
+      "timestamp": 1776690857,
+      "kind": "ai_agent",
+      "conversation_id": "dfd7c048c561e1e9",
+      "agent_type": "cursor",
+      "prompt_id": "b3b48129-585e-4a61-978b-c7200be121e2",
+      "model": "composer-2",
+      "files": {
+        "src/observability/mod.rs": {
+          "added_lines": [
+            "69",
+            "71",
+            "77-81",
+            "83-87"
+          ],
+          "deleted_lines": [
+            "69",
+            "71",
+            "77",
+            "79-82"
+          ],
+          "added_line_contents": [
+            "69:     let filter = tracing_env_filter();",
+            "71:     if let Some(file) = try_open_cli_tracing_log() {",
+            "77:         let _ = tracing_subscriber::registry()",
+            "78:             .with(filter)",
+            "79:             .with(file_layer)",
+            "80:             .with(stderr_layer)",
+            "81:             .try_init();",
+            "83:         let _ = tracing_subscriber::registry()",
+            "84:             .with(filter)",
+            "85:             .with(stderr_layer)",
+            "86:             .try_init();",
+            "87:     }"
+          ],
+          "deleted_line_contents": [
+            "69:     let registry = tracing_subscriber::registry().with(tracing_env_filter());",
+            "71:     let registry = if let Some(file) = try_open_cli_tracing_log() {",
+            "77:         registry.with(file_layer)",
+            "79:         registry",
+            "80:     };",
+            "81: ",
+            "82:     let _ = registry.with(stderr_layer).try_init();"
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 12,
+        "deletions": 7,
+        "additions_sloc": 12,
+        "deletions_sloc": 6
+      }
+    },
+    {
+      "timestamp": 1776690885,
+      "kind": "ai_agent",
+      "conversation_id": "dfd7c048c561e1e9",
+      "agent_type": "cursor",
+      "prompt_id": "b3b48129-585e-4a61-978b-c7200be121e2",
+      "model": "composer-2",
+      "files": {
+        "src/observability/mod.rs": {
+          "added_lines": [
+            "3",
+            "10"
+          ],
+          "deleted_lines": [
+            "3"
+          ],
+          "added_line_contents": [
+            "3: use std::io::{IsTerminal, Write, stderr};",
+            "10: use tracing_subscriber::fmt::writer::MakeWriter;"
+          ],
+          "deleted_line_contents": [
+            "3: use std::io::{IsTerminal, stderr};"
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 2,
+        "deletions": 1,
+        "additions_sloc": 2,
+        "deletions_sloc": 1
+      }
+    },
+    {
+      "timestamp": 1776690887,
+      "kind": "ai_agent",
+      "conversation_id": "dfd7c048c561e1e9",
+      "agent_type": "cursor",
+      "prompt_id": "b3b48129-585e-4a61-978b-c7200be121e2",
+      "model": "composer-2",
+      "files": {
+        "src/observability/mod.rs": {
+          "added_lines": [
+            "60-95",
+            "98-100",
+            "103",
+            "108-116",
+            "121-126"
+          ],
+          "deleted_lines": [
+            "62-63",
+            "65-69",
+            "73-77",
+            "80-81",
+            "86"
+          ],
+          "added_line_contents": [
+            "60: /// Writes each formatted log line to stderr and to the append-only CLI log file.",
+            "61: struct StderrAndFile {",
+            "62:     file: Mutex<File>,",
+            "63: }",
+            "64: ",
+            "65: struct StderrAndFileWriter<'a> {",
+            "66:     file: &'a Mutex<File>,",
+            "67: }",
+            "68: ",
+            "69: impl Write for StderrAndFileWriter<'_> {",
+            "70:     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {",
+            "71:         let n = buf.len();",
+            "72:         stderr().lock().write_all(buf)?;",
+            "73:         if let Ok(mut guard) = self.file.lock() {",
+            "74:             let _ = guard.write_all(buf);",
+            "75:         }",
+            "76:         Ok(n)",
+            "77:     }",
+            "78: ",
+            "79:     fn flush(&mut self) -> std::io::Result<()> {",
+            "80:         stderr().lock().flush()?;",
+            "81:         if let Ok(mut guard) = self.file.lock() {",
+            "82:             let _ = guard.flush();",
+            "83:         }",
+            "84:         Ok(())",
+            "85:     }",
+            "86: }",
+            "87: ",
+            "88: impl<'a> MakeWriter<'a> for StderrAndFile {",
+            "89:     type Writer = StderrAndFileWriter<'a>;",
+            "90: ",
+            "91:     fn make_writer(&'a self) -> Self::Writer {",
+            "92:         StderrAndFileWriter { file: &self.file }",
+            "93:     }",
+            "94: }",
+            "95: ",
+            "98: /// When [`cli_tracing_log_path`] can be opened, each trace line is **also** appended there (stderr",
+            "99: /// is unchanged). ANSI styling follows stderr’s TTY detection; the file may contain escape",
+            "100: /// sequences when stderr is a color terminal.",
+            "103:     let ansi = stderr().is_terminal();",
+            "108:             .with(",
+            "109:                 tracing_subscriber::fmt::layer()",
+            "110:                     .with_target(false)",
+            "111:                     .with_thread_ids(false)",
+            "112:                     .with_ansi(ansi)",
+            "113:                     .with_writer(StderrAndFile {",
+            "114:                         file: Mutex::new(file),",
+            "115:                     }),",
+            "116:             )",
+            "121:             .with(",
+            "122:                 tracing_subscriber::fmt::layer()",
+            "123:                     .with_target(false)",
+            "124:                     .with_thread_ids(false)",
+            "125:                     .with_ansi(ansi),",
+            "126:             )"
+          ],
+          "deleted_line_contents": [
+            "62: /// Writes a copy of all emitted traces to [`cli_tracing_log_path`] when that file can be opened",
+            "63: /// (in addition to stderr).",
+            "65:     let stderr_layer = tracing_subscriber::fmt::layer()",
+            "66:         .with_target(false)",
+            "67:         .with_thread_ids(false)",
+            "68:         .with_ansi(stderr().is_terminal());",
+            "69: ",
+            "73:         let file_layer = tracing_subscriber::fmt::layer()",
+            "74:             .with_target(false)",
+            "75:             .with_thread_ids(false)",
+            "76:             .with_ansi(false)",
+            "77:             .with_writer(Mutex::new(file));",
+            "80:             .with(file_layer)",
+            "81:             .with(stderr_layer)",
+            "86:             .with(stderr_layer)"
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 55,
+        "deletions": 15,
+        "additions_sloc": 49,
+        "deletions_sloc": 14
+      }
+    },
+    {
+      "timestamp": 1776691614,
+      "kind": "ai_agent",
+      "conversation_id": "41f2cb949e3c4ae3",
+      "agent_type": "cursor",
+      "prompt_id": "cd598bea-edcd-48fa-b96d-2aab6fb6c3d5",
+      "model": "default",
+      "files": {
+        "src/observability/mod.rs": {
+          "added_lines": [
+            "9-10",
+            "12-23",
+            "26-30",
+            "33-39",
+            "41-58",
+            "63-64",
+            "68-71"
+          ],
+          "deleted_lines": [
+            "2-3",
+            "5",
+            "9-12",
+            "16-67",
+            "69-74",
+            "76-77",
+            "79-82",
+            "84-86",
+            "88-103",
+            "105-120",
+            "125",
+            "128-129",
+            "131-132"
+          ],
+          "added_line_contents": [
+            "9: /// Maximum events per metrics envelope",
+            "10: pub const MAX_METRICS_PER_ENVELOPE: usize = 250;",
+            "12: /// Initialize a `tracing_subscriber` for non-daemon processes that appends logs to",
+            "13: /// `~/.git-ai/internal/git-ai.log`.",
+            "14: ///",
+            "15: /// This is intentionally best-effort:",
+            "16: /// - If the daemon already initialized tracing, this is a no-op.",
+            "17: /// - If we can't resolve the internal dir or open the log file, we silently skip.",
+            "18: pub fn init_process_file_logging() {",
+            "19:     static INIT: std::sync::Once = std::sync::Once::new();",
+            "20:     INIT.call_once(|| {",
+            "21:         // The daemon sets up its own subscriber + log file; don't fight it.",
+            "22:         if crate::daemon::daemon_process_active() {",
+            "23:             return;",
+            "26:         // Avoid writing files in test harnesses (keeps tests hermetic).",
+            "27:         if std::env::var_os(\"GIT_AI_TEST_DB_PATH\").is_some()",
+            "28:             || std::env::var_os(\"GITAI_TEST_DB_PATH\").is_some()",
+            "29:         {",
+            "30:             return;",
+            "33:         let Some(internal_dir) = crate::config::internal_dir_path() else {",
+            "34:             return;",
+            "35:         };",
+            "36:         let log_path: PathBuf = internal_dir.join(\"git-ai.log\");",
+            "37:         if let Some(parent) = log_path.parent() {",
+            "38:             let _ = std::fs::create_dir_all(parent);",
+            "39:         }",
+            "41:         use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};",
+            "42: ",
+            "43:         let env_filter = if std::env::var(\"GIT_AI_DEBUG\").as_deref() == Ok(\"1\") {",
+            "44:             EnvFilter::new(\"debug\")",
+            "45:         } else {",
+            "46:             EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(\"info\"))",
+            "47:         };",
+            "48: ",
+            "49:         // Use a MakeWriter closure that reopens the file per event. This avoids",
+            "50:         // needing a global synchronized File handle and is sufficient for",
+            "51:         // low-volume wrapper/CLI logs.",
+            "52:         let make_writer = {",
+            "53:             let log_path = log_path.clone();",
+            "54:             move || std::fs::OpenOptions::new().create(true).append(true).open(&log_path)",
+            "55:         };",
+            "56: ",
+            "57:         let init_result = tracing_subscriber::registry()",
+            "58:             .with(env_filter)",
+            "63:                     .with_ansi(false)",
+            "64:                     .with_writer(make_writer),",
+            "68:         // If another subscriber was already installed, do nothing.",
+            "69:         let _ = init_result;",
+            "70:     });",
+            "71: }"
+          ],
+          "deleted_line_contents": [
+            "2: use std::fs::{File, OpenOptions};",
+            "3: use std::io::{IsTerminal, Write, stderr};",
+            "5: use std::sync::Mutex;",
+            "9: use tracing_subscriber::EnvFilter;",
+            "10: use tracing_subscriber::fmt::writer::MakeWriter;",
+            "11: use tracing_subscriber::layer::SubscriberExt;",
+            "12: use tracing_subscriber::util::SubscriberInitExt;",
+            "16: /// Tracing filter: `GIT_AI_DEBUG=1` → debug; else `RUST_LOG` if set; else `debug` for dev builds",
+            "17: /// (`cargo build`, including `scripts/dev.sh`) and `info` for release builds.",
+            "18: pub fn tracing_env_filter() -> EnvFilter {",
+            "19:     if std::env::var(\"GIT_AI_DEBUG\").as_deref() == Ok(\"1\") {",
+            "20:         EnvFilter::new(\"debug\")",
+            "21:     } else {",
+            "22:         EnvFilter::try_from_default_env().unwrap_or_else(|_| {",
+            "23:             EnvFilter::new(if cfg!(debug_assertions) {",
+            "24:                 \"debug\"",
+            "25:             } else {",
+            "26:                 \"info\"",
+            "27:             })",
+            "28:         })",
+            "29:     }",
+            "30: }",
+            "31: ",
+            "32: /// `git-ai daemon run` / `d run` / `bg run` — the daemon process installs tracing before stderr",
+            "33: /// redirection; skip early init so `run_daemon` remains the single subscriber setup for that path.",
+            "34: pub fn tracing_deferred_to_daemon_run(git_ai_trailing_args: &[String]) -> bool {",
+            "35:     if git_ai_trailing_args.len() < 2 {",
+            "36:         return false;",
+            "37:     }",
+            "38:     matches!(",
+            "39:         git_ai_trailing_args[0].as_str(),",
+            "40:         \"daemon\" | \"d\" | \"bg\" if git_ai_trailing_args[1] == \"run\"",
+            "41:     )",
+            "42: }",
+            "43: ",
+            "44: /// Log file for [`try_init_process_tracing`] (same events as stderr, subject to [`tracing_env_filter`]).",
+            "45: /// Typically `~/.git-ai/internal/cli-tracing.log` when the standard install layout exists.",
+            "46: pub fn cli_tracing_log_path() -> Option<PathBuf> {",
+            "47:     crate::config::internal_dir_path().map(|dir| dir.join(\"cli-tracing.log\"))",
+            "48: }",
+            "49: ",
+            "50: fn try_open_cli_tracing_log() -> Option<File> {",
+            "51:     let path = cli_tracing_log_path()?;",
+            "52:     let _ = std::fs::create_dir_all(path.parent()?);",
+            "53:     OpenOptions::new()",
+            "54:         .create(true)",
+            "55:         .append(true)",
+            "56:         .open(path)",
+            "57:         .ok()",
+            "58: }",
+            "59: ",
+            "60: /// Writes each formatted log line to stderr and to the append-only CLI log file.",
+            "61: struct StderrAndFile {",
+            "62:     file: Mutex<File>,",
+            "63: }",
+            "64: ",
+            "65: struct StderrAndFileWriter<'a> {",
+            "66:     file: &'a Mutex<File>,",
+            "67: }",
+            "69: impl Write for StderrAndFileWriter<'_> {",
+            "70:     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {",
+            "71:         let n = buf.len();",
+            "72:         stderr().lock().write_all(buf)?;",
+            "73:         if let Ok(mut guard) = self.file.lock() {",
+            "74:             let _ = guard.write_all(buf);",
+            "76:         Ok(n)",
+            "77:     }",
+            "79:     fn flush(&mut self) -> std::io::Result<()> {",
+            "80:         stderr().lock().flush()?;",
+            "81:         if let Ok(mut guard) = self.file.lock() {",
+            "82:             let _ = guard.flush();",
+            "84:         Ok(())",
+            "85:     }",
+            "86: }",
+            "88: impl<'a> MakeWriter<'a> for StderrAndFile {",
+            "89:     type Writer = StderrAndFileWriter<'a>;",
+            "90: ",
+            "91:     fn make_writer(&'a self) -> Self::Writer {",
+            "92:         StderrAndFileWriter { file: &self.file }",
+            "93:     }",
+            "94: }",
+            "95: ",
+            "96: /// Install `tracing_subscriber` for CLI and git-wrapper processes. No-op if already initialized.",
+            "97: ///",
+            "98: /// When [`cli_tracing_log_path`] can be opened, each trace line is **also** appended there (stderr",
+            "99: /// is unchanged). ANSI styling follows stderr’s TTY detection; the file may contain escape",
+            "100: /// sequences when stderr is a color terminal.",
+            "101: pub fn try_init_process_tracing() {",
+            "102:     let filter = tracing_env_filter();",
+            "103:     let ansi = stderr().is_terminal();",
+            "105:     if let Some(file) = try_open_cli_tracing_log() {",
+            "106:         let _ = tracing_subscriber::registry()",
+            "107:             .with(filter)",
+            "108:             .with(",
+            "109:                 tracing_subscriber::fmt::layer()",
+            "110:                     .with_target(false)",
+            "111:                     .with_thread_ids(false)",
+            "112:                     .with_ansi(ansi)",
+            "113:                     .with_writer(StderrAndFile {",
+            "114:                         file: Mutex::new(file),",
+            "115:                     }),",
+            "116:             )",
+            "117:             .try_init();",
+            "118:     } else {",
+            "119:         let _ = tracing_subscriber::registry()",
+            "120:             .with(filter)",
+            "125:                     .with_ansi(ansi),",
+            "128:     }",
+            "129: }",
+            "131: /// Maximum events per metrics envelope",
+            "132: pub const MAX_METRICS_PER_ENVELOPE: usize = 250;"
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 50,
+        "deletions": 111,
+        "additions_sloc": 47,
+        "deletions_sloc": 104
+      }
+    },
+    {
+      "timestamp": 1776691625,
+      "kind": "ai_agent",
+      "conversation_id": "41f2cb949e3c4ae3",
+      "agent_type": "cursor",
+      "prompt_id": "cd598bea-edcd-48fa-b96d-2aab6fb6c3d5",
+      "model": "default",
+      "files": {
+        "src/commands/git_ai_handlers.rs": {
+          "added_lines": [
+            "36-39"
+          ],
+          "deleted_lines": [],
+          "added_line_contents": [
+            "36:     // Ensure wrapper/CLI tracing logs are persisted even when not running",
+            "37:     // inside the daemon process.",
+            "38:     crate::observability::init_process_file_logging();",
+            "39: "
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 4,
+        "deletions": 0,
+        "additions_sloc": 3,
+        "deletions_sloc": 0
+      }
+    },
+    {
+      "timestamp": 1776691628,
+      "kind": "ai_agent",
+      "conversation_id": "41f2cb949e3c4ae3",
+      "agent_type": "cursor",
+      "prompt_id": "cd598bea-edcd-48fa-b96d-2aab6fb6c3d5",
+      "model": "default",
+      "files": {
+        "src/commands/git_handlers.rs": {
+          "added_lines": [
+            "105-108"
+          ],
+          "deleted_lines": [],
+          "added_line_contents": [
+            "105:     // Ensure wrapper tracing logs are persisted even when not running",
+            "106:     // inside the daemon process.",
+            "107:     crate::observability::init_process_file_logging();",
+            "108: "
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 4,
+        "deletions": 0,
+        "additions_sloc": 3,
+        "deletions_sloc": 0
+      }
+    },
+    {
+      "timestamp": 1776691652,
+      "kind": "ai_agent",
+      "conversation_id": "41f2cb949e3c4ae3",
+      "agent_type": "cursor",
+      "prompt_id": "cd598bea-edcd-48fa-b96d-2aab6fb6c3d5",
+      "model": "default",
+      "files": {
+        "src/observability/mod.rs": {
+          "added_lines": [
+            "49-52",
+            "54",
+            "56-63"
+          ],
+          "deleted_lines": [
+            "49-51",
+            "54"
+          ],
+          "added_line_contents": [
+            "49:         // Reopen the file per event. This avoids a global synchronized File and",
+            "50:         // is sufficient for low-volume wrapper/CLI logs.",
+            "51:         //",
+            "52:         // If the file can't be opened for any reason, fall back to a sink.",
+            "54:             use tracing_subscriber::fmt::writer::BoxMakeWriter;",
+            "56:             BoxMakeWriter::new(move || {",
+            "57:                 std::fs::OpenOptions::new()",
+            "58:                     .create(true)",
+            "59:                     .append(true)",
+            "60:                     .open(&log_path)",
+            "61:                     .map(|f| Box::new(f) as Box<dyn std::io::Write + Send>)",
+            "62:                     .unwrap_or_else(|_| Box::new(std::io::sink()))",
+            "63:             })"
+          ],
+          "deleted_line_contents": [
+            "49:         // Use a MakeWriter closure that reopens the file per event. This avoids",
+            "50:         // needing a global synchronized File handle and is sufficient for",
+            "51:         // low-volume wrapper/CLI logs.",
+            "54:             move || std::fs::OpenOptions::new().create(true).append(true).open(&log_path)"
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 13,
+        "deletions": 4,
+        "additions_sloc": 13,
+        "deletions_sloc": 4
+      }
+    },
+    {
+      "timestamp": 1776691761,
+      "kind": "ai_agent",
+      "conversation_id": "6ea243e7b9dc1388",
+      "agent_type": "cursor",
+      "prompt_id": "fb1f3efb-4377-4888-9c6a-1db760a6a08a",
+      "model": "default",
+      "files": {
+        "test.txt": {
+          "added_lines": [
+            "3-4"
+          ],
+          "deleted_lines": [
+            "3"
+          ],
+          "added_line_contents": [
+            "3: line 3",
+            "4: line 4"
+          ],
+          "deleted_line_contents": [
+            "3: line 3"
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 2,
+        "deletions": 1,
+        "additions_sloc": 2,
+        "deletions_sloc": 1
+      }
+    },
+    {
+      "timestamp": 1776691880,
+      "kind": "ai_agent",
+      "conversation_id": "41f2cb949e3c4ae3",
+      "agent_type": "cursor",
+      "prompt_id": "64579070-7462-4815-b795-ce5563de1bea",
+      "model": "default",
+      "files": {
+        "src/observability/mod.rs": {
+          "added_lines": [
+            "40-44"
+          ],
+          "deleted_lines": [],
+          "added_line_contents": [
+            "40:         // Ensure the file exists even if no tracing events are emitted.",
+            "41:         let _ = std::fs::OpenOptions::new()",
+            "42:             .create(true)",
+            "43:             .append(true)",
+            "44:             .open(&log_path);"
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 5,
+        "deletions": 0,
+        "additions_sloc": 5,
+        "deletions_sloc": 0
+      }
+    },
+    {
+      "timestamp": 1776691948,
+      "kind": "ai_agent",
+      "conversation_id": "6ea243e7b9dc1388",
+      "agent_type": "cursor",
+      "prompt_id": "1a2f561c-87c0-4642-98a5-1b2ab3b4655d",
+      "model": "default",
+      "files": {
+        "test.txt": {
+          "added_lines": [
+            "4-5"
+          ],
+          "deleted_lines": [
+            "4"
+          ],
+          "added_line_contents": [
+            "4: line 4",
+            "5: line 5"
+          ],
+          "deleted_line_contents": [
+            "4: line 4"
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 2,
+        "deletions": 1,
+        "additions_sloc": 2,
+        "deletions_sloc": 1
+      }
+    },
+    {
+      "timestamp": 1776692141,
+      "kind": "ai_agent",
+      "conversation_id": "41f2cb949e3c4ae3",
+      "agent_type": "cursor",
+      "prompt_id": "b04dea5b-cc66-4a9b-9d4c-9bcb0b43d03c",
+      "model": "default",
+      "files": {
+        "src/observability/mod.rs": {
+          "added_lines": [
+            "48-55",
+            "58"
+          ],
+          "deleted_lines": [
+            "48",
+            "51"
+          ],
+          "added_line_contents": [
+            "48:         // Logging levels:",
+            "49:         // - If `RUST_LOG` is set, respect it (advanced users / CI).",
+            "50:         // - Else if `GIT_AI_DEBUG=1`, enable full debug.",
+            "51:         // - Else default to `git_ai=debug,info` so our crate's `debug!` breadcrumbs",
+            "52:         //   are captured without turning *every* dependency crate to debug.",
+            "53:         let env_filter = if std::env::var_os(\"RUST_LOG\").is_some() {",
+            "54:             EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(\"info\"))",
+            "55:         } else if std::env::var(\"GIT_AI_DEBUG\").as_deref() == Ok(\"1\") {",
+            "58:             EnvFilter::new(\"git_ai=debug,info\")"
+          ],
+          "deleted_line_contents": [
+            "48:         let env_filter = if std::env::var(\"GIT_AI_DEBUG\").as_deref() == Ok(\"1\") {",
+            "51:             EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(\"info\"))"
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 9,
+        "deletions": 2,
+        "additions_sloc": 9,
+        "deletions_sloc": 2
+      }
+    },
+    {
+      "timestamp": 1776692297,
+      "kind": "ai_agent",
+      "conversation_id": "6ea243e7b9dc1388",
+      "agent_type": "cursor",
+      "prompt_id": "14960d18-58b0-4d23-a772-e70cf8b6237f",
+      "model": "default",
+      "files": {
+        "test.txt": {
+          "added_lines": [
+            "5-6"
+          ],
+          "deleted_lines": [
+            "5"
+          ],
+          "added_line_contents": [
+            "5: line 5",
+            "6: line 6"
+          ],
+          "deleted_line_contents": [
+            "5: line 5"
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 2,
+        "deletions": 1,
+        "additions_sloc": 2,
+        "deletions_sloc": 1
+      }
+    },
+    {
+      "timestamp": 1776692389,
+      "kind": "ai_agent",
+      "conversation_id": "41f2cb949e3c4ae3",
+      "agent_type": "cursor",
+      "prompt_id": "a3910b84-225f-4929-b351-53e50b39bd14",
+      "model": "default",
+      "files": {
+        "src/commands/git_handlers.rs": {
+          "added_lines": [],
+          "deleted_lines": [
+            "105-106"
+          ],
+          "deleted_line_contents": [
+            "105:     // Ensure wrapper tracing logs are persisted even when not running",
+            "106:     // inside the daemon process."
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 0,
+        "deletions": 2,
+        "additions_sloc": 0,
+        "deletions_sloc": 2
+      }
+    },
+    {
+      "timestamp": 1776692439,
+      "kind": "ai_agent",
+      "conversation_id": "41f2cb949e3c4ae3",
+      "agent_type": "cursor",
+      "prompt_id": "a3910b84-225f-4929-b351-53e50b39bd14",
+      "model": "default",
+      "files": {
+        "src/commands/git_ai_handlers.rs": {
+          "added_lines": [],
+          "deleted_lines": [
+            "36-37"
+          ],
+          "deleted_line_contents": [
+            "36:     // Ensure wrapper/CLI tracing logs are persisted even when not running",
+            "37:     // inside the daemon process."
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 0,
+        "deletions": 2,
+        "additions_sloc": 0,
+        "deletions_sloc": 2
+      }
+    },
+    {
+      "timestamp": 1776692452,
+      "kind": "ai_agent",
+      "conversation_id": "41f2cb949e3c4ae3",
+      "agent_type": "cursor",
+      "prompt_id": "a3910b84-225f-4929-b351-53e50b39bd14",
+      "model": "default",
+      "files": {
+        "src/observability/mod.rs": {
+          "added_lines": [
+            "13",
+            "45-47",
+            "56"
+          ],
+          "deleted_lines": [
+            "13-17",
+            "49-52",
+            "61-64"
+          ],
+          "added_line_contents": [
+            "13: /// `~/.git-ai/internal/git-ai.log` (best-effort).",
+            "45:         // - If `RUST_LOG` is set, respect it.",
+            "46:         // - Else if `GIT_AI_DEBUG=1`, enable debug globally.",
+            "47:         // - Else default to `git_ai=debug,info` (capture our crate's debug logs).",
+            "56:         // Reopen the file per event; if open fails, fall back to a sink."
+          ],
+          "deleted_line_contents": [
+            "13: /// `~/.git-ai/internal/git-ai.log`.",
+            "14: ///",
+            "15: /// This is intentionally best-effort:",
+            "16: /// - If the daemon already initialized tracing, this is a no-op.",
+            "17: /// - If we can't resolve the internal dir or open the log file, we silently skip.",
+            "49:         // - If `RUST_LOG` is set, respect it (advanced users / CI).",
+            "50:         // - Else if `GIT_AI_DEBUG=1`, enable full debug.",
+            "51:         // - Else default to `git_ai=debug,info` so our crate's `debug!` breadcrumbs",
+            "52:         //   are captured without turning *every* dependency crate to debug.",
+            "61:         // Reopen the file per event. This avoids a global synchronized File and",
+            "62:         // is sufficient for low-volume wrapper/CLI logs.",
+            "63:         //",
+            "64:         // If the file can't be opened for any reason, fall back to a sink."
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 5,
+        "deletions": 13,
+        "additions_sloc": 5,
+        "deletions_sloc": 13
+      }
+    },
+    {
+      "timestamp": 1776692715,
+      "kind": "human",
+      "files": {
+        "src/logging.rs": {
+          "added_lines": [],
+          "deleted_lines": [
+            "1-28"
+          ],
+          "deleted_line_contents": [
+            "1: use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};",
+            "2: ",
+            "3: fn default_env_filter() -> EnvFilter {",
+            "4:     if std::env::var(\"GIT_AI_DEBUG\").as_deref() == Ok(\"1\") {",
+            "5:         // Simple \"turn everything on\" switch for local debugging.",
+            "6:         EnvFilter::new(\"debug\")",
+            "7:     } else {",
+            "8:         // Standard tracing control (e.g. `RUST_LOG=git_ai=debug`).",
+            "9:         EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(\"info\"))",
+            "10:     }",
+            "11: }",
+            "12: ",
+            "13: /// Initialize a basic `tracing` subscriber for non-daemon commands.",
+            "14: ///",
+            "15: /// Most of the codebase uses `tracing::*` macros; without a subscriber, events are dropped.",
+            "16: /// This is intentionally best-effort: if another subscriber is already installed, it no-ops.",
+            "17: pub fn init_tracing_cli() {",
+            "18:     let _ = tracing_subscriber::registry()",
+            "19:         .with(default_env_filter())",
+            "20:         .with(",
+            "21:             tracing_subscriber::fmt::layer()",
+            "22:                 .with_target(false)",
+            "23:                 .with_thread_ids(false)",
+            "24:                 .with_ansi(false),",
+            "25:         )",
+            "26:         .try_init();",
+            "27: }",
+            "28: "
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 0,
+        "deletions": 28,
+        "additions_sloc": 0,
+        "deletions_sloc": 25
+      }
+    }
+  ]
+}
