@@ -33,6 +33,8 @@ use std::io::Read;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 pub fn handle_git_ai(args: &[String]) {
+    crate::observability::init_process_file_logging();
+
     if args.is_empty() {
         print_help();
         return;

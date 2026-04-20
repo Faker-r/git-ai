@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::time::Duration;
 
 use crate::metrics::MetricEvent;
@@ -7,6 +8,80 @@ pub mod wrapper_performance_targets;
 
 /// Maximum events per metrics envelope
 pub const MAX_METRICS_PER_ENVELOPE: usize = 250;
+
+/// Initialize a `tracing_subscriber` for non-daemon processes that appends logs to
+/// `~/.git-ai/internal/git-ai.log` (best-effort).
+pub fn init_process_file_logging() {
+    static INIT: std::sync::Once = std::sync::Once::new();
+    INIT.call_once(|| {
+        // The daemon sets up its own subscriber + log file; don't fight it.
+        if crate::daemon::daemon_process_active() {
+            return;
+        }
+
+        // Avoid writing files in test harnesses (keeps tests hermetic).
+        if std::env::var_os("GIT_AI_TEST_DB_PATH").is_some()
+            || std::env::var_os("GITAI_TEST_DB_PATH").is_some()
+        {
+            return;
+        }
+
+        let Some(internal_dir) = crate::config::internal_dir_path() else {
+            return;
+        };
+        let log_path: PathBuf = internal_dir.join("git-ai.log");
+        if let Some(parent) = log_path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        // Ensure the file exists even if no tracing events are emitted.
+        let _ = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&log_path);
+
+        use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
+
+        // Logging levels:
+        // - If `RUST_LOG` is set, respect it.
+        // - Else if `GIT_AI_DEBUG=1`, enable debug globally.
+        // - Else default to `git_ai=debug,info` (capture our crate's debug logs).
+        let env_filter = if std::env::var_os("RUST_LOG").is_some() {
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"))
+        } else if std::env::var("GIT_AI_DEBUG").as_deref() == Ok("1") {
+            EnvFilter::new("debug")
+        } else {
+            EnvFilter::new("git_ai=debug,info")
+        };
+
+        // Reopen the file per event; if open fails, fall back to a sink.
+        let make_writer = {
+            use tracing_subscriber::fmt::writer::BoxMakeWriter;
+            let log_path = log_path.clone();
+            BoxMakeWriter::new(move || {
+                std::fs::OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open(&log_path)
+                    .map(|f| Box::new(f) as Box<dyn std::io::Write + Send>)
+                    .unwrap_or_else(|_| Box::new(std::io::sink()))
+            })
+        };
+
+        let init_result = tracing_subscriber::registry()
+            .with(env_filter)
+            .with(
+                tracing_subscriber::fmt::layer()
+                    .with_target(false)
+                    .with_thread_ids(false)
+                    .with_ansi(false)
+                    .with_writer(make_writer),
+            )
+            .try_init();
+
+        // If another subscriber was already installed, do nothing.
+        let _ = init_result;
+    });
+}
 
 /// Submit telemetry envelopes via the best available path:
 /// 1. External daemon control socket (wrapper processes)
