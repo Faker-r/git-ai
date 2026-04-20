@@ -25,7 +25,7 @@ v4.0.0 is a research-oriented extension of the authorship log format. The primar
 
 - v4.0.0 implementations MUST accept authorship logs with any `schema_version` starting with `"authorship/"` (i.e., both v3.x and v4.x notes).
 - v3.0.0 implementations cannot read v4.0.0 notes due to new required fields. This is a forward-incompatible change.
-- The attestation section format is unchanged from v3.0.0.
+- The attestation section wire format is unchanged from v3.0.0. However, v4.0.0 formally specifies `h_`-prefixed known-human hashes, which were implemented but undocumented in v3.
 
 ### Errata carried from v3.0.0
 
@@ -80,7 +80,7 @@ The divider `---` MUST appear on its own line with no leading or trailing whites
 
 ### 1.2.3 Attestation Section
 
-The attestation section is unchanged from v3.0.0. It maps files to the AI sessions that authored specific lines.
+The attestation section maps files to the AI sessions or known-human authors responsible for specific lines. Each entry associates a hash with line ranges. Hashes route to either `metadata.prompts` (AI sessions) or `metadata.humans` (known-human authors). Lines with no attestation entry are untracked.
 
 #### File Path Lines
 
@@ -97,12 +97,12 @@ src/main.rs
 ```
 
 - File paths SHOULD NOT contain the quote character (`"`)
-- Files with no AI Attributions MUST NOT be included in the Attestation Section
+- Files with no attestation entries MUST NOT be included in the Attestation Section
 
 #### Attestation Entry Lines
 
 Each attestation entry MUST be indented with exactly two spaces and contain:
-1. A **hash** pointing to a prompt in the Metadata Section (16 hexadecimal characters)
+1. A **hash** pointing to either an AI session or a known human author, both 16 characters
 2. A single space
 3. A **line range specification**
 
@@ -130,12 +130,20 @@ Line ranges:
 - SHOULD be sorted by their start position
 - SHOULD use ranges for consecutive lines (e.g., `1-5` instead of `1,2,3,4,5`)
 
-#### Session Hash Semantics
+#### Hash Semantics
 
-Each session hash in the attestation section MUST correspond to a key in the `prompts` object of the metadata section. Session hashes:
-- MUST be hexadecimal characters only
-- MUST be generated using SHA-256 of `{tool}:{conversation_id}`, taking the first 16 hex characters. Ie `cursor-${conversation_id}` or `claude-code-${conversation_id}` or `amp-${thread_id}`
+Hashes in the attestation section identify who authored specific lines. There are two kinds:
+
+**AI session hashes** reference a key in the `prompts` object of the metadata section:
+- MUST be 16 characters: lowercase hexadecimal only
+- MUST be generated using SHA-256 of `{tool}:{conversation_id}`, taking the first 16 hex characters, lowercase. Ie `cursor:${conversation_id}` or `claude:${conversation_id}` or `amp:${thread_id}`.
 - SHOULD remain stable for the same AI session across commits
+
+**Human author hashes** reference a key in the `humans` object of the metadata section:
+- MUST be 16 characters: the prefix `h_` followed by 14 lowercase hexadecimal characters
+- MUST be generated using SHA-256 of the git committer identity string (e.g., `"Alice Smith <alice@example.com>"`), taking the first 14 hex characters and prepending `h_`
+
+Implementations MUST route hashes starting with `h_` to the `humans` map and all other hashes to the `prompts` map.
 
 **Hash Length:**
 - New implementations MUST generate 16-character hashes
@@ -160,6 +168,7 @@ The metadata section MUST be a valid JSON object containing the following fields
 | Field | Type | Description |
 |-------|------|-------------|
 | `git_ai_version` | string | Version of the git-ai tool that generated this log |
+| `humans` | object | Map of human-author hashes to human records. Omitted when empty. |
 | `change_history` | array | **NEW in v4.0.0.** Ordered list of `ChangeHistoryEntry` objects recording every checkpoint (human and AI) that occurred between the parent commit and this commit. See [Section 1.2.7](#127-change-history). |
 
 ---
@@ -225,7 +234,17 @@ Tool responses are excluded because they often contain large amounts of file con
 
 ---
 
-### 1.2.6 Checkpoint Behavior
+### 1.2.6 Human Record Object
+
+Each entry in the `humans` object MUST contain:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `author` | string | Git committer identity in the standard `"Name <email>"` format |
+
+---
+
+### 1.2.7 Checkpoint Behavior
 
 Checkpoints are the mechanism with which git-ai captures human vs AI changes. 
 A checkpoint is a diff between previously captured file contents and the file contents at the new checkpoint, with an attribution to either a human or AI author. 
@@ -270,7 +289,7 @@ Exclusion:
 
 ---
 
-### 1.2.7 Change History
+### 1.2.8 Change History
 
 **NEW in v4.0.0.** The `change_history` field in the metadata section records a chronological sequence of every checkpoint that occurred between the parent commit and this commit. This is the primary research data structure — it captures both human and AI changes at line-level granularity.
 
@@ -283,7 +302,7 @@ Each entry in the `change_history` array MUST contain:
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `timestamp` | integer | REQUIRED | Unix timestamp (seconds since epoch) when the checkpoint was created |
-| `kind` | string | REQUIRED | One of: `"human"`, `"ai_agent"`, `"ai_tab"` |
+| `kind` | string | REQUIRED | One of: `"human"`, `"ai_agent"`, `"ai_tab"`, `"known_human"` |
 | `conversation_id` | string | OPTIONAL | SHA-256 hash of the agent ID, linking to the `prompts` map. Present for AI checkpoints, absent for human checkpoints. |
 | `agent_type` | string | OPTIONAL | The AI tool that produced this checkpoint (e.g., `"cursor"`, `"claude_code"`). Present for AI checkpoints. |
 | `prompt_id` | string | OPTIONAL | IDE-specific message identifier (e.g., Cursor `bubble_id`) linking to the user message that triggered this checkpoint. |
@@ -370,7 +389,7 @@ All fields default to `0` if absent.
 
 ---
 
-### 1.2.8 Complete Example
+### 1.2.9 Complete Example
 
 ```
 src/main.rs
@@ -625,7 +644,7 @@ The command outputs a JSON object:
 | Field | Type | Description |
 |-------|------|-------------|
 | `timestamp` | integer | Unix timestamp of the checkpoint |
-| `kind` | string | One of: `"human"`, `"ai_agent"`, `"ai_tab"` |
+| `kind` | string | One of: `"human"`, `"ai_agent"`, `"ai_tab"`, `"known_human"` |
 | `agent_type` | string | OPTIONAL. The AI tool identifier |
 | `model` | string | OPTIONAL. The AI model used |
 | `prompt_id` | string | OPTIONAL. The IDE-specific message identifier |
@@ -640,9 +659,13 @@ The command outputs a JSON object:
 
 **NEW in v4.0.0.** The following extensions support deeper integration with Cursor IDE.
 
-### 3.4 Subagent Discovery
+### 3.1 Subagent Discovery
 
 For Cursor conversations, implementations SHOULD discover subagent conversation IDs and populate the `cursor_subagents` field on the parent `PromptRecord`.
+
+### 3.2 Context Conversation Discovery
+
+TBD 
 
 ---
 
@@ -667,6 +690,6 @@ When authorship logs are copied, merged, or split during history rewriting opera
 
 ## 5. Backwards Compatibility
 
-- Implementations of 4.0.0 MUST accept authorship logs with any `schema_version` starting with `"authorship/"` (i.e., v3.x and v4.x notes are both readable).
+- Implementations of 4.0.0 MUST accept authorship logs with any `schema_version` starting with `"authorship/"` (i.e., v3.x and v4.x notes are both readable). 
 - v3.0.0 implementations cannot read v4.0.0 notes. This is a forward-incompatible upgrade.
-- The `change_history`, `cursor_subagents`, and message `id` fields all use `skip_serializing_if` semantics — when absent or empty, they are omitted from the serialized JSON. This means a v4.0.0 note with no change history and message ids will look identical to a v3.0.0 note aside from the `schema_version` field.
+- The `change_history`, `cursor_subagents`, and message `id` fields all use `skip_serializing_if` semantics — when absent or empty, they are omitted from the serialized JSON. This means a v4.0.0 note with no change history, no message IDs, and no subagents will look identical to a v3.0.0 note aside from the `schema_version` field.

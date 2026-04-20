@@ -103,9 +103,11 @@ impl Default for AuthorshipMetadata {
 /// Lines with no attestation entry are "unknown" — not tracked by git-ai.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AttestationEntry {
-    /// Short hash (16 chars) that maps to an entry in the prompts section of the metadata
+    /// Short hash identifying the author: either an AI session hash (16 hex chars,
+    /// maps to `metadata.prompts`) or a known-human hash (`h_` + 14 hex chars,
+    /// maps to `metadata.humans`)
     pub hash: String,
-    /// Line ranges that this prompt is responsible for
+    /// Line ranges that this author is responsible for
     pub line_ranges: Vec<LineRange>,
 }
 
