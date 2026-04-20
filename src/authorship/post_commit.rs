@@ -313,7 +313,7 @@ pub fn post_commit_with_final_state(
                     pr.agent_id.id,
                     subagent_ids,
                 );
-                pr.cursor_subagents = Some(subagent_ids);
+                pr.subagents = Some(subagent_ids);
             }
         }
     }
@@ -881,7 +881,7 @@ fn collect_context_conversations(
                     overriden_lines: 0,
                     messages_url: None,
                     custom_attributes: None,
-                    cursor_subagents: None,
+                    subagents: None,
                 };
                 results.push((short_hash, record));
             }

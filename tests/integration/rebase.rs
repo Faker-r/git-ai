@@ -383,7 +383,7 @@ fn test_rebase_preserves_prompt_only_commit_note_metadata() {
             overriden_lines: 0,
             messages_url: None,
             custom_attributes: Some(test_attrs.clone()),
-            cursor_subagents: None,
+            subagents: None,
         },
     );
 

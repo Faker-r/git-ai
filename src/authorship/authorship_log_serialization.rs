@@ -860,7 +860,7 @@ mod tests {
                 overriden_lines: 0,
                 messages_url: None,
                 custom_attributes: None,
-                cursor_subagents: None,
+                subagents: None,
             },
         );
 
@@ -929,7 +929,7 @@ mod tests {
                 overriden_lines: 0,
                 messages_url: None,
                 custom_attributes: None,
-                cursor_subagents: None,
+                subagents: None,
             },
         );
 
@@ -983,7 +983,7 @@ mod tests {
                 overriden_lines: 0,
                 messages_url: None,
                 custom_attributes: None,
-                cursor_subagents: None,
+                subagents: None,
             },
         );
 
@@ -1164,7 +1164,7 @@ mod tests {
                 overriden_lines: 0,
                 messages_url: None,
                 custom_attributes: None,
-                cursor_subagents: None,
+                subagents: None,
             },
         );
 
@@ -1337,7 +1337,7 @@ mod tests {
                 overriden_lines: 0,
                 messages_url: None,
                 custom_attributes: None,
-                cursor_subagents: None,
+                subagents: None,
             },
         );
 
@@ -1363,7 +1363,7 @@ mod tests {
                 overriden_lines: 0,
                 messages_url: None,
                 custom_attributes: None,
-                cursor_subagents: None,
+                subagents: None,
             },
         );
 
@@ -1496,7 +1496,7 @@ mod tests {
                 overriden_lines: 0,
                 messages_url: None,
                 custom_attributes: None,
-                cursor_subagents: None,
+                subagents: None,
             },
         );
 

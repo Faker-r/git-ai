@@ -1412,7 +1412,7 @@ fn test_blame_ai_human_author() {
             overriden_lines: 0,
             messages_url: None,
             custom_attributes: None,
-            cursor_subagents: None,
+            subagents: None,
         },
     );
 
@@ -1435,7 +1435,7 @@ fn test_blame_ai_human_author() {
             overriden_lines: 0,
             messages_url: None,
             custom_attributes: None,
-            cursor_subagents: None,
+            subagents: None,
         },
     );
 

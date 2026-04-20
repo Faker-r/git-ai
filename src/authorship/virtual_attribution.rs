@@ -389,7 +389,7 @@ impl VirtualAttributions {
                     overriden_lines: 0,
                     messages_url: None,
                     custom_attributes: None,
-                    cursor_subagents: None,
+                    subagents: None,
                 };
 
                 prompts
@@ -549,7 +549,7 @@ impl VirtualAttributions {
                     overriden_lines: 0,
                     messages_url: None,
                     custom_attributes: None,
-                    cursor_subagents: None,
+                    subagents: None,
                 };
 
                 prompts
@@ -700,7 +700,7 @@ impl VirtualAttributions {
                     overriden_lines: 0,
                     messages_url: None,
                     custom_attributes: None,
-                    cursor_subagents: None,
+                    subagents: None,
                 };
 
                 prompts

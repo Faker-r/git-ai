@@ -213,10 +213,11 @@ pub struct PromptRecord {
     pub messages_url: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub custom_attributes: Option<HashMap<String, String>>,
-    /// Cursor subagent conversation IDs spawned by this conversation.
-    /// Only populated for Cursor conversations that have a non-empty subagents directory.
+    /// Subagent conversation IDs spawned by this conversation.
+    ///
+    /// Currently, only populated for Cursor conversations that have a non-empty subagents directory.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub cursor_subagents: Option<Vec<String>>,
+    pub subagents: Option<Vec<String>>,
 }
 
 impl Eq for PromptRecord {}
@@ -264,7 +265,7 @@ mod tests {
             overriden_lines: 0,
             messages_url: None,
             custom_attributes: None,
-            cursor_subagents: None,
+            subagents: None,
         }
     }
 

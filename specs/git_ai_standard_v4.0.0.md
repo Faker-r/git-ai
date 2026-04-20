@@ -18,7 +18,7 @@ v4.0.0 is a research-oriented extension of the authorship log format. The primar
 2. **Human change tracking**: Capture human edits alongside AI edits, not just AI-attributed content.
 3. **Context conversations**: Record planning, research, and Q&A conversations that influenced development but did not directly produce code changes.
 4. **Line history command**: Enable tracing any line back through its edit history via the new `line-history` command.
-5. **Cursor subagent tracking**: Link parent Cursor conversations to their spawned subagent conversations.
+5. **Subagent tracking**: Link parent conversations to their spawned subagent conversations.
 6. **Message IDs**: Add IDs to transcript messages for finer prompt traceability
 
 ### Backward Compatibility
@@ -188,7 +188,7 @@ Each entry in the `prompts` object MUST contain:
 | `overriden_lines` | integer | REQUIRED | Lines that were later modified by human (see Errata E-001) |
 | `messages_url` | string | OPTIONAL | URL to CAS-stored messages (format: `{api_base_url}/cas/{hash}`) |
 | `custom_attributes` | object | OPTIONAL | Map of string key-value pairs for agent-specific metadata |
-| `cursor_subagents` | array | OPTIONAL | **NEW in v4.0.0.** Array of conversation ID strings for Cursor subagent sessions spawned by this conversation. Only populated for Cursor conversations that have a non-empty subagents directory. |
+| `subagents` | array | OPTIONAL | **NEW in v4.0.0.** Array of conversation ID strings for subagent sessions spawned by this conversation. |
 
 #### Context Conversations
 
@@ -428,7 +428,7 @@ src/lib.rs
       "total_deletions": 5,
       "accepted_lines": 20,
       "overriden_lines": 0,
-      "cursor_subagents": ["sub-conv-001", "sub-conv-002"]
+      "subagents": ["sub-conv-001", "sub-conv-002"]
     },
     "1234abcd5678efgh": {
       "agent_id": {
@@ -513,7 +513,6 @@ src/lib.rs
       "kind": "ai_agent",
       "conversation_id": "efgh5678efgh5678",
       "agent_type": "cursor",
-      "prompt_id": null,
       "model": "claude-3-sonnet",
       "prompt_text": "Add logging",
       "files": {
@@ -537,7 +536,7 @@ In the above example:
 - Two prompt sessions are recorded: one that produced code changes and one context conversation (planning session) with zero code stats.
 - The `change_history` shows three checkpoints in chronological order: an AI edit, a human edit, and another AI edit.
 - The context conversation (`1234abcd5678efgh`) has zero stats but preserves the planning discussion.
-- The first prompt record includes `cursor_subagents` linking to two subagent conversations.
+- The first prompt record includes `subagents` linking to two subagent conversations.
 - Messages include the `id` field for finer granularity in change_history attribution. 
 
 ---
@@ -661,7 +660,7 @@ The command outputs a JSON object:
 
 ### 3.1 Subagent Discovery
 
-For Cursor conversations, implementations SHOULD discover subagent conversation IDs and populate the `cursor_subagents` field on the parent `PromptRecord`.
+For Cursor conversations, implementations SHOULD discover subagent conversation IDs and populate the `subagents` field on the parent `PromptRecord`.
 
 ### 3.2 Context Conversation Discovery
 
@@ -692,4 +691,4 @@ When authorship logs are copied, merged, or split during history rewriting opera
 
 - Implementations of 4.0.0 MUST accept authorship logs with any `schema_version` starting with `"authorship/"` (i.e., v3.x and v4.x notes are both readable). 
 - v3.0.0 implementations cannot read v4.0.0 notes. This is a forward-incompatible upgrade.
-- The `change_history`, `cursor_subagents`, and message `id` fields all use `skip_serializing_if` semantics — when absent or empty, they are omitted from the serialized JSON. This means a v4.0.0 note with no change history, no message IDs, and no subagents will look identical to a v3.0.0 note aside from the `schema_version` field.
+- The `change_history`, `subagents`, and message `id` fields all use `skip_serializing_if` semantics — when absent or empty, they are omitted from the serialized JSON. This means a v4.0.0 note with no change history, no message IDs, and no subagents will look identical to a v3.0.0 note aside from the `schema_version` field.
