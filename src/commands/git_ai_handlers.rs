@@ -7,8 +7,8 @@ use crate::authorship::working_log::{AgentId, CheckpointKind};
 use crate::commands;
 use crate::commands::checkpoint_agent::agent_presets::{
     AgentCheckpointFlags, AgentCheckpointPreset, AgentRunResult, AiTabPreset, ClaudePreset,
-    CodexPreset, ContinueCliPreset, CursorPreset, DroidPreset, FirebenderPreset, GeminiPreset,
-    GithubCopilotPreset, WindsurfPreset,
+    CodexPreset, ContinueCliPreset, CursorPreset, CursorSqliteTranscriptOutcome, DroidPreset,
+    FirebenderPreset, GeminiPreset, GithubCopilotPreset, WindsurfPreset,
 };
 use crate::commands::checkpoint_agent::agent_v1_preset::AgentV1Preset;
 use crate::commands::checkpoint_agent::amp_preset::AmpPreset;
@@ -2268,7 +2268,7 @@ fn handle_show_transcript(args: &[String]) {
         eprintln!(
             "  Agents: claude, codex, gemini, continue-cli, github-copilot, cursor, amp, windsurf"
         );
-        eprintln!("  For amp, provide conversation/thread id instead of path");
+        eprintln!("  For Cursor and amp, provide conversation/thread id instead of path");
         std::process::exit(1);
     }
 
@@ -2323,13 +2323,50 @@ fn handle_show_transcript(args: &[String]) {
                 }
             }
         }
-        "cursor" => match CursorPreset::transcript_and_model_from_cursor_jsonl(path_or_id) {
-            Ok((transcript, model)) => Ok((transcript, model)),
-            Err(e) => {
-                eprintln!("Error loading Cursor transcript: {}", e);
+        "cursor" => {
+            let conversation_id = path_or_id;
+            let global_db = match CursorPreset::cursor_global_database_path() {
+                Ok(p) => p,
+                Err(e) => {
+                    eprintln!("Error resolving Cursor global DB path: {}", e);
+                    std::process::exit(1);
+                }
+            };
+            if !global_db.exists() {
+                eprintln!(
+                    "Error loading Cursor transcript: Cursor global DB not found at {:?}",
+                    global_db
+                );
                 std::process::exit(1);
             }
-        },
+
+            match CursorPreset::transcript_and_model_from_cursor_sqlite_db(
+                &global_db,
+                conversation_id,
+            ) {
+                Ok(CursorSqliteTranscriptOutcome::Ready(transcript, model)) => {
+                    Ok((transcript, Some(model)))
+                }
+                Ok(CursorSqliteTranscriptOutcome::NoConversationRow) => {
+                    eprintln!(
+                        "Error loading Cursor transcript: no conversation row found for id '{}'",
+                        conversation_id
+                    );
+                    std::process::exit(1);
+                }
+                Ok(CursorSqliteTranscriptOutcome::ExtractionEmpty) => {
+                    eprintln!(
+                        "Error loading Cursor transcript: conversation '{}' exists but bubble extraction was empty",
+                        conversation_id
+                    );
+                    std::process::exit(1);
+                }
+                Err(e) => {
+                    eprintln!("Error loading Cursor transcript: {}", e);
+                    std::process::exit(1);
+                }
+            }
+        }
         "amp" => {
             let path = std::path::Path::new(path_or_id);
             let amp_result = if path.exists() {
