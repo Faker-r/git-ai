@@ -102,8 +102,6 @@ pub struct CommandHooksContext {
 }
 
 pub fn handle_git(args: &[String]) {
-    crate::observability::init_process_file_logging();
-
     // If we're being invoked from a shell completion context, bypass git-ai logic
     // and delegate directly to the real git so existing completion scripts work.
     if in_shell_completion_context() {
