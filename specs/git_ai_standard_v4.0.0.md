@@ -130,6 +130,22 @@ Line ranges:
 - SHOULD be sorted by their start position
 - SHOULD use ranges for consecutive lines (e.g., `1-5` instead of `1,2,3,4,5`)
 
+#### Attestation Section Example
+
+```
+tests/simple_additions.rs
+  d9978a8723e02b52 1-4,9-10,12,14,16,21-22,24,26
+  e5be5f8723e02b52 1011-1012,1014-1045,1047-1065
+  967bda75801c3ee8 728-735,737-888,890,892-1010
+src/authorship/attribution_tracker.rs
+  e5be5f8723e02b52 829-838,1509-1512
+  866dabf162e96bcb 6,257,358,376-377,521
+```
+
+The above example can be read as:
+
+In `tests/simple_additions.rs`, 3 prompts `d9978a8723e02b52`, `e5be5f8723e02b52`, and `967bda75801c3ee8`, generated the lines above
+
 #### Hash Semantics
 
 Hashes in the attestation section identify who authored specific lines. There are two kinds:
@@ -196,7 +212,8 @@ Each entry in the `prompts` object MUST contain:
 
 Context conversations:
 - MUST be scoped to the current workspace (conversations from unrelated workspaces MUST be excluded)
-- SHOULD be included to provide a complete picture of the development process, even though they did not directly produce code
+- MUST be included to provide a complete picture of the development process, even though they did not directly produce code
+- MUST have been last updated between the parent commit and the current commit (conversations whose most recent activity falls outside this window MUST be excluded)
 
 #### Agent ID Object
 
@@ -226,8 +243,8 @@ The `messages` array:
 - MUST contain all human prompts (`type: "user"`)
 - MUST contain all assistant responses (`type: "assistant"`)
 - MUST contain all tool calls made by the assistant (`type: "tool_use"`)
-- MAY contain thinking messages (`type: "thinking"`)
-- MAY contain plan messages (`type: "plan"`)
+- MUST contain thinking messages (`type: "thinking"`)
+- MUST contain plan messages (`type: "plan"`)
 - MUST NOT contain tool responses (the results returned from tool executions)
 
 Tool responses are excluded because they often contain large amounts of file content, command output, or other verbose data that would bloat the authorship log without adding meaningful attribution context.
@@ -246,46 +263,33 @@ Each entry in the `humans` object MUST contain:
 
 ### 1.2.7 Checkpoint Behavior
 
-Checkpoints are the mechanism with which git-ai captures human vs AI changes. 
-A checkpoint is a diff between previously captured file contents and the file contents at the new checkpoint, with an attribution to either a human or AI author. 
+A checkpoint is a snapshot of file contents and the diff from the previous checkpoint, attributed to either a human or AI author. Checkpoints record:
 
-#### When checkpointing occurs
-Checkpointing occurs at the boundary between human and AI changes. 
-When an AI tool uses a fileEdit command, it will fire a preToolUse hook, initiating a human checkpoint. All file changes detected during this checkpoint will be attributed to the human developer. 
-This captures human changes before AI tools begin making changes. 
+- File contents
+- Diffs since the previous checkpoint
+- The author (human or AI)
+- Timestamp and metadata (model, prompt text, etc.)
 
-Then, a postToolUse hook is fired after the AI tool completes editing. This initiates an AI checkpoint and attributes changes made by the AI during that fileEdit command. 
+Checkpoint metadata is persisted into the `change_history` field in the metadata section.
 
-Checkpoint metadata is persisted, with a subset of collected data being placed into the change_history field in the metadata section. 
+#### Authorship
 
-You can see a visualization at https://usegitai.com/docs/cli/how-git-ai-works#part-1-what-happens-on-a-developers-machine
+Checkpoints MUST correctly attribute their changes to the author (human or AI) that produced them.
 
+For the reference git-ai implementation, checkpoints are taken before and after each fileEdit tool call. See [How Git AI Works](https://usegitai.com/docs/cli/how-git-ai-works#part-1-what-happens-on-a-developers-machine) for a visualization.
 
-#### Prompt association
-For AI checkpoints, the prompt that generated the fileEdit will be saved.  
+#### Prompt Association
 
-This results in a 1 to N relationship between prompts and checkpoints, as a single prompt can lead to multiple fileEdits.
+User messages and checkpoints have a 1-to-N relationship, where N can be `0` for non-code prompts. A single user message MAY trigger multiple file edits, each producing its own checkpoint. AI checkpoints MUST record the prompt that triggered them.
 
+#### Tracked Files
 
-#### What files are tracked during checkpointing
-A checkpoint only diffs file contents for tracked files. 
-Tracked files have the following inclusion-exclusion criteria:
+A checkpoint MUST diff file contents for all tracked files. Tracked files are:
 
-Inclusion:
-- git status output - all modified files reported by git status, including `Untracked files`. 
-- files with a previous checkpoint - all files that were included in a previous checkpoint for this base commit. 
-  This includes untracked + deleted files which would not get picked up by git status' output (enables tracking of temporary files that get deleted)
+- All files reported by `git status`
+- All files included in a previous checkpoint (ensures deleted files are captured)
 
-Exclusion:
-- A list of unnecessary generated content, such as node_modules, .DS_store, ...
-
-#### Human Change Tracking
-
-**NEW in v4.0.0.** Implementations MUST capture human changes during each checkpoint. 
-
-#### Deleted File Tracking
-
-**NEW in v4.0.0.** When computing tracked files for a checkpoint, implementations MUST re-include files from previous checkpoints that have been deleted from disk. This ensures file deletion events are captured in the change history.
+Files matching well-known generated paths (e.g., `node_modules/`, `.DS_Store`) SHOULD be excluded.
 
 ---
 
@@ -335,58 +339,6 @@ Contiguous single-line changes SHOULD be merged into ranges to avoid O(n) explos
 
 All fields default to `0` if absent.
 
-#### Change History Example
-
-```json
-{
-  "change_history": [
-    {
-      "timestamp": 1776571396,
-      "kind": "ai_agent",
-      "conversation_id": "5c9cf6c50078d7f6",
-      "agent_type": "cursor",
-      "prompt_id": "015fc1a5-1fe9-4ebc-a77c-f2461a8ee974",
-      "model": "gpt-5.4-medium",
-      "prompt_text": "edit @test.py to add a comment",
-      "files": {
-        "test.py": {
-          "added_lines": [
-            "31"
-          ],
-          "deleted_lines": [],
-          "added_line_contents": [
-            "31: # These lines should be attributed to Cursor (AI)"
-          ],
-        }
-      },
-      "line_stats": {
-        "additions": 1,
-        "deletions": 0,
-        "additions_sloc": 1,
-        "deletions_sloc": 0
-      }
-    },
-    {
-      "timestamp": 1776571429,
-      "kind": "human",
-      "files": {
-        "tmp_testing.py": {
-          "added_lines": [
-            "15-17"
-          ],
-          "deleted_lines": [],
-          "added_line_contents": [
-            "15: ",
-            "16: ",
-            "17: # human added stuff."
-          ]
-        }
-      },
-    }
-  ]
-}
-```
-
 ---
 
 ### 1.2.9 Complete Example
@@ -394,7 +346,6 @@ All fields default to `0` if absent.
 ```
 src/main.rs
   abcd1234abcd1234 1-10,15-20
-  efgh5678efgh5678 25,30-35
 src/lib.rs
   abcd1234abcd1234 1-50
 ---
@@ -424,13 +375,13 @@ src/lib.rs
           "id": "bubble-abc-124"
         }
       ],
-      "total_additions": 25,
+      "total_additions": 66,
       "total_deletions": 5,
-      "accepted_lines": 20,
+      "accepted_lines": 66,
       "overriden_lines": 0,
       "subagents": ["sub-conv-001", "sub-conv-002"]
     },
-    "1234abcd5678efgh": {
+    "1234abcd5678ef01": {
       "agent_id": {
         "tool": "cursor",
         "id": "planning-session-uuid",
@@ -472,21 +423,28 @@ src/lib.rs
             "1: use std::process;",
             "2: use anyhow::Result;",
             "3: ",
-            "4: fn main() -> Result<()> {"
+            "4: fn main() -> Result<()> {",
+            ...
           ],
           "deleted_line_contents": [
             "1: fn main() {",
             "2:     run();",
-            "3: }"
+            "3: }",
+            ...
           ]
         },
         "src/lib.rs": {
           "added_lines": ["1-50"],
-          "deleted_lines": []
+          "deleted_lines": [],
+          "added_line_contents": [
+            "1: use std::process;",
+            "2: use anyhow::Result;",
+            ...
+          ],
         }
       },
       "line_stats": {
-        "additions": 65,
+        "additions": 66,
         "deletions": 5,
         "additions_sloc": 55,
         "deletions_sloc": 4
@@ -498,7 +456,10 @@ src/lib.rs
       "files": {
         "src/main.rs": {
           "added_lines": ["25", "30-35"],
-          "deleted_lines": []
+          "deleted_lines": [],
+          "added_line_contents": [
+            ...
+          ],
         }
       },
       "line_stats": {
@@ -508,34 +469,14 @@ src/lib.rs
         "deletions_sloc": 0
       }
     },
-    {
-      "timestamp": 1733363100,
-      "kind": "ai_agent",
-      "conversation_id": "efgh5678efgh5678",
-      "agent_type": "cursor",
-      "model": "claude-3-sonnet",
-      "prompt_text": "Add logging",
-      "files": {
-        "src/main.rs": {
-          "added_lines": ["25", "30-35"],
-          "deleted_lines": []
-        }
-      },
-      "line_stats": {
-        "additions": 6,
-        "deletions": 0,
-        "additions_sloc": 6,
-        "deletions_sloc": 0
-      }
-    }
   ]
 }
 ```
 
 In the above example:
 - Two prompt sessions are recorded: one that produced code changes and one context conversation (planning session) with zero code stats.
-- The `change_history` shows three checkpoints in chronological order: an AI edit, a human edit, and another AI edit.
-- The context conversation (`1234abcd5678efgh`) has zero stats but preserves the planning discussion.
+- The `change_history` shows two checkpoints in chronological order: an AI edit, then a human edit.
+- The context conversation (`1234abcd5678ef01`) has zero stats but preserves the planning discussion.
 - The first prompt record includes `subagents` linking to two subagent conversations.
 - Messages include the `id` field for finer granularity in change_history attribution. 
 
@@ -654,27 +595,471 @@ The command outputs a JSON object:
 
 ---
 
-## 3. Cursor Integration Extensions
+## 3. History Rewriting Behaviors 
 
-**NEW in v4.0.0.** The following extensions support deeper integration with Cursor IDE.
+Authorship Logs can be attached to one, and only one commit SHA. When users do Git operations like `rebase`, `cherry-pick`, `reset`, `merge`, `stash`/`pop`, that rewrite the worktree and history, corresponding changes to Authorship Logs are required. 
 
-### 3.1 Subagent Discovery
+> **NOTE: NOT YET IMPLEMENTED for Change History.** History-rewriting code (`rebase_authorship.rs`) does not currently handle `change_history`. During rebase, cherry-pick, or squash operations, `change_history` will be silently lost.
 
-For Cursor conversations, implementations SHOULD discover subagent conversation IDs and populate the `subagents` field on the parent `PromptRecord`.
+### 3.1 Rebase
 
-### 3.2 Context Conversation Discovery
+A rebase takes a range of commits and rewrites history, creating new commits with different SHAs. Implementations MUST preserve AI authorship attribution through all rebase scenarios.
 
-TBD 
+#### Core Principles
+
+1. **SHA Independence**: Authorship is attached to commit SHAs. When a commit's SHA changes, the authorship log MUST be copied to the new commit
+2. **Content-Based Attribution**: Line attributions MUST reflect the actual content at each commit, not the original commit's state
+3. **Prompt Preservation**: All prompt records from original commits MUST be preserved in the corresponding new commits
+
+#### Standard Rebase (1:1 Mapping)
+
+When commits are rebased without modification (e.g., `git rebase main`):
+
+- For each original commit → new commit mapping, implementations MUST copy the authorship log
+- The `base_commit_sha` field SHOULD be updated to reflect the new parent commit
+- Line numbers in attestations remain valid because file content is unchanged
+
+```
+Original: A → B → C → D (feature)
+                ↑
+              main
+
+After rebase onto main':
+main' → B' → C' → D'
+
+Authorship mapping:
+  B → B' (copy authorship log)
+  C → C' (copy authorship log)  
+  D → D' (copy authorship log)
+```
+
+#### Interactive Rebase: Commit Reordering
+
+When commits are reordered (e.g., `pick C` before `pick B`):
+
+- Each new commit MUST have authorship reflecting its actual content at that point in history
+- Line numbers MUST be recalculated based on the file state at each new commit
+- Implementations MUST track content through the reordered sequence and adjust attributions accordingly
+
+```
+Original order: B → C → D
+Reordered:      C' → B' → D'
+
+For C' (now first):
+  - Attributions based on C's changes applied to main'
+  
+For B' (now second):
+  - Attributions based on B's changes applied after C'
+  - Line numbers adjusted for C's prior changes
+```
+
+#### Interactive Rebase: Squash/Fixup (N → 1)
+
+When multiple commits are squashed into one:
+
+- The resulting commit's authorship log MUST contain prompt records from ALL squashed commits
+- Line attributions MUST be calculated against the final file state
+- Session hashes from all contributing commits MUST be preserved
+- If the same lines were modified by different sessions, the LAST session's attribution wins
+
+```
+Squashing B, C, D into single commit S:
+
+S's authorship log contains:
+  - All prompts from B, C, D
+  - Line attributions reflecting final state after all changes
+  - Multiple session hashes if different AI sessions contributed
+```
+
+#### Interactive Rebase: Splitting Commits (1 → N)
+
+When a single commit is split into multiple commits:
+
+- The original commit's authorship data MUST be distributed across the new commits
+- Each new commit MUST only contain attributions for lines present in THAT commit's diff
+- Prompt records MAY be duplicated across commits if the same session contributed to multiple splits
+- When content from the original commit reappears in a later split, implementations MUST restore its original attribution
+
+```
+Splitting D into D1, D2, D3:
+
+D1's authorship: lines 1-10 from D's original authorship
+D2's authorship: lines 11-20 from D's original authorship
+D3's authorship: lines 21-30 from D's original authorship
+```
+
+#### Interactive Rebase: Dropping Commits
+
+When commits are dropped (removed from the rebase):
+
+- Authorship logs for dropped commits MUST NOT be attached to any new commits
+- If dropped content reappears in later commits (via conflict resolution or manual edits), it SHOULD be attributed to the human author, not the original AI session
+- Implementations MUST NOT create authorship notes for commits that no longer exist
+
+#### Interactive Rebase: Editing Commits
+
+When a commit is edited during interactive rebase (`edit`):
+
+- If the edit modifies AI-attributed lines, those lines SHOULD be re-attributed to the human
+- If the edit adds new content, that content follows normal attribution rules
+- The original session's prompt record MUST be preserved (for audit trail)
+- The `overriden_lines` counter SHOULD be incremented for lines modified by the human
+
+#### Amending During Rebase
+
+When `git commit --amend` is used during a rebase:
+
+- The amended commit's authorship MUST reflect the combined changes
+- If the amend includes new AI-generated content, that session MUST be added to prompts
+- If the amend removes AI-generated lines, those lines MUST be removed from attestations
+- The `base_commit_sha` MUST reference the amended commit's parent
+
+#### Conflict Resolution
+
+When conflicts occur during rebase:
+
+- Implementations MUST wait until the conflict is resolved and the rebase continues
+- Conflict resolution changes made by humans SHOULD NOT be attributed to AI
+- If an AI assists with conflict resolution, that SHOULD be tracked as a new session
+- Lines where conflict markers were present and manually resolved SHOULD be attributed to the human resolver
+
+#### Abort and Failure Handling
+
+When a rebase is aborted (`git rebase --abort`):
+
+- Implementations MUST NOT create any new authorship notes
+- The original commits retain their original authorship logs (unchanged)
+- Any partial authorship state MUST be discarded
+
+When a rebase fails mid-operation:
+
+- Implementations SHOULD log the failure for debugging
+- No authorship notes SHOULD be written for incomplete rebases
+- Recovery is handled when the user either continues or aborts
+
+#### Edge Cases
+
+**Empty Commits**: If a rebase results in empty commits (no changes), those commits:
+- MAY have empty authorship logs (no attestations)
+- SHOULD still have the metadata section with `base_commit_sha`
+
+**No AI Content**: If rebased commits contain no AI-attributed content:
+- Implementations MAY skip authorship processing entirely
+- No authorship notes are required for purely human-authored commits
+
+**Commits Already Have Notes**: When processing new commits, if a commit already has an authorship log (from the target branch):
+- Implementations MUST skip that commit
+- Only newly created commits from the rebase need processing
+
+**Merge Commits in Rebase**: If a rebase includes merge commits:
+- The merge commit's authorship reflects the resolution, not the merged content
+- Implementations SHOULD handle these as special cases with potentially empty attestations
 
 ---
 
-## 4. History Rewriting Behaviors
+### 3.2 Merge
 
-Authorship Logs can be attached to one, and only one commit SHA. When users do Git operations like `rebase`, `cherry-pick`, `reset`, `merge`, `stash`/`pop`, that rewrite the worktree and history, corresponding changes to Authorship Logs are required.
+A merge combines changes from one branch into another. Implementations MUST preserve AI authorship attribution through all merge scenarios.
 
-The history rewriting behaviors are unchanged from v3.0.0 (see [Git AI Standard v3.0.0, Section 2](git_ai_standard_v3.0.0.md#2-history-rewriting-behaviors)) with the following additions:
+#### Core Principles
 
-### 4.1 Change History Through Rewrites
+1. **Working State Preservation**: For merge operations that leave changes uncommitted (e.g., `merge --squash`), AI attributions MUST be moved from committed authorship logs to the implementation's working state so they appear in Authorship Logs after the next commit
+1. **Prompt Preservation**: All prompt records from merged commits MUST be preserved
+
+#### Standard Merge
+
+When a merge creates a merge commit:
+
+- The merged commits retain their authorship logs in history (no action needed)
+- The merge commit's authorship log MUST only contain attributions for conflict resolution changes
+- If conflicts were resolved with AI assistance, that MUST be tracked as a new session
+- If conflicts were resolved manually, those changes SHOULD be attributed to the human resolver
+- If no conflicts occurred, the merge commit MAY have an empty authorship log (no attestations)
+- The `base_commit_sha` field MUST reference the merge commit itself
+
+#### Merge --squash
+
+When `git merge --squash` is used, the merge leaves changes staged but uncommitted:
+
+- **AI attributions MUST be moved from committed authorship logs to the implementation's working state**
+- When the user commits, all accurate AI attributions from the source branch will appear in the new commit's authorship log. 
+- Prompt records from all squashed commits MUST be preserved
+
+```
+Before merge --squash:
+  main: A → B → C
+  feature: D → E → F (with AI attributions)
+
+After merge --squash (before commit):
+  - Changes from D, E, F are staged
+  - AI attributions from D, E, F are in working state (INITIAL)
+  
+After commit:
+  - New commit G contains all changes
+  - G's authorship log contains attributions from D, E, F
+```
+
+#### Conflict Resolution
+
+When conflicts occur during merge:
+
+- Implementations MUST wait until the conflict is resolved and the merge completes
+- If an AI assists with conflict resolution, that SHOULD be tracked as a new session
+- Lines where conflict markers were present and manually resolved SHOULD be attributed to the human resolver
+
+---
+
+### 3.3 Reset
+
+A reset moves HEAD to a different commit, potentially discarding commits. Implementations MUST preserve AI authorship attribution by moving it to working state when commits are unwound.
+
+#### Core Principles
+
+1. **Working State Migration**: AI attributions from "unwound" commits MUST be moved from committed authorship logs to the implementation's working state
+
+#### Reset --soft
+
+When `git reset --soft` is used:
+
+- HEAD moves to the target commit, but the index and working directory remain unchanged
+- **AI attributions from unwound commits MUST be moved to the implementation's working state**
+- When the user commits, these attributions will appear in the new commit's authorship log
+
+#### Reset --mixed (Default)
+
+When `git reset --mixed` (or `git reset`) is used:
+
+- HEAD and the index move to the target commit, but the working directory remains unchanged
+- **AI attributions from unwound commits MUST be moved to the implementation's working state**
+- When the user commits, these attributions will appear in the new commit's authorship log
+
+#### Reset --hard
+
+When `git reset --hard` is used:
+
+- HEAD, index, and working directory all move to the target commit
+- AI Attributions in your implementation's working state MUST be cleared 
+- AI Authorship Notes SHOULD NOT be deleted. 
+
+#### Partial Reset
+
+When reset is used with pathspecs (e.g., `git reset HEAD -- file.txt`):
+
+- Only specified files are reset
+- **AI attributions for reset files MUST be moved from committed authorship logs to the implementation's working state**
+- Other files' attributions remain unchanged
+- The working log MUST be updated accordingly
+
+```
+Before reset --soft:
+  HEAD: A → B → C (with AI attributions in C)
+  
+After reset --soft to A:
+  HEAD: A
+  Index: Contains changes from B and C
+  Working log: Contains INITIAL attributions from B and C
+  
+After commit:
+  New commit D contains changes from B and C
+  D's authorship log contains attributions from B and C
+```
+
+---
+
+### 3.4 Cherry-pick
+
+A cherry-pick applies changes from one or more commits to the current branch. Implementations MUST preserve AI authorship attribution through cherry-pick operations.
+
+#### Core Principles
+
+1. **SHA Independence**: When a commit is cherry-picked, it gets a new SHA. The authorship log MUST be copied to the new commit
+2. **Content-Based Attribution**: Line attributions MUST reflect the actual content at the new commit location
+3. **Working State for Uncommitted**: When cherry-pick is used with `--no-commit`, AI attributions MUST be moved to working state
+
+#### Standard Cherry-pick (With Commit)
+
+When `git cherry-pick` creates a new commit:
+
+- The new commit's authorship log MUST contain attributions from the source commit
+- Line numbers MUST be recalculated based on the file state at the new commit location
+- Prompt records from the source commit MUST be preserved
+- The `base_commit_sha` field MUST reference the new commit
+
+#### Cherry-pick --no-commit
+
+When `git cherry-pick --no-commit` is used:
+
+- Changes are applied to the working directory and index but not committed
+- **AI attributions from the source commit(s) MUST be moved from committed authorship logs to the implementation's working state**
+- When the user commits, these attributions will appear in the new commit's authorship log
+
+```
+Before cherry-pick --no-commit:
+  Current branch: A → B
+  Source commit: C (with AI attributions)
+  
+After cherry-pick --no-commit:
+  Changes from C are staged
+  Working log: Contains INITIAL attributions from C
+  
+After commit:
+  New commit D contains changes from C
+  D's authorship log contains attributions from C
+```
+
+#### Multiple Cherry-picks
+
+When multiple commits are cherry-picked:
+
+- Each new commit MUST have its own authorship log
+- Attributions MUST be calculated based on the sequential application of changes
+- Prompt records from all source commits MUST be preserved
+
+#### Conflict Resolution
+
+When conflicts occur during cherry-pick:
+
+- Implementations MUST wait until the conflict is resolved and the cherry-pick continues
+- Conflict resolution changes made by humans SHOULD NOT be attributed to AI
+- If an AI assists with conflict resolution, that SHOULD be tracked as a new session
+- Lines where conflict markers were present and manually resolved SHOULD be attributed to the human resolver
+
+---
+
+### 3.5 Stash / Pop
+
+Stash operations temporarily save working directory changes. Implementations MUST preserve AI authorship attribution through stash and pop operations.
+
+#### Core Principles
+
+1. **Working State Preservation**: When stashing, AI attributions from the working log MUST be saved with the stash
+2. **Attribution Restoration**: When popping/applying a stash, AI attributions MUST be restored to the working state
+3. **Working State Migration**: **AI attributions MUST be moved from committed authorship logs (if any) to the implementation's working state when stashing, and restored to working state when popping**
+
+#### Stash Push / Save
+
+When `git stash` (or `git stash push` / `git stash save`) is used:
+
+- The current working log's AI attributions MUST be saved as an authorship log in git notes (under `refs/notes/ai-stash`)
+- The authorship log MUST be associated with the stash commit SHA
+- The working log entries for stashed files MUST be removed from the current working state
+- If pathspecs are specified, only attributions for matching files are saved
+
+#### Stash Pop
+
+When `git stash pop` is used:
+
+- The stash's authorship log MUST be read from git notes (`refs/notes/ai-stash`)
+- **AI attributions from the stash MUST be moved to the implementation's working state**
+- The working log MUST be updated with these attributions
+- When the user commits, these attributions will appear in the new commit's authorship log
+- The stash's authorship log note MAY be deleted after successful pop
+
+#### Stash Apply
+
+When `git stash apply` is used:
+
+- The stash's authorship log MUST be read from git notes (`refs/notes/ai-stash`)
+- **AI attributions from the stash MUST be moved to the implementation's working state **
+- The working log MUST be updated with these attributions
+- When the user commits, these attributions will appear in the new commit's authorship log
+- The stash's authorship log note is preserved (unlike pop)
+
+#### Stash with Pathspecs
+
+When stashing specific files (e.g., `git stash push -- file.txt`):
+
+- Only attributions for the specified files are saved
+- Only those files' working log entries are removed
+- When popping/applying, only those files' attributions are restored
+
+```
+Before stash:
+  Working log: Contains INITIAL attributions for file1.txt and file2.txt
+  
+After stash:
+  Stash commit created with SHA abc123
+  Git note at refs/notes/ai-stash/abc123 contains authorship log
+  Working log: Empty (files were stashed)
+  
+After stash pop:
+  Changes from stash are applied
+  Working log: Contains INITIAL attributions from stash
+  Git note may be deleted
+  
+After commit:
+  New commit contains changes from stash
+  Commit's authorship log contains attributions from stash
+```
+
+---
+
+### 3.6 Amend
+
+An amend modifies the most recent commit, creating a new commit with a different SHA. Implementations MUST preserve AI authorship attribution through amend operations.
+
+#### Core Principles
+
+1. **SHA Independence**: When a commit is amended, it gets a new SHA. The authorship log MUST be moved to the new commit
+2. **Working State Integration**: AI attributions from the original commit's authorship log and any uncommitted working state MUST be combined
+3. **Content-Based Attribution**: Line attributions MUST reflect the actual content at the amended commit
+
+#### Standard Amend
+
+When `git commit --amend` is used:
+
+- The original commit's authorship log MUST be read
+- Any uncommitted AI attributions from the working log MUST be included
+- The new commit's authorship log MUST reflect the combined state
+- The `base_commit_sha` field MUST reference the amended commit (which is the new commit SHA)
+- The original commit's authorship log note SHOULD be removed (since the commit no longer exists)
+
+#### Amend with New AI Content
+
+When amend includes new AI-generated content:
+
+- The new AI session MUST be added to the prompts
+- Attributions for new content MUST be added to the attestations
+- Existing attributions MUST be preserved unless lines were modified
+
+#### Amend Removing AI Content
+
+When amend removes AI-generated lines:
+
+- Those lines MUST be removed from attestations
+- Prompt records SHOULD be preserved (for audit trail)
+- The `accepted_lines` counter SHOULD be updated
+
+#### Amend Modifying AI Content
+
+When amend modifies AI-attributed lines:
+
+- Those lines SHOULD be re-attributed to the human (if modified by human)
+- The `overriden_lines` counter SHOULD be incremented
+- Original prompt records MUST be preserved (for audit trail)
+
+```
+Before amend:
+  Commit A (with authorship log)
+  Working log: Contains INITIAL attributions for new changes
+  
+After amend:
+  New commit A' (different SHA)
+  A''s authorship log: Contains attributions from A + working log
+  Original A's authorship log note is removed
+```
+
+#### Amend During Other Operations
+
+When amend is used during a rebase or other operation:
+
+- The amend operation MUST be processed after the base operation completes
+- Attributions MUST reflect the state after both operations
+- See section 3.1.7 for details on amending during rebase
+
+---
+
+### 3.7 Change History Through Rewrites
 
 > **Status: NOT YET IMPLEMENTED.** The rebase/history-rewriting code (`rebase_authorship.rs`) does not currently handle `change_history`. During rebase, cherry-pick, or squash operations, `change_history` will be silently lost. The rules below describe the intended behavior for a future implementation.
 
@@ -687,7 +1072,7 @@ When authorship logs are copied, merged, or split during history rewriting opera
 
 ---
 
-## 5. Backwards Compatibility
+## 4. Backwards Compatibility
 
 - Implementations of 4.0.0 MUST accept authorship logs with any `schema_version` starting with `"authorship/"` (i.e., v3.x and v4.x notes are both readable). 
 - v3.0.0 implementations cannot read v4.0.0 notes. This is a forward-incompatible upgrade.
