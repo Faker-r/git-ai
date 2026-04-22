@@ -2,8 +2,8 @@ use crate::authorship::authorship_log::PromptRecord;
 use crate::authorship::internal_db::InternalDatabase;
 use crate::authorship::transcript::AiTranscript;
 use crate::commands::checkpoint_agent::agent_presets::{
-    ClaudePreset, CodexPreset, ContinueCliPreset, CursorPreset, DroidPreset, GeminiPreset,
-    GithubCopilotPreset, WindsurfPreset,
+    ClaudePreset, CodexPreset, ContinueCliPreset, CursorPreset, CursorSqliteTranscriptOutcome,
+    DroidPreset, GeminiPreset, GithubCopilotPreset, WindsurfPreset,
 };
 use crate::commands::checkpoint_agent::amp_preset::AmpPreset;
 use crate::commands::checkpoint_agent::opencode_preset::OpenCodePreset;
@@ -223,39 +223,66 @@ fn update_codex_prompt(
     }
 }
 
-/// Update Cursor prompt by re-reading the JSONL transcript file
+/// Update Cursor prompt by re-reading the transcript from Cursor's global SQLite DB.
 fn update_cursor_prompt(
-    _conversation_id: &str,
+    conversation_id: &str,
     metadata: Option<&HashMap<String, String>>,
     current_model: &str,
 ) -> PromptUpdateResult {
-    if let Some(metadata) = metadata {
-        if let Some(transcript_path) = metadata.get("transcript_path") {
-            match CursorPreset::transcript_and_model_from_cursor_jsonl(transcript_path) {
-                Ok((transcript, _)) => {
-                    PromptUpdateResult::Updated(transcript, current_model.to_string())
-                }
-                Err(e) => {
-                    tracing::debug!(
-                        "Failed to parse Cursor JSONL transcript from {}: {}",
-                        transcript_path,
-                        e
-                    );
-                    log_error(
-                        &e,
-                        Some(serde_json::json!({
-                            "agent_tool": "cursor",
-                            "operation": "transcript_and_model_from_cursor_jsonl"
-                        })),
-                    );
-                    PromptUpdateResult::Failed(e)
-                }
-            }
-        } else {
-            PromptUpdateResult::Unchanged
+    // Backwards-compatible: older checkpoints stored a JSONL path in metadata. Cursor now persists
+    // composer state in SQLite, so prefer DB-based refresh when possible.
+    let _legacy_transcript_path = metadata.and_then(|m| m.get("transcript_path"));
+
+    let global_db = match CursorPreset::cursor_global_database_path() {
+        Ok(p) => p,
+        Err(e) => {
+            tracing::warn!("Failed to resolve Cursor global DB path: {}", e);
+            log_error(
+                &e,
+                Some(serde_json::json!({
+                    "agent_tool": "cursor",
+                    "operation": "cursor_global_database_path"
+                })),
+            );
+            return PromptUpdateResult::Failed(e);
         }
-    } else {
-        PromptUpdateResult::Unchanged
+    };
+
+    if !global_db.exists() {
+        tracing::debug!(
+            "Cursor global DB does not exist at {:?}; leaving prompt unchanged",
+            global_db
+        );
+        return PromptUpdateResult::Unchanged;
+    }
+
+    match CursorPreset::transcript_and_model_from_cursor_sqlite_db(&global_db, conversation_id) {
+        Ok(CursorSqliteTranscriptOutcome::Ready(transcript, model)) => {
+            let model = if model.is_empty() {
+                current_model.to_string()
+            } else {
+                model
+            };
+            PromptUpdateResult::Updated(transcript, model)
+        }
+        Ok(CursorSqliteTranscriptOutcome::NoConversationRow) => PromptUpdateResult::Unchanged,
+        Ok(CursorSqliteTranscriptOutcome::ExtractionEmpty) => PromptUpdateResult::Unchanged,
+        Err(e) => {
+            tracing::warn!(
+                "Failed to parse Cursor transcript from SQLite DB {:?} (conversation_id={}): {}",
+                global_db,
+                conversation_id,
+                e
+            );
+            log_error(
+                &e,
+                Some(serde_json::json!({
+                    "agent_tool": "cursor",
+                    "operation": "transcript_and_model_from_cursor_sqlite_db"
+                })),
+            );
+            PromptUpdateResult::Failed(e)
+        }
     }
 }
 

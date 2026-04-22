@@ -664,8 +664,8 @@ fn update_prompts_to_latest(checkpoints: &mut [Checkpoint]) -> Result<(), GitAiE
             // Use shared update logic from prompt_updater module
             let result = update_prompt_from_tool(
                 &agent_id.tool,
-                &agent_id.id,
-                checkpoint.agent_metadata.as_ref(),
+                &agent_id.id, // conversation id, agent-specific 
+                checkpoint.agent_metadata.as_ref(), // e.g., might store transcript_path
                 &agent_id.model,
             );
 

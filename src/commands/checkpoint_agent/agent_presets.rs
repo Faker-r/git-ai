@@ -1813,6 +1813,18 @@ impl CodexPreset {
 }
 
 // Cursor to checkpoint preset
+
+/// Result of reading transcript + model from Cursor's global SQLite composer state.
+#[derive(Debug)]
+pub enum CursorSqliteTranscriptOutcome {
+    /// Parsed bubbles yielded transcript text and a model name (when present in DB).
+    Ready(AiTranscript, String),
+    /// Composer row not persisted yet (hook race with Cursor).
+    NoConversationRow,
+    /// Composer JSON present but bubble extraction produced no messages.
+    ExtractionEmpty,
+}
+
 pub struct CursorPreset;
 
 impl AgentCheckpointPreset for CursorPreset {
@@ -1965,34 +1977,28 @@ impl AgentCheckpointPreset for CursorPreset {
                 global_db, global_db,
             )));
         }
-        let transcript: AiTranscript = match Self::fetch_composer_payload(&global_db, &conversation_id) {
-            Ok(payload) => Self::transcript_data_from_composer_payload(
-                &payload,
-                &global_db,
-                &conversation_id,
-            )?
-            .map(|(transcript, _db_model)| transcript)
-            .unwrap_or_else(|| {
-                // Return empty transcript as default
-                // There's a race condition causing new threads to sometimes not show up.
-                // We refresh and grab all the messages in post-commit so we're ok with returning an empty (placeholder) transcript here and not throwing
+        let transcript: AiTranscript = match Self::transcript_and_model_from_cursor_sqlite_db(
+            &global_db,
+            &conversation_id,
+        )? {
+            CursorSqliteTranscriptOutcome::Ready(transcript, _db_model) => transcript,
+            CursorSqliteTranscriptOutcome::ExtractionEmpty => {
+                // Gracefully continue when the messages haven't been written for the conversation yet due to Cursor race conditions
+                // We refresh and grab all the messages in post-commit
                 eprintln!(
-                    "[Warning] Could not extract transcript from Cursor composer. Retrying at commit."
+                    "[Warning] Failed to extract transcript from composer data in Cursor DB. Will retry at commit."
                 );
-                tracing::debug!("CursorPreset: [Warning] Could not extract transcript from Cursor composer. Retrying at commit.");
-                AiTranscript::new()
-            }),
-            Err(GitAiError::PresetError(msg))
-                if msg == "No conversation data found in database" =>
-            {
-                // Gracefully continue when the conversation hasn't been written yet due to Cursor race conditions
-                eprintln!(
-                    "[Warning] No conversation data found in Cursor DB for this thread. Proceeding and will re-sync at commit."
-                );
-                tracing::debug!("CursorPreset: [Warning] No conversation data found in Cursor DB for this thread. Proceeding and will re-sync at commit.");
+                tracing::warn!("CursorPreset: [Warning] Failed to extract transcript from composer data in Cursor DB. Will retry at commit.");
                 AiTranscript::new()
             }
-            Err(e) => return Err(e),
+            CursorSqliteTranscriptOutcome::NoConversationRow => {
+                // Gracefully continue when the conversation hasn't been written yet due to Cursor race conditions
+                eprintln!(
+                    "[Warning] No composer data for the conversation found in Cursor DB. Will retry at commit."
+                );
+                tracing::warn!("CursorPreset: [Warning] No composer data for the conversation found in Cursor DB. Will retry at commit.");
+                AiTranscript::new()
+            }
         };
 
         tracing::debug!("CursorPreset: transcript:\n{}", transcript);
@@ -2117,6 +2123,31 @@ impl CursorPreset {
         )?;
 
         Ok(transcript_data)
+    }
+
+    /// Load composer payload from Cursor's global DB and parse transcript + model from bubble data.
+    pub fn transcript_and_model_from_cursor_sqlite_db(
+        global_db: &Path,
+        conversation_id: &str,
+    ) -> Result<CursorSqliteTranscriptOutcome, GitAiError> {
+        let payload = match Self::fetch_composer_payload(global_db, conversation_id) {
+            Ok(p) => p,
+            Err(GitAiError::PresetError(msg))
+                if msg == "No conversation data found in database" =>
+            {
+                return Ok(CursorSqliteTranscriptOutcome::NoConversationRow);
+            }
+            Err(e) => return Err(e),
+        };
+
+        match Self::transcript_data_from_composer_payload(
+            &payload,
+            global_db,
+            conversation_id,
+        )? {
+            Some((transcript, model)) => Ok(CursorSqliteTranscriptOutcome::Ready(transcript, model)),
+            None => Ok(CursorSqliteTranscriptOutcome::ExtractionEmpty),
+        }
     }
 
     /// Parse a Cursor JSONL transcript file into a transcript.
@@ -2365,6 +2396,10 @@ impl CursorPreset {
         }
     }
 
+    /// Fetch the composer payload from Cursor's global DB.
+    ///
+    /// The composer payload is a JSON object that contains the conversation data.
+    /// It is stored in the cursorDiskKV table with the key `composerData:${composer_id}`.
     pub fn fetch_composer_payload(
         global_db_path: &Path,
         composer_id: &str,
@@ -2396,6 +2431,7 @@ impl CursorPreset {
             .map_err(|e| GitAiError::Generic(format!("Failed to open {:?}: {}", path, e)))
     }
 
+    /// Extract the transcript and model from the composer payload.
     pub fn transcript_data_from_composer_payload(
         data: &serde_json::Value,
         global_db_path: &Path,
@@ -2433,7 +2469,13 @@ impl CursorPreset {
 
                 let bid = Some(bubble_id.to_string());
 
+                
                 // Extract text from bubble
+                // non-empty text field && type == 1 -> User message 
+                // non-empty text field && type == 2 -> Assistant message 
+                // empty text field && has "thinking" block -> Thinking message 
+                // empty text field && has "toolFormerData" block && toolFormerData.name = "create_plan" -> Plan message
+                // empty text field && has "toolFormerData" block -> ToolUse message
                 if let Some(text) = bubble_content.get("text").and_then(|v| v.as_str()) {
                     let trimmed = text.trim();
                     if !trimmed.is_empty() {
@@ -2444,29 +2486,80 @@ impl CursorPreset {
                                 bubble_created_at.clone(),
                                 bid.clone(),
                             ));
-                        } else {
+                        } else if role == 2 {
                             transcript.add_message(Message::assistant_with_id(
                                 trimmed.to_string(),
                                 bubble_created_at.clone(),
                                 bid.clone(),
                             ));
+                        } else {
+                            tracing::warn!("CursorPreset: [Warning] Unknown type/role {} in bubble: {}", role, bubble_id.to_string());
                         }
                     }
                 }
-                // Handle tool calls and edits
+
+                // Handle thinking blocks 
+                if let Some(thinking_data) = bubble_content.get("thinking") {
+                    // if there is thinking block, read thinking.text
+                    let thinking_text = thinking_data
+                        .get("text")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("{}");
+                    let thinking_text_trimmed = thinking_text.trim();
+                    transcript.add_message(Message::thinking_with_id(
+                        thinking_text_trimmed.to_string(),
+                        bubble_created_at.clone(),
+                        bid.clone(),
+                    ));
+                }
+
+                // Handle (1) plans, and (2) tool calls and edits
                 if let Some(tool_former_data) = bubble_content.get("toolFormerData") {
                     let tool_name = tool_former_data
                         .get("name")
                         .and_then(|v| v.as_str())
                         .unwrap_or("unknown");
+                    let params_str = tool_former_data
+                        .get("params")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("{}");
+                    let params_json = serde_json::from_str::<serde_json::Value>(params_str)
+                        .unwrap_or(serde_json::Value::Null);
                     let raw_args_str = tool_former_data
                         .get("rawArgs")
                         .and_then(|v| v.as_str())
                         .unwrap_or("{}");
                     let raw_args_json = serde_json::from_str::<serde_json::Value>(raw_args_str)
                         .unwrap_or(serde_json::Value::Null);
+                    // let result = tool_former_data
+                    //     .get("result")
+                    //     .and_then(|v| v.as_str())
+                    //     .unwrap_or("{}");
+                    
                     match tool_name {
-                        "edit_file" => {
+                        
+                        // planning
+                        // read additionalData.planUri
+                        "create_plan" => {
+                            let additional_data_str = bubble_content.get("additionalData")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("{}");
+                            let additional_data_json = serde_json::from_str::<serde_json::Value>(additional_data_str)
+                                .unwrap_or(serde_json::Value::Null);
+                            let plan_doc = additional_data_json.get("planUri").and_then(|v| v.as_str())
+                                .unwrap_or("");
+                            // let plan text 
+                            transcript.add_message(Message::plan_with_id(
+                                plan_doc.to_string(), 
+                                bubble_created_at.clone(), 
+                                bid.clone()));
+                            // TODO: create_plan tools also has a status field indicating whether user accepts the plan.
+                        }
+
+                        // other tool uses
+                        // read toolFormerData.rawArgs.target_file field. base git-ai legacy.
+                        "edit_file" 
+                        | "read_file" => {
                             let target_file =
                                 raw_args_json.get("target_file").and_then(|v| v.as_str());
                             transcript.add_message(Message::tool_use_with_id(
@@ -2475,6 +2568,7 @@ impl CursorPreset {
                                 bid.clone(),
                             ));
                         }
+                        // read toolFormerData.rawArgs.file_path field
                         "apply_patch"
                         | "edit_file_v2_apply_patch"
                         | "search_replace"
@@ -2488,16 +2582,50 @@ impl CursorPreset {
                                 bid.clone(),
                             ));
                         }
-                        "codebase_search" | "grep" | "read_file" | "web_search"
-                        | "run_terminal_cmd" | "glob_file_search" | "todo_write"
-                        | "file_search" | "grep_search" | "list_dir" | "ripgrep" => {
+                        // read toolFormerData.rawArgs field
+                        "codebase_search" | "grep" | "web_search" | "web_fetch"
+                        | "run_terminal_cmd" | "glob_file_search" 
+                        | "file_search" | "grep_search" | "list_dir" | "ripgrep" | "ripgrep_raw_search"
+                        | "semantic_search_full" 
+                        | "list_mcp_resources"
+                        | "read_lints" 
+                        | "switch_mode"
+                        | "delete_path"
+                        | "await" => {
                             transcript.add_message(Message::tool_use_with_id(
                                 tool_name.to_string(),
                                 raw_args_json,
                                 bid.clone(),
                             ));
                         }
-                        _ => {}
+
+                        // read toolFormerData.params field
+                        "edit_file_v2"
+                        | "run_terminal_command_v2" 
+                        | "task_v2" => {
+                            // let target_file =
+                            //     params_json.get("relativeWorkspacePath").and_then(|v| v.as_str());
+                            transcript.add_message(Message::tool_use_with_id(
+                                tool_name.to_string(),
+                                params_json,
+                                bid.clone(),
+                            ));
+                        }
+
+                        // read toolFormerData.rawArgs.todos field
+                        "todo_write" => {
+                            let todos = bubble_content.get("todos").and_then(|v| v.as_array()); // list of json object                            
+                            transcript.add_message(Message::tool_use_with_id(
+                                tool_name.to_string(),
+                                serde_json::json!({ "todos": todos }),
+                                bid.clone(),
+                            ));
+                        }
+
+                        _ => {
+                            tracing::error!("CursorPreset: [Error] Unhandled tool name {} in bubble: {}", tool_name, bubble_id.to_string());
+                        }
+
                     }
                 }
             }
