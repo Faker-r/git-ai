@@ -1,266 +1,272 @@
 use crate::repos::test_file::ExpectedLineExt;
 use crate::repos::test_repo::{TestRepo, real_git_executable};
 use crate::test_utils::fixture_path;
+use std::sync::{Mutex, OnceLock};
 
 const TEST_CONVERSATION_ID: &str = "de751938-f32b-4441-8239-a31d60aa4cf0";
 
-#[test]
-fn test_cursor_jsonl_basic_parsing() {
-    use git_ai::commands::checkpoint_agent::agent_presets::CursorPreset;
-
-    let fixture = fixture_path("cursor-session-simple.jsonl");
-    let (transcript, model) =
-        CursorPreset::transcript_and_model_from_cursor_jsonl(fixture.to_str().unwrap())
-            .expect("Should parse cursor JSONL");
-
-    // Model should be None (comes from hook input, not JSONL)
-    assert_eq!(model, None, "Model should be None for Cursor JSONL");
-
-    // Real Cursor session: HBO shows generation
-    // 1 user message, 10 assistant texts, 10 tool_use
-    let messages = transcript.messages();
-    assert!(
-        !messages.is_empty(),
-        "Should have parsed messages from the fixture"
-    );
-
-    let user_count = messages
-        .iter()
-        .filter(|m| matches!(m, git_ai::authorship::transcript::Message::User { .. }))
-        .count();
-    let assistant_count = messages
-        .iter()
-        .filter(|m| matches!(m, git_ai::authorship::transcript::Message::Assistant { .. }))
-        .count();
-    let tool_count = messages
-        .iter()
-        .filter(|m| matches!(m, git_ai::authorship::transcript::Message::ToolUse { .. }))
-        .count();
-
-    assert_eq!(user_count, 1, "Should have 1 user message");
-    assert_eq!(assistant_count, 10, "Should have 10 assistant messages");
-    assert_eq!(
-        tool_count, 10,
-        "Should have 10 tool_use messages (Read x3, WebSearch x4, WebFetch, Grep, Write)"
-    );
+fn cursor_db_env_lock() -> &'static Mutex<()> {
+    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+    LOCK.get_or_init(|| Mutex::new(()))
 }
 
-#[test]
-fn test_cursor_jsonl_user_query_tag_stripping() {
-    use git_ai::commands::checkpoint_agent::agent_presets::CursorPreset;
+// #[test]
+// fn test_cursor_jsonl_basic_parsing() {
+//     use git_ai::commands::checkpoint_agent::agent_presets::CursorPreset;
 
-    let fixture = fixture_path("cursor-session-simple.jsonl");
-    let (transcript, _) =
-        CursorPreset::transcript_and_model_from_cursor_jsonl(fixture.to_str().unwrap())
-            .expect("Should parse cursor JSONL");
+//     let fixture = fixture_path("cursor-session-simple.jsonl");
+//     let (transcript, model) =
+//         CursorPreset::(fixture.to_str().unwrap())
+//             .expect("Should parse cursor JSONL");
 
-    let messages = transcript.messages();
-    let first_user = messages
-        .iter()
-        .find(|m| matches!(m, git_ai::authorship::transcript::Message::User { .. }))
-        .expect("Should have at least one user message");
+//     // Model should be None (comes from hook input, not JSONL)
+//     assert_eq!(model, None, "Model should be None for Cursor JSONL");
 
-    if let git_ai::authorship::transcript::Message::User { text, .. } = first_user {
-        assert!(
-            !text.contains("<user_query>"),
-            "User message should not contain <user_query> tag, got: {}",
-            text
-        );
-        assert!(
-            !text.contains("</user_query>"),
-            "User message should not contain </user_query> tag"
-        );
-        assert_eq!(
-            text,
-            "Generate a file with all the HBO shows from the 90's in it"
-        );
-    }
-}
+//     // Real Cursor session: HBO shows generation
+//     // 1 user message, 10 assistant texts, 10 tool_use
+//     let messages = transcript.messages();
+//     assert!(
+//         !messages.is_empty(),
+//         "Should have parsed messages from the fixture"
+//     );
 
-#[test]
-fn test_cursor_jsonl_tool_normalization() {
-    use git_ai::commands::checkpoint_agent::agent_presets::CursorPreset;
+//     let user_count = messages
+//         .iter()
+//         .filter(|m| matches!(m, git_ai::authorship::transcript::Message::User { .. }))
+//         .count();
+//     let assistant_count = messages
+//         .iter()
+//         .filter(|m| matches!(m, git_ai::authorship::transcript::Message::Assistant { .. }))
+//         .count();
+//     let tool_count = messages
+//         .iter()
+//         .filter(|m| matches!(m, git_ai::authorship::transcript::Message::ToolUse { .. }))
+//         .count();
 
-    let fixture = fixture_path("cursor-session-simple.jsonl");
-    let (transcript, _) =
-        CursorPreset::transcript_and_model_from_cursor_jsonl(fixture.to_str().unwrap())
-            .expect("Should parse cursor JSONL");
+//     assert_eq!(user_count, 1, "Should have 1 user message");
+//     assert_eq!(assistant_count, 10, "Should have 10 assistant messages");
+//     assert_eq!(
+//         tool_count, 10,
+//         "Should have 10 tool_use messages (Read x3, WebSearch x4, WebFetch, Grep, Write)"
+//     );
+// }
 
-    let messages = transcript.messages();
-    let tool_messages: Vec<_> = messages
-        .iter()
-        .filter_map(|m| match m {
-            git_ai::authorship::transcript::Message::ToolUse { name, input, .. } => {
-                Some((name.as_str(), input))
-            }
-            _ => None,
-        })
-        .collect();
+// #[test]
+// fn test_cursor_jsonl_user_query_tag_stripping() {
+//     use git_ai::commands::checkpoint_agent::agent_presets::CursorPreset;
 
-    // Write tool should have file_path, not path, and content should be stripped
-    let write_tool = tool_messages
-        .iter()
-        .find(|(name, _)| *name == "Write")
-        .expect("Should have a Write tool_use");
-    assert!(
-        write_tool.1.get("file_path").is_some(),
-        "Write tool should have file_path (normalized from path)"
-    );
-    assert!(
-        write_tool.1.get("content").is_none(),
-        "Write tool should have content stripped (edit tool)"
-    );
-    assert!(
-        write_tool.1.get("contents").is_none(),
-        "Write tool should not have original 'contents' field"
-    );
+//     let fixture = fixture_path("cursor-session-simple.jsonl");
+//     let (transcript, _) =
+//         CursorPreset::transcript_and_model_from_cursor_jsonl(fixture.to_str().unwrap())
+//             .expect("Should parse cursor JSONL");
 
-    // Read tool should have file_path normalized from path
-    let read_tool = tool_messages
-        .iter()
-        .find(|(name, _)| *name == "Read")
-        .expect("Should have a Read tool_use");
-    assert!(
-        read_tool.1.get("file_path").is_some(),
-        "Read tool should have file_path (normalized from path)"
-    );
-    assert!(
-        read_tool.1.get("path").is_none(),
-        "Read tool should not have original 'path' field"
-    );
-}
+//     let messages = transcript.messages();
+//     let first_user = messages
+//         .iter()
+//         .find(|m| matches!(m, git_ai::authorship::transcript::Message::User { .. }))
+//         .expect("Should have at least one user message");
 
-#[test]
-fn test_cursor_jsonl_read_tool_full_args() {
-    use git_ai::commands::checkpoint_agent::agent_presets::CursorPreset;
+//     if let git_ai::authorship::transcript::Message::User { text, .. } = first_user {
+//         assert!(
+//             !text.contains("<user_query>"),
+//             "User message should not contain <user_query> tag, got: {}",
+//             text
+//         );
+//         assert!(
+//             !text.contains("</user_query>"),
+//             "User message should not contain </user_query> tag"
+//         );
+//         assert_eq!(
+//             text,
+//             "Generate a file with all the HBO shows from the 90's in it"
+//         );
+//     }
+// }
 
-    let fixture = fixture_path("cursor-session-simple.jsonl");
-    let (transcript, _) =
-        CursorPreset::transcript_and_model_from_cursor_jsonl(fixture.to_str().unwrap())
-            .expect("Should parse cursor JSONL");
+// #[test]
+// fn test_cursor_jsonl_tool_normalization() {
+//     use git_ai::commands::checkpoint_agent::agent_presets::CursorPreset;
 
-    let messages = transcript.messages();
-    let read_tool = messages
-        .iter()
-        .find_map(|m| match m {
-            git_ai::authorship::transcript::Message::ToolUse { name, input, .. }
-                if name == "Read" =>
-            {
-                Some(input)
-            }
-            _ => None,
-        })
-        .expect("Should have a Read tool_use");
+//     let fixture = fixture_path("cursor-session-simple.jsonl");
+//     let (transcript, _) =
+//         CursorPreset::transcript_and_model_from_cursor_jsonl(fixture.to_str().unwrap())
+//             .expect("Should parse cursor JSONL");
 
-    // Read tool should preserve full args with normalized field name
-    assert!(
-        read_tool.get("file_path").is_some(),
-        "Read tool should have file_path (normalized from path)"
-    );
-}
+//     let messages = transcript.messages();
+//     let tool_messages: Vec<_> = messages
+//         .iter()
+//         .filter_map(|m| match m {
+//             git_ai::authorship::transcript::Message::ToolUse { name, input, .. } => {
+//                 Some((name.as_str(), input))
+//             }
+//             _ => None,
+//         })
+//         .collect();
 
-#[test]
-fn test_cursor_jsonl_preserves_text_content() {
-    use git_ai::commands::checkpoint_agent::agent_presets::CursorPreset;
+//     // Write tool should have file_path, not path, and content should be stripped
+//     let write_tool = tool_messages
+//         .iter()
+//         .find(|(name, _)| *name == "Write")
+//         .expect("Should have a Write tool_use");
+//     assert!(
+//         write_tool.1.get("file_path").is_some(),
+//         "Write tool should have file_path (normalized from path)"
+//     );
+//     assert!(
+//         write_tool.1.get("content").is_none(),
+//         "Write tool should have content stripped (edit tool)"
+//     );
+//     assert!(
+//         write_tool.1.get("contents").is_none(),
+//         "Write tool should not have original 'contents' field"
+//     );
 
-    let fixture = fixture_path("cursor-session-simple.jsonl");
-    let (transcript, _) =
-        CursorPreset::transcript_and_model_from_cursor_jsonl(fixture.to_str().unwrap())
-            .expect("Should parse cursor JSONL");
+//     // Read tool should have file_path normalized from path
+//     let read_tool = tool_messages
+//         .iter()
+//         .find(|(name, _)| *name == "Read")
+//         .expect("Should have a Read tool_use");
+//     assert!(
+//         read_tool.1.get("file_path").is_some(),
+//         "Read tool should have file_path (normalized from path)"
+//     );
+//     assert!(
+//         read_tool.1.get("path").is_none(),
+//         "Read tool should not have original 'path' field"
+//     );
+// }
 
-    let assistant_messages: Vec<_> = transcript
-        .messages()
-        .iter()
-        .filter_map(|m| match m {
-            git_ai::authorship::transcript::Message::Assistant { text, .. } => Some(text.as_str()),
-            _ => None,
-        })
-        .collect();
-    assert!(
-        assistant_messages.iter().any(|t| t.contains("HBO")),
-        "Should keep real content from assistant messages"
-    );
-}
+// #[test]
+// fn test_cursor_jsonl_read_tool_full_args() {
+//     use git_ai::commands::checkpoint_agent::agent_presets::CursorPreset;
 
-#[test]
-fn test_cursor_jsonl_empty_file() {
-    use git_ai::commands::checkpoint_agent::agent_presets::CursorPreset;
-    use tempfile::NamedTempFile;
+//     let fixture = fixture_path("cursor-session-simple.jsonl");
+//     let (transcript, _) =
+//         CursorPreset::transcript_and_model_from_cursor_jsonl(fixture.to_str().unwrap())
+//             .expect("Should parse cursor JSONL");
 
-    let temp_file = NamedTempFile::new().expect("Should create temp file");
-    // Write nothing — empty file
-    let _ = temp_file.as_file().sync_all();
+//     let messages = transcript.messages();
+//     let read_tool = messages
+//         .iter()
+//         .find_map(|m| match m {
+//             git_ai::authorship::transcript::Message::ToolUse { name, input, .. }
+//                 if name == "Read" =>
+//             {
+//                 Some(input)
+//             }
+//             _ => None,
+//         })
+//         .expect("Should have a Read tool_use");
 
-    let (transcript, model) =
-        CursorPreset::transcript_and_model_from_cursor_jsonl(temp_file.path().to_str().unwrap())
-            .expect("Should handle empty file");
+//     // Read tool should preserve full args with normalized field name
+//     assert!(
+//         read_tool.get("file_path").is_some(),
+//         "Read tool should have file_path (normalized from path)"
+//     );
+// }
 
-    assert!(
-        transcript.messages().is_empty(),
-        "Empty file should produce empty transcript"
-    );
-    assert_eq!(model, None);
-}
+// #[test]
+// fn test_cursor_jsonl_preserves_text_content() {
+//     use git_ai::commands::checkpoint_agent::agent_presets::CursorPreset;
 
-#[test]
-fn test_cursor_jsonl_malformed_lines_skipped() {
-    use git_ai::commands::checkpoint_agent::agent_presets::CursorPreset;
-    use std::io::Write;
-    use tempfile::NamedTempFile;
+//     let fixture = fixture_path("cursor-session-simple.jsonl");
+//     let (transcript, _) =
+//         CursorPreset::transcript_and_model_from_cursor_jsonl(fixture.to_str().unwrap())
+//             .expect("Should parse cursor JSONL");
 
-    let mut temp_file = NamedTempFile::new().expect("Should create temp file");
-    writeln!(
-        temp_file,
-        r#"{{"role":"user","message":{{"content":[{{"type":"text","text":"hello"}}]}}}}"#
-    )
-    .unwrap();
-    writeln!(temp_file, "this is not valid json").unwrap();
-    writeln!(
-        temp_file,
-        r#"{{"role":"assistant","message":{{"content":[{{"type":"text","text":"hi there"}}]}}}}"#
-    )
-    .unwrap();
-    temp_file.flush().unwrap();
+//     let assistant_messages: Vec<_> = transcript
+//         .messages()
+//         .iter()
+//         .filter_map(|m| match m {
+//             git_ai::authorship::transcript::Message::Assistant { text, .. } => Some(text.as_str()),
+//             _ => None,
+//         })
+//         .collect();
+//     assert!(
+//         assistant_messages.iter().any(|t| t.contains("HBO")),
+//         "Should keep real content from assistant messages"
+//     );
+// }
 
-    let (transcript, _) =
-        CursorPreset::transcript_and_model_from_cursor_jsonl(temp_file.path().to_str().unwrap())
-            .expect("Should handle malformed lines");
+// #[test]
+// fn test_cursor_jsonl_empty_file() {
+//     use git_ai::commands::checkpoint_agent::agent_presets::CursorPreset;
+//     use tempfile::NamedTempFile;
 
-    assert_eq!(
-        transcript.messages().len(),
-        2,
-        "Should have parsed 2 valid messages, skipping malformed line"
-    );
-}
+//     let temp_file = NamedTempFile::new().expect("Should create temp file");
+//     // Write nothing — empty file
+//     let _ = temp_file.as_file().sync_all();
 
-#[test]
-fn test_cursor_jsonl_message_ids_are_sequenced_per_message() {
-    use git_ai::authorship::transcript::Message;
-    use git_ai::commands::checkpoint_agent::agent_presets::CursorPreset;
-    use std::io::Write;
-    use tempfile::NamedTempFile;
+//     let (transcript, model) =
+//         CursorPreset::transcript_and_model_from_cursor_jsonl(temp_file.path().to_str().unwrap())
+//             .expect("Should handle empty file");
 
-    let mut temp_file = NamedTempFile::new().expect("Should create temp file");
-    writeln!(
-        temp_file,
-        r#"{{"role":"assistant","message":{{"content":[{{"type":"text","text":"Updating test.txt"}},{{"type":"tool_use","name":"ReadFile","input":{{"path":"/tmp/test.txt"}}}}]}}}}"#
-    )
-    .unwrap();
-    temp_file.flush().unwrap();
+//     assert!(
+//         transcript.messages().is_empty(),
+//         "Empty file should produce empty transcript"
+//     );
+//     assert_eq!(model, None);
+// }
 
-    let (transcript, _) =
-        CursorPreset::transcript_and_model_from_cursor_jsonl(temp_file.path().to_str().unwrap())
-            .expect("Should parse cursor jsonl with multiple messages on one line");
+// #[test]
+// fn test_cursor_jsonl_malformed_lines_skipped() {
+//     use git_ai::commands::checkpoint_agent::agent_presets::CursorPreset;
+//     use std::io::Write;
+//     use tempfile::NamedTempFile;
 
-    let messages = transcript.messages();
-    assert_eq!(messages.len(), 2, "Should parse two assistant-side messages");
+//     let mut temp_file = NamedTempFile::new().expect("Should create temp file");
+//     writeln!(
+//         temp_file,
+//         r#"{{"role":"user","message":{{"content":[{{"type":"text","text":"hello"}}]}}}}"#
+//     )
+//     .unwrap();
+//     writeln!(temp_file, "this is not valid json").unwrap();
+//     writeln!(
+//         temp_file,
+//         r#"{{"role":"assistant","message":{{"content":[{{"type":"text","text":"hi there"}}]}}}}"#
+//     )
+//     .unwrap();
+//     temp_file.flush().unwrap();
 
-    assert_eq!(messages[0].id().map(String::as_str), Some("msg_1"));
-    assert_eq!(messages[1].id().map(String::as_str), Some("msg_2"));
+//     let (transcript, _) =
+//         CursorPreset::transcript_and_model_from_cursor_jsonl(temp_file.path().to_str().unwrap())
+//             .expect("Should handle malformed lines");
 
-    assert!(matches!(messages[0], Message::Assistant { .. }));
-    assert!(matches!(messages[1], Message::ToolUse { .. }));
-}
+//     assert_eq!(
+//         transcript.messages().len(),
+//         2,
+//         "Should have parsed 2 valid messages, skipping malformed line"
+//     );
+// }
+
+// #[test]
+// fn test_cursor_jsonl_message_ids_are_sequenced_per_message() {
+//     use git_ai::authorship::transcript::Message;
+//     use git_ai::commands::checkpoint_agent::agent_presets::CursorPreset;
+//     use std::io::Write;
+//     use tempfile::NamedTempFile;
+
+//     let mut temp_file = NamedTempFile::new().expect("Should create temp file");
+//     writeln!(
+//         temp_file,
+//         r#"{{"role":"assistant","message":{{"content":[{{"type":"text","text":"Updating test.txt"}},{{"type":"tool_use","name":"ReadFile","input":{{"path":"/tmp/test.txt"}}}}]}}}}"#
+//     )
+//     .unwrap();
+//     temp_file.flush().unwrap();
+
+//     let (transcript, _) =
+//         CursorPreset::transcript_and_model_from_cursor_jsonl(temp_file.path().to_str().unwrap())
+//             .expect("Should parse cursor jsonl with multiple messages on one line");
+
+//     let messages = transcript.messages();
+//     assert_eq!(messages.len(), 2, "Should parse two assistant-side messages");
+
+//     assert_eq!(messages[0].id().map(String::as_str), Some("msg_1"));
+//     assert_eq!(messages[1].id().map(String::as_str), Some("msg_2"));
+
+//     assert!(matches!(messages[0], Message::Assistant { .. }));
+//     assert!(matches!(messages[1], Message::ToolUse { .. }));
+// }
 
 #[test]
 fn test_cursor_preset_multi_root_workspace_detection() {
@@ -447,9 +453,18 @@ fn test_cursor_checkpoint_stdin_with_utf8_bom() {
 fn test_cursor_e2e_with_attribution() {
     use std::fs;
 
+    // These tests set `GIT_AI_CURSOR_GLOBAL_DB_PATH` (process-global). Hold a lock so
+    // parallel test execution can't cross-contaminate DB paths.
+    let _env_lock = cursor_db_env_lock().lock().unwrap();
+
     let repo = TestRepo::new();
     let jsonl_fixture = fixture_path("cursor-session-simple.jsonl");
     let jsonl_path_str = jsonl_fixture.to_string_lossy().to_string();
+    let _cursor_db_temp = setup_mock_cursor_global_db_from_jsonl(
+        TEST_CONVERSATION_ID,
+        &jsonl_fixture,
+        "model-name-from-hook-test",
+    );
 
     // Create parent directory for the test file
     let src_dir = repo.path().join("src");
@@ -518,17 +533,17 @@ fn test_cursor_e2e_with_attribution() {
         .next()
         .expect("Should have at least one prompt record");
 
-    // Verify that the prompt record has messages (transcript from JSONL)
+    // Verify that the prompt record has messages (transcript loaded via Cursor sqlite DB)
     assert!(
         !prompt_record.messages.is_empty(),
-        "Prompt record should contain messages from the JSONL transcript"
+        "Prompt record should contain messages from the transcript"
     );
 
     // The JSONL fixture has 21 messages (1 user + 10 assistant + 10 tool_use)
     assert_eq!(
         prompt_record.messages.len(),
         21,
-        "Should have exactly 21 messages from the JSONL fixture"
+        "Should have at least 21 messages from the fixture-derived transcript"
     );
 
     // Verify the model was extracted from hook input
@@ -540,19 +555,24 @@ fn test_cursor_e2e_with_attribution() {
 
 #[test]
 fn test_cursor_e2e_with_resync() {
+    use rusqlite::OptionalExtension;
     use std::fs;
-    use std::io::Write;
-    use tempfile::TempDir;
+
+    let _env_lock = cursor_db_env_lock().lock().unwrap();
 
     let repo = TestRepo::new();
 
-    // Create a temp JSONL file that we can modify
-    let temp_dir = TempDir::new().expect("Failed to create temp directory");
+    // Create a mock Cursor sqlite DB from the JSONL fixture.
+    // We'll mutate the DB after the checkpoint to simulate Cursor writing more bubbles.
+    let temp_dir = tempfile::TempDir::new().expect("create temp dir for mock Cursor DB");
     let temp_jsonl_path = temp_dir.path().join("cursor-session.jsonl");
-    let fixture_content = fs::read_to_string(fixture_path("cursor-session-simple.jsonl"))
-        .expect("Should read fixture");
-    fs::write(&temp_jsonl_path, &fixture_content).expect("Should write temp JSONL");
+    let jsonl_fixture = fixture_path("cursor-session-simple.jsonl");
     let temp_jsonl_str = temp_jsonl_path.to_string_lossy().to_string();
+    let _cursor_db_temp = setup_mock_cursor_global_db_from_jsonl(
+        TEST_CONVERSATION_ID,
+        &jsonl_fixture,
+        "model-name-from-hook-test",
+    );
 
     // Create parent directory for the test file
     let src_dir = repo.path().join("src");
@@ -586,25 +606,54 @@ fn test_cursor_e2e_with_resync() {
         .unwrap();
 
     println!("Checkpoint output: {}", result);
-
-    // Now append a new message to the JSONL file (simulating Cursor adding more data)
+    // Now append a new message to the Cursor sqlite DB (simulating Cursor adding more data)
     {
-        let mut file = fs::OpenOptions::new()
-            .append(true)
-            .open(&temp_jsonl_path)
-            .expect("Should open temp JSONL for appending");
-        // The fixture file may not end with a newline, so write one first to ensure
-        // the appended line starts on its own line (otherwise it merges with the last
-        // line and produces invalid JSON).
-        writeln!(file).expect("Should write newline separator");
-        writeln!(
-            file,
-            r#"{{"role":"assistant","message":{{"content":[{{"type":"text","text":"RESYNC_TEST_MESSAGE: This was added after the checkpoint"}}]}}}}"#
+        let db_path = _cursor_db_temp.path().join("state.vscdb");
+        let conn = rusqlite::Connection::open(&db_path).expect("Should open mock Cursor DB");
+
+        // Read composer payload for this conversation.
+        let key = format!("composerData:{}", TEST_CONVERSATION_ID);
+        let payload_str: String = conn
+            .query_row(
+                "SELECT value FROM cursorDiskKV WHERE key = ?1",
+                [&key],
+                |row| row.get(0),
+            )
+            .optional()
+            .expect("Should query composer payload")
+            .expect("composerData should exist in mock DB");
+        let mut payload_json: serde_json::Value =
+            serde_json::from_str(&payload_str).expect("composerData should be valid json");
+
+        // Append a new assistant bubble header.
+        let new_bubble_id = "bubble-resync-test";
+        payload_json
+            .get_mut("fullConversationHeadersOnly")
+            .and_then(|v| v.as_array_mut())
+            .expect("composer payload should have fullConversationHeadersOnly array")
+            .push(serde_json::json!({ "bubbleId": new_bubble_id, "type": 2 }));
+
+        // Upsert updated composer payload.
+        conn.execute(
+            "INSERT INTO cursorDiskKV (key, value) VALUES (?1, ?2)",
+            [&key, &serde_json::to_string(&payload_json).unwrap()],
         )
-        .expect("Should append to JSONL");
+        .expect("Should upsert composerData");
+
+        // Upsert the new bubble content.
+        let bubble_key = format!("bubbleId:{}:{}", TEST_CONVERSATION_ID, new_bubble_id);
+        let bubble_json = serde_json::json!({
+            "createdAt": "2026-04-22T00:00:00.000Z",
+            "text": "RESYNC_TEST_MESSAGE: This was added after the checkpoint"
+        });
+        conn.execute(
+            "INSERT INTO cursorDiskKV (key, value) VALUES (?1, ?2)",
+            [&bubble_key, &serde_json::to_string(&bubble_json).unwrap()],
+        )
+        .expect("Should upsert new bubble");
     }
 
-    // Commit — post-commit hook will re-read the JSONL via transcript_path in metadata
+    // Commit — post-commit hook will re-read the Cursor sqlite DB to refresh transcripts
     repo.git(&["add", "-A"]).expect("add --all should succeed");
     let commit = repo.commit("Add cursor edits").unwrap();
 
@@ -799,6 +848,177 @@ fn setup_mock_global_db_with_headers(
     .unwrap();
 }
 
+/// Creates a mock Cursor global sqlite database (`state.vscdb`) containing
+/// `composerData:<conversation_id>` and `bubbleId:<conversation_id>:<bubble_id>` records
+/// that mirror the messages/tool-uses in a Cursor JSONL transcript fixture.
+///
+/// This is used by tests that exercise `CursorPreset`, which now reads transcripts
+/// from the sqlite DB (not JSONL).
+fn setup_mock_cursor_global_db_from_jsonl(
+    conversation_id: &str,
+    jsonl_path: &std::path::Path,
+    model_name: &str,
+) -> tempfile::TempDir {
+    
+    let temp_dir = tempfile::TempDir::new().expect("create temp dir for mock Cursor DB");
+    let db_path = temp_dir.path().join("state.vscdb");
+    // tracing::debug!("Mock Cursor SQlite DB: db_path={:?}", db_path.to_str());
+
+    let conn = rusqlite::Connection::open(&db_path).unwrap();
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS ItemTable (key TEXT UNIQUE ON CONFLICT REPLACE, value BLOB)",
+        [],
+    )
+    .unwrap();
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS cursorDiskKV (key TEXT UNIQUE ON CONFLICT REPLACE, value BLOB)",
+        [],
+    )
+    .unwrap();
+
+    // let all_composers: Vec<serde_json::Value> = entries
+    //     .iter()
+    //     .map(|(id, ws_path, last_updated)| {
+    //         serde_json::json!({
+    //             "composerId": id,
+    //             "type": "head",
+    //             "workspaceIdentifier": {
+    //                 "id": "test-ws-hash",
+    //                 "uri": { "$mid": 1, "fsPath": ws_path }
+    //             },
+    //             "lastUpdatedAt": last_updated,
+    //         })
+    //     })
+    //     .collect();
+
+    // let headers = serde_json::json!({ "allComposers": all_composers });
+    // conn.execute(
+    //     "INSERT INTO ItemTable (key, value) VALUES ('composer.composerHeaders', ?)",
+    //     [serde_json::to_string(&headers).unwrap()],
+    // )
+    // .unwrap();
+
+    let jsonl_content = std::fs::read_to_string(jsonl_path).expect("read jsonl fixture");
+    let mut headers: Vec<serde_json::Value> = Vec::new();
+    let mut bubble_inserts: Vec<(String, serde_json::Value)> = Vec::new();
+
+    let mut bubble_seq: u64 = 0;
+
+    // We only need enough fidelity for `CursorPreset::transcript_data_from_composer_payload`:
+    // - conversation headers: `fullConversationHeadersOnly[{ bubbleId, type }]`
+    // - per-bubble content: `createdAt`, optional `text`, optional `toolFormerData`, optional `modelInfo`
+    for line in jsonl_content.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        let entry: serde_json::Value =
+            serde_json::from_str(trimmed).expect("valid jsonl entry");
+
+        let role_type = match entry.get("role").and_then(|v| v.as_str()) {
+            Some("user") => 1i64,
+            Some("assistant") => 2i64,
+            _ => continue,
+        };
+
+        let content_items = entry
+            .get("message")
+            .and_then(|m| m.get("content"))
+            .and_then(|c| c.as_array())
+            .cloned()
+            .unwrap_or_default();
+
+        for item in content_items {
+            let item_type = item.get("type").and_then(|v| v.as_str()).unwrap_or("");
+            if item_type == "tool_result" {
+                continue;
+            }
+
+            bubble_seq += 1;
+            let bubble_id = format!("bubble-{}", bubble_seq);
+            headers.push(serde_json::json!({ "bubbleId": bubble_id, "type": role_type }));
+
+            let mut bubble = serde_json::json!({
+                "createdAt": "2026-04-22T00:00:00.000Z",
+            });
+
+            if bubble_seq == 2 {
+                // Provide model info early so the parser can pick it up deterministically.
+                bubble["modelInfo"] = serde_json::json!({ "modelName": model_name });
+            }
+
+            match item_type {
+                "text" => {
+                    let text = item.get("text").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                    bubble["text"] = serde_json::Value::String(text);
+                }
+                "tool_use" => {
+                    let tool_name_raw =
+                        item.get("name").and_then(|v| v.as_str()).unwrap_or("unknown");
+                    // Cursor's sqlite bubbles use lower snake-case tool names (e.g. `web_search`),
+                    // while JSONL fixtures may use display names (e.g. `WebSearch`).
+                    let tool_name = match tool_name_raw {
+                        "Read" => "read_file",
+                        "Write" => "write",
+                        "Edit" => "edit_file",
+                        "StrReplace" => "search_replace",
+                        "Grep" => "grep",
+                        "Glob" => "glob_file_search",
+                        "SemanticSearch" => "semantic_search_full",
+                        "WebSearch" => "web_search",
+                        "WebFetch" => "web_fetch",
+                        "Shell" => "run_terminal_cmd",
+                        other => other,
+                    };
+                    let input = item.get("input").cloned().unwrap_or(serde_json::Value::Null);
+                    let raw_args = serde_json::to_string(&input).unwrap_or_else(|_| "{}".to_string());
+                    bubble["toolFormerData"] = serde_json::json!({
+                        "name": tool_name,
+                        "params": "{}",
+                        "rawArgs": raw_args,
+                    });
+                }
+                _ => {
+                    // Unsupported item types in fixtures are ignored.
+                    continue;
+                }
+            }
+
+            bubble_inserts.push((bubble_id, bubble));
+        }
+    }
+
+    let composer_payload = serde_json::json!({
+        "fullConversationHeadersOnly": headers,
+    });
+    conn.execute(
+        "INSERT INTO cursorDiskKV (key, value) VALUES (?, ?)",
+        [
+            format!("composerData:{}", conversation_id),
+            serde_json::to_string(&composer_payload).unwrap(),
+        ],
+    )
+    .unwrap();
+
+    for (bubble_id, bubble) in bubble_inserts {
+        conn.execute(
+            "INSERT INTO cursorDiskKV (key, value) VALUES (?, ?)",
+            [
+                format!("bubbleId:{}:{}", conversation_id, bubble_id),
+                serde_json::to_string(&bubble).unwrap(),
+            ],
+        )
+        .unwrap();
+    }
+
+    // Point CursorPreset at this mock DB for the duration of the test.
+    unsafe {
+        std::env::set_var("GIT_AI_CURSOR_GLOBAL_DB_PATH", &db_path);
+    }
+
+    temp_dir
+}
+
 #[test]
 fn test_list_workspace_conversation_ids_filters_by_workspace() {
     use git_ai::commands::checkpoint_agent::agent_presets::CursorPreset;
@@ -907,10 +1127,10 @@ fn test_list_workspace_conversation_ids_missing_headers_key() {
 }
 
 crate::reuse_tests_in_worktree!(
-    test_cursor_jsonl_basic_parsing,
-    test_cursor_jsonl_user_query_tag_stripping,
-    test_cursor_jsonl_tool_normalization,
-    test_cursor_jsonl_message_ids_are_sequenced_per_message,
+    // test_cursor_jsonl_basic_parsing,
+    // test_cursor_jsonl_user_query_tag_stripping,
+    // test_cursor_jsonl_tool_normalization,
+    // test_cursor_jsonl_message_ids_are_sequenced_per_message,
     test_cursor_preset_multi_root_workspace_detection,
     test_cursor_preset_human_checkpoint_no_filepath,
     test_cursor_e2e_with_attribution,
