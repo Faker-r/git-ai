@@ -1,0 +1,45 @@
+src/config.rs
+  h_36b021ee800750 19
+self-hosted-server/templates/device_callback.html
+  40a87d37039af8a2 23-24,26-28,43,49
+---
+{
+  "schema_version": "authorship/4.0.0",
+  "git_ai_version": "development:1.3.1",
+  "base_commit_sha": "6733d056b7cc2a5c334685383c37660c0d9a0fce",
+  "prompts": {
+    "2ef0fa9381bd3da8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "11f57708-c71e-4e08-bdb9-60b1ff43e844",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Andrew Wang",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 0,
+      "overriden_lines": 1
+    },
+    "40a87d37039af8a2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6cda59e9-bdc4-4592-a830-9a6f89ecbb5a",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Andrew Wang",
+      "messages": [],
+      "total_additions": 7,
+      "total_deletions": 0,
+      "accepted_lines": 7,
+      "overriden_lines": 0,
+      "messages_url": "https://usegitai.com/cas/3b15337e3b28a4d7a3a37880850afb4e8184866f6bb4499bf591f1dc2e8ed599"
+    }
+  },
+  "humans": {
+    "h_36b021ee800750": {
+      "author": "Andrew Wang"
+    }
+  },
+  "change_history_url": "https://usegitai.com/cas/b9e278696efd65207b9c348cbb43ac741b575276f8087b980e7b9ed96a9db192"
+}
