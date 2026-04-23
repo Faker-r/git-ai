@@ -262,12 +262,33 @@ Each entry in the `humans` object MUST contain:
 
 ### 1.2.7 Checkpoint Behavior
 
-A checkpoint is a snapshot of file contents and the diff from the previous checkpoint, attributed to either a human or AI author. Checkpoints record:
+A checkpoint is a snapshot of file contents and the diff from the previous checkpoint, attributed to either a human or AI author. Checkpoint is an internal data type that does not directly appear in authorship log. It is the underlying data structure that Change History relies on.
 
+A checkpoint records:
 - File contents
 - Diffs since the previous checkpoint
-- The author (human or AI)
+- The author (Human / AiAgent / AiTab / KnownHuman)
 - Timestamp and metadata (model, prompt text, etc.)
+
+<!-- 
+The exact data structure is: 
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `kind` | enum | Human / AiAgent / AiTab / KnownHuman |
+| `diff` | string | |
+| `author` | string | The human author |
+| `entries` | object |  Ordered list of working log entries |
+| `timestamp` | u64 | | 
+| `transcript` | object | Ordered list of all messages in the AI session till the checkpoint was triggered |
+| `user_prompt_id` | string |  **NEW in v4.0.0.** ID of user prompt that triggered this checkpoint. The ID is in the domain of each agent tool. |
+| `agent_id` | object | Agent ID |
+| `agent_metadata` | object | |
+| `known_human_metadata` | | |
+| `line_stats` | object | Line-level statistics tracked per checkpoint kind, consisting of additions, deletions, additions_sloc, deletions_sloc |
+| `api_version` | | |
+| `git_ai_version` | | | 
+-->
 
 A subset of Checkpoint data is persisted into the `change_history` field in the metadata section. You can see the exact data being persisted in the `ChangeHistoryEntry` schema.
 
