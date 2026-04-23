@@ -1,0 +1,36 @@
+src/authorship/post_commit.rs
+  2ef0fa9381bd3da8 340,342,345,352,372,374-375,377,379,381,383,904-905,907-911,913,922-924,943,946,950-955,957-959,967-969,974-990,996-1013
+src/api/types.rs
+  2ef0fa9381bd3da8 121-127
+src/authorship/authorship_log_serialization.rs
+  2ef0fa9381bd3da8 76-77,89
+src/commands/line_history.rs
+  2ef0fa9381bd3da8 210-220,237-296
+---
+{
+  "schema_version": "authorship/4.0.0",
+  "git_ai_version": "development:1.3.1",
+  "base_commit_sha": "fc9e6be5779379f1d5391ef4f3c035939ac51020",
+  "prompts": {
+    "2ef0fa9381bd3da8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "11f57708-c71e-4e08-bdb9-60b1ff43e844",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Andrew Wang",
+      "messages": [],
+      "total_additions": 158,
+      "total_deletions": 52,
+      "accepted_lines": 156,
+      "overriden_lines": 0,
+      "messages_url": "https://git-ai-production.up.railway.app/cas/61630ba7dced6cd511f9f5fa6c78b95d6240475313ad7e68e7bf9fd11bf99880"
+    }
+  },
+  "humans": {
+    "h_36b021ee800750": {
+      "author": "Andrew Wang"
+    }
+  },
+  "change_history_url": "https://git-ai-production.up.railway.app/cas/5990e46d0e5e87991ec1f1eebd91b69e91ca1fd798cc23a847a5257eaebc6534"
+}
