@@ -205,7 +205,7 @@ fn test_config_fresh_respects_env_vars() {
 
     // Without env var, should use default
     let config1 = Config::fresh();
-    assert_eq!(config1.api_base_url(), "https://usegitai.com");
+    assert_eq!(config1.api_base_url(), "https://git-ai-production.up.railway.app");
 
     // With env var set, should use env var
     unsafe {
