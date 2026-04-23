@@ -342,10 +342,23 @@ pub fn post_commit_with_final_state(
             authorship_log.metadata.change_history = None;
         }
         PromptStorageMode::Notes => {
-            // Store in notes: redact secrets but keep messages and change_history in notes
+            // Store in notes: redact secrets, upload to CAS, but keep data in notes
             let count = redact_secrets_from_prompts(&mut authorship_log.metadata.prompts);
             if count > 0 {
                 tracing::debug!("Redacted {} secrets from prompts", count);
+            }
+
+            let context = ApiContext::new(None);
+            let client = ApiClient::new(context);
+            let should_enqueue_cas =
+                client.is_logged_in() || client.has_api_key() || using_custom_api;
+
+            if should_enqueue_cas {
+                if let Err(e) =
+                    enqueue_authorship_metadata_to_cas(repo, &mut authorship_log.metadata, false)
+                {
+                    tracing::debug!("[Warning] Failed to enqueue authorship metadata to CAS (notes mode): {}", e);
+                }
             }
         }
         PromptStorageMode::Default => {
@@ -369,7 +382,7 @@ pub fn post_commit_with_final_state(
                 }
 
                 if let Err(e) =
-                    enqueue_authorship_metadata_to_cas(repo, &mut authorship_log.metadata)
+                    enqueue_authorship_metadata_to_cas(repo, &mut authorship_log.metadata, true)
                 {
                     tracing::debug!("[Warning] Failed to enqueue authorship metadata to CAS: {}", e);
                     // Enqueue failed - still strip (never keep in notes for "default")
@@ -904,13 +917,16 @@ fn collect_context_conversations(
 /// Enqueue authorship metadata (prompt messages + change_history) to CAS for external storage.
 ///
 /// For each prompt with non-empty messages:
-/// - Serialize messages to JSON, enqueue to CAS, set messages_url, clear messages
+/// - Serialize messages to JSON, enqueue to CAS, set messages_url
+/// - If `strip_after_upload`: clear messages from the note
 ///
 /// For change_history (if present):
-/// - Serialize entire Vec as one CAS object, enqueue, set change_history_url, clear change_history
+/// - Serialize entire Vec as one CAS object, enqueue, set change_history_url
+/// - If `strip_after_upload`: clear change_history from the note
 fn enqueue_authorship_metadata_to_cas(
     repo: &Repository,
     authorship_metadata: &mut crate::authorship::authorship_log_serialization::AuthorshipMetadata,
+    strip_after_upload: bool,
 ) -> Result<(), GitAiError> {
     use crate::authorship::internal_db::InternalDatabase;
 
@@ -989,7 +1005,9 @@ fn enqueue_authorship_metadata_to_cas(
             let hash = enqueue_and_submit(&messages_json, &prompt_metadata)?;
 
             prompt.messages_url = Some(format!("{}/cas/{}", api_base_url, hash));
-            prompt.messages.clear();
+            if strip_after_upload {
+                prompt.messages.clear();
+            }
         }
     }
 
@@ -1010,7 +1028,9 @@ fn enqueue_authorship_metadata_to_cas(
 
             authorship_metadata.change_history_url =
                 Some(format!("{}/cas/{}", api_base_url, hash));
-            authorship_metadata.change_history = None;
+            if strip_after_upload {
+                authorship_metadata.change_history = None;
+            }
         }
     }
 
