@@ -1,0 +1,28 @@
+---
+{
+  "schema_version": "authorship/4.0.0",
+  "git_ai_version": "development:1.3.1",
+  "base_commit_sha": "a36a1e234723dc35c8f76d60504a229ffc8520aa",
+  "prompts": {
+    "40a87d37039af8a2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6cda59e9-bdc4-4592-a830-9a6f89ecbb5a",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Andrew Wang",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 1,
+      "accepted_lines": 0,
+      "overriden_lines": 0,
+      "messages_url": "https://git-ai-production.up.railway.app/cas/ebf077982be483457c00d71626d2c5824e52da8a16ead8a2af68a3c172c0019a"
+    }
+  },
+  "humans": {
+    "h_36b021ee800750": {
+      "author": "Andrew Wang"
+    }
+  },
+  "change_history_url": "https://git-ai-production.up.railway.app/cas/8697abc367df1d05504d385639ea70ea7591d9715ad62052e7568188d5181428"
+}
