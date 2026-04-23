@@ -1,0 +1,274 @@
+specs/git_ai_standard_v4.0.0.md
+  h_36b021ee800750 113-114,138-141,146,213,272,282,291-296
+---
+{
+  "schema_version": "authorship/4.0.0",
+  "git_ai_version": "development:1.3.1",
+  "base_commit_sha": "2e1b5ad52a6e0f304b9013a53c2cc13a71a072c8",
+  "prompts": {},
+  "humans": {
+    "h_36b021ee800750": {
+      "author": "Andrew Wang"
+    }
+  },
+  "change_history": [
+    {
+      "timestamp": 1776923111,
+      "kind": "known_human",
+      "files": {
+        "specs/git_ai_standard_v4.0.0.md": {
+          "added_lines": [
+            "113-114"
+          ],
+          "deleted_lines": [],
+          "added_line_contents": [
+            "113: Attestation entries MUST be sorted by their **hash**",
+            "114: "
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 2,
+        "deletions": 0,
+        "additions_sloc": 1,
+        "deletions_sloc": 0
+      }
+    },
+    {
+      "timestamp": 1776923438,
+      "kind": "known_human",
+      "files": {
+        "specs/git_ai_standard_v4.0.0.md": {
+          "added_lines": [
+            "216"
+          ],
+          "deleted_lines": [
+            "216"
+          ],
+          "added_line_contents": [
+            "216: - MUST be fetched if the agent workspace (ex. IDE workspace, directory where Claude Code is initiated, ...) matches the git repository of the commit "
+          ],
+          "deleted_line_contents": [
+            "216: - MUST be scoped to the current workspace (conversations from unrelated workspaces MUST be excluded)"
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 1,
+        "deletions": 1,
+        "additions_sloc": 1,
+        "deletions_sloc": 1
+      }
+    },
+    {
+      "timestamp": 1776923660,
+      "kind": "known_human",
+      "files": {
+        "specs/git_ai_standard_v4.0.0.md": {
+          "added_lines": [
+            "216",
+            "275",
+            "285"
+          ],
+          "deleted_lines": [
+            "216",
+            "275",
+            "285"
+          ],
+          "added_line_contents": [
+            "216: - MUST be fetched iff the agent workspace (ex. IDE workspace, directory where Claude Code is initiated, ...) matches the git repository of the commit ",
+            "275: A subset of Checkpoint data is persisted into the `change_history` field in the metadata section. You can see the exact data being persisted in the `ChangeHistoryEntry` schema.",
+            "285: User messages and checkpoints have a 1-to-N relationship, where N can be `0` for non-code prompts. A single user message MAY trigger multiple trigger events, each producing its own checkpoint. AI checkpoints MUST record the prompt that triggered them."
+          ],
+          "deleted_line_contents": [
+            "216: - MUST be fetched if the agent workspace (ex. IDE workspace, directory where Claude Code is initiated, ...) matches the git repository of the commit ",
+            "275: Checkpoint metadata is persisted into the `change_history` field in the metadata section.",
+            "285: User messages and checkpoints have a 1-to-N relationship, where N can be `0` for non-code prompts. A single user message MAY trigger multiple file edits, each producing its own checkpoint. AI checkpoints MUST record the prompt that triggered them."
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 3,
+        "deletions": 3,
+        "additions_sloc": 3,
+        "deletions_sloc": 3
+      }
+    },
+    {
+      "timestamp": 1776924178,
+      "kind": "known_human",
+      "files": {
+        "specs/git_ai_standard_v4.0.0.md": {
+          "added_lines": [
+            "285",
+            "295"
+          ],
+          "deleted_lines": [
+            "285"
+          ],
+          "added_line_contents": [
+            "285: User messages and checkpoints have a 1-to-N relationship, where N can be `0` for non-code prompts. A single user message MAY trigger multiple events, each producing its own checkpoint. AI checkpoints MUST record the prompt that triggered them.",
+            "295: See ignored patterns in git-ai/src/authorship/ignore.rs"
+          ],
+          "deleted_line_contents": [
+            "285: User messages and checkpoints have a 1-to-N relationship, where N can be `0` for non-code prompts. A single user message MAY trigger multiple trigger events, each producing its own checkpoint. AI checkpoints MUST record the prompt that triggered them."
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 2,
+        "deletions": 1,
+        "additions_sloc": 2,
+        "deletions_sloc": 1
+      }
+    },
+    {
+      "timestamp": 1776924211,
+      "kind": "known_human",
+      "files": {
+        "specs/git_ai_standard_v4.0.0.md": {
+          "added_lines": [
+            "295"
+          ],
+          "deleted_lines": [
+            "295"
+          ],
+          "added_line_contents": [
+            "295: For the git-ai reference implementation, see ignored patterns in git-ai/src/authorship/ignore.rs"
+          ],
+          "deleted_line_contents": [
+            "295: See ignored patterns in git-ai/src/authorship/ignore.rs"
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 1,
+        "deletions": 1,
+        "additions_sloc": 1,
+        "deletions_sloc": 1
+      }
+    },
+    {
+      "timestamp": 1776924248,
+      "kind": "known_human",
+      "files": {
+        "specs/git_ai_standard_v4.0.0.md": {
+          "added_lines": [
+            "294"
+          ],
+          "deleted_lines": [
+            "294"
+          ],
+          "added_line_contents": [
+            "294: Files matching well-known generated paths (e.g., `node_modules/`, `*.lock`) SHOULD be excluded."
+          ],
+          "deleted_line_contents": [
+            "294: Files matching well-known generated paths (e.g., `node_modules/`, `.DS_Store`) SHOULD be excluded."
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 1,
+        "deletions": 1,
+        "additions_sloc": 1,
+        "deletions_sloc": 1
+      }
+    },
+    {
+      "timestamp": 1776924251,
+      "kind": "known_human",
+      "files": {
+        "specs/git_ai_standard_v4.0.0.md": {
+          "added_lines": [
+            "294"
+          ],
+          "deleted_lines": [
+            "294"
+          ],
+          "added_line_contents": [
+            "294: Files matching well-known generated paths (e.g., `node_modules`, `*.lock`) SHOULD be excluded."
+          ],
+          "deleted_line_contents": [
+            "294: Files matching well-known generated paths (e.g., `node_modules/`, `*.lock`) SHOULD be excluded."
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 1,
+        "deletions": 1,
+        "additions_sloc": 1,
+        "deletions_sloc": 1
+      }
+    },
+    {
+      "timestamp": 1776924360,
+      "kind": "known_human",
+      "files": {
+        "specs/git_ai_standard_v4.0.0.md": {
+          "added_lines": [
+            "294-296",
+            "299-300"
+          ],
+          "deleted_lines": [
+            "294"
+          ],
+          "added_line_contents": [
+            "294: Files matching the following SHOULD be excluded:",
+            "295: - Well-known generated paths (e.g., `node_modules`, `*.lock`)",
+            "296: - Files included in a `.git-ai-ignore` file at the repository root",
+            "299: ",
+            "300: "
+          ],
+          "deleted_line_contents": [
+            "294: Files matching well-known generated paths (e.g., `node_modules`, `*.lock`) SHOULD be excluded."
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 5,
+        "deletions": 1,
+        "additions_sloc": 3,
+        "deletions_sloc": 1
+      }
+    },
+    {
+      "timestamp": 1776924549,
+      "kind": "known_human",
+      "files": {
+        "specs/git_ai_standard_v4.0.0.md": {
+          "added_lines": [
+            "138-141",
+            "146"
+          ],
+          "deleted_lines": [
+            "138-144",
+            "149"
+          ],
+          "added_line_contents": [
+            "138: src/main.rs",
+            "139:   abcd********1234 1-10,15-20",
+            "140: src/lib.rs",
+            "141:   abcd********1234 1-50",
+            "146: In `src/main.rs`, the prompt `abcd********1234` generated the lines above"
+          ],
+          "deleted_line_contents": [
+            "138: tests/simple_additions.rs",
+            "139:   d997********2b52 1-4,9-10,12,14,16,21-22,24,26",
+            "140:   e5be********2b52 1011-1012,1014-1045,1047-1065",
+            "141:   967b********3ee8 728-735,737-888,890,892-1010",
+            "142: src/authorship/attribution_tracker.rs",
+            "143:   e5be********2b52 829-838,1509-1512",
+            "144:   866d********6bcb 6,257,358,376-377,521",
+            "149: In `tests/simple_additions.rs`, 3 prompts `d997********2b52`, `e5be********2b52`, and `967b********3ee8`, generated the lines above"
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 5,
+        "deletions": 8,
+        "additions_sloc": 5,
+        "deletions_sloc": 8
+      }
+    }
+  ]
+}
