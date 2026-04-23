@@ -2738,12 +2738,19 @@ fn daemon_commit_replay_recovers_same_head_pathspec_reset_when_working_log_is_mi
         !initial.files.contains_key("pathspec-keep.txt"),
         "kept file should have been consumed by the commit"
     );
+    // The full note has two sections: attestation and metadata.
+    // Metadata section might include `change_history`, which could
+    // mention files that were dropped by a keep-only pathspec reset.
+    // Therefore, here we only assert against the attestation section.
+    let (attestation, _) = note
+        .split_once("\n---\n")
+        .unwrap_or((note.as_str(), ""));
     assert!(
-        !note.contains("pathspec-drop.txt"),
+        !attestation.contains("pathspec-drop.txt"),
         "keep-only commit note should not include the pathspec-reset file"
     );
     assert!(
-        note.contains("pathspec-keep.txt"),
+        attestation.contains("pathspec-keep.txt"),
         "keep-only commit note should preserve the staged file attribution"
     );
 
