@@ -118,6 +118,13 @@ pub struct CasMessagesObject {
     pub messages: Vec<crate::authorship::transcript::Message>,
 }
 
+/// Wrapper for change_history stored in CAS
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct CasChangeHistoryObject {
+    pub change_history:
+        Vec<crate::authorship::authorship_log_serialization::ChangeHistoryEntry>,
+}
+
 /// Single result from CA prompt store batch read
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct CAPromptStoreReadResult {

@@ -73,6 +73,8 @@ pub struct AuthorshipMetadata {
     pub humans: BTreeMap<String, HumanRecord>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub change_history: Option<Vec<ChangeHistoryEntry>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub change_history_url: Option<String>,
 }
 
 impl AuthorshipMetadata {
@@ -84,6 +86,7 @@ impl AuthorshipMetadata {
             prompts: BTreeMap::new(),
             humans: BTreeMap::new(),
             change_history: None,
+            change_history_url: None,
         }
     }
 }

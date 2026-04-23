@@ -337,18 +337,19 @@ pub fn post_commit_with_final_state(
 
     match effective_storage {
         PromptStorageMode::Local => {
-            // Local only: strip all messages from notes (they stay in sqlite only)
+            // Local only: strip all messages and change_history from notes
             strip_prompt_messages(&mut authorship_log.metadata.prompts);
+            authorship_log.metadata.change_history = None;
         }
         PromptStorageMode::Notes => {
-            // Store in notes: redact secrets but keep messages in notes
+            // Store in notes: redact secrets but keep messages and change_history in notes
             let count = redact_secrets_from_prompts(&mut authorship_log.metadata.prompts);
             if count > 0 {
                 tracing::debug!("Redacted {} secrets from prompts", count);
             }
         }
         PromptStorageMode::Default => {
-            // "default" - attempt CAS upload, NEVER keep messages in notes
+            // "default" - attempt CAS upload, NEVER keep messages/change_history in notes
             // Check conditions for CAS upload:
             // - user is logged in OR has API key OR using custom API URL
             let context = ApiContext::new(None);
@@ -368,16 +369,18 @@ pub fn post_commit_with_final_state(
                 }
 
                 if let Err(e) =
-                    enqueue_prompt_messages_to_cas(repo, &mut authorship_log.metadata.prompts)
+                    enqueue_authorship_metadata_to_cas(repo, &mut authorship_log.metadata)
                 {
-                    tracing::debug!("[Warning] Failed to enqueue prompt messages to CAS: {}", e);
-                    // Enqueue failed - still strip messages (never keep in notes for "default")
+                    tracing::debug!("[Warning] Failed to enqueue authorship metadata to CAS: {}", e);
+                    // Enqueue failed - still strip (never keep in notes for "default")
                     strip_prompt_messages(&mut authorship_log.metadata.prompts);
+                    authorship_log.metadata.change_history = None;
                 }
-                // Success: enqueue function already cleared messages
+                // Success: enqueue function already cleared messages and change_history
             } else {
-                // Not enqueueing - strip messages (never keep in notes for "default")
+                // Not enqueueing - strip messages and change_history (never keep in notes for "default")
                 strip_prompt_messages(&mut authorship_log.metadata.prompts);
+                authorship_log.metadata.change_history = None;
             }
         }
     }
@@ -898,17 +901,16 @@ fn collect_context_conversations(
     results
 }
 
-/// Enqueue prompt messages to CAS for external storage.
+/// Enqueue authorship metadata (prompt messages + change_history) to CAS for external storage.
+///
 /// For each prompt with non-empty messages:
-/// - Serialize messages to JSON
-/// - Enqueue to CAS (returns hash)
-/// - Set messages_url (format: {api_base_url}/cas/{hash}) and clear messages
-fn enqueue_prompt_messages_to_cas(
+/// - Serialize messages to JSON, enqueue to CAS, set messages_url, clear messages
+///
+/// For change_history (if present):
+/// - Serialize entire Vec as one CAS object, enqueue, set change_history_url, clear change_history
+fn enqueue_authorship_metadata_to_cas(
     repo: &Repository,
-    prompts: &mut std::collections::BTreeMap<
-        String,
-        crate::authorship::authorship_log::PromptRecord,
-    >,
+    authorship_metadata: &mut crate::authorship::authorship_log_serialization::AuthorshipMetadata,
 ) -> Result<(), GitAiError> {
     use crate::authorship::internal_db::InternalDatabase;
 
@@ -917,10 +919,9 @@ fn enqueue_prompt_messages_to_cas(
         .lock()
         .map_err(|e| GitAiError::Generic(format!("Failed to lock database: {}", e)))?;
 
-    // CAS metadata for prompt messages
-    let mut metadata = HashMap::new();
-    metadata.insert("api_version".to_string(), "v1".to_string());
-    metadata.insert("kind".to_string(), "prompt".to_string());
+    // Base CAS metadata (kind will be swapped per object type)
+    let mut base_metadata = HashMap::new();
+    base_metadata.insert("api_version".to_string(), "v1".to_string());
 
     // Get repo URL from default remote
     let repo_url = repo
@@ -939,47 +940,77 @@ fn enqueue_prompt_messages_to_cas(
     if let Some(url) = repo_url
         && let Ok(normalized) = crate::repo_url::normalize_repo_url(&url)
     {
-        metadata.insert("repo_url".to_string(), normalized);
+        base_metadata.insert("repo_url".to_string(), normalized);
     }
 
-    // Get API base URL for constructing messages_url
+    // Get API base URL for constructing CAS URLs
     // Always use Config::fresh() to support runtime config updates
     let api_base_url = Config::fresh().api_base_url().to_string();
 
-    for (_key, prompt) in prompts.iter_mut() {
-        if !prompt.messages.is_empty() {
-            // Wrap messages in CasMessagesObject and serialize to JSON
-            let messages_obj = crate::api::types::CasMessagesObject {
-                messages: prompt.messages.clone(),
-            };
-            let messages_json = serde_json::to_value(&messages_obj)
-                .map_err(|e| GitAiError::Generic(format!("Failed to serialize messages: {}", e)))?;
+    // Helper: enqueue a JSON value to CAS and submit to daemon for upload
+    let mut enqueue_and_submit =
+        |json_value: &serde_json::Value,
+         cas_metadata: &HashMap<String, String>|
+         -> Result<String, GitAiError> {
+            let hash = db_lock.enqueue_cas_object(json_value, Some(cas_metadata))?;
 
-            // Enqueue to CAS (returns hash)
-            let hash = db_lock.enqueue_cas_object(&messages_json, Some(&metadata))?;
-
-            let metadata_json = serde_json::to_string(&metadata).ok();
-            let canonical = serde_json_canonicalizer::to_string(&messages_json)
-                .unwrap_or_else(|_| messages_json.to_string());
+            let metadata_json = serde_json::to_string(cas_metadata).ok();
+            let canonical = serde_json_canonicalizer::to_string(json_value)
+                .unwrap_or_else(|_| json_value.to_string());
             let cas_payload = crate::daemon::control_api::CasSyncPayload {
                 hash: hash.clone(),
                 data: canonical,
                 metadata: metadata_json,
             };
 
-            // In daemon mode, submit directly to the in-process telemetry worker.
-            // In wrapper-daemon mode, forward over the control socket so the
-            // background daemon can upload it immediately.
             if crate::daemon::daemon_process_active() {
-                let _ =
-                    crate::daemon::telemetry_worker::submit_daemon_internal_cas(vec![cas_payload]);
+                let _ = crate::daemon::telemetry_worker::submit_daemon_internal_cas(vec![
+                    cas_payload,
+                ]);
             } else if crate::daemon::telemetry_handle::daemon_telemetry_available() {
                 crate::daemon::telemetry_handle::submit_cas(vec![cas_payload]);
             }
 
-            // Set full URL and clear messages
+            Ok(hash)
+        };
+
+    // --- Prompt messages ---
+    let mut prompt_metadata = base_metadata.clone();
+    prompt_metadata.insert("kind".to_string(), "prompt".to_string());
+
+    for (_key, prompt) in authorship_metadata.prompts.iter_mut() {
+        if !prompt.messages.is_empty() {
+            let messages_obj = crate::api::types::CasMessagesObject {
+                messages: prompt.messages.clone(),
+            };
+            let messages_json = serde_json::to_value(&messages_obj)
+                .map_err(|e| GitAiError::Generic(format!("Failed to serialize messages: {}", e)))?;
+
+            let hash = enqueue_and_submit(&messages_json, &prompt_metadata)?;
+
             prompt.messages_url = Some(format!("{}/cas/{}", api_base_url, hash));
             prompt.messages.clear();
+        }
+    }
+
+    // --- Change history ---
+    if let Some(ref change_history) = authorship_metadata.change_history {
+        if !change_history.is_empty() {
+            let mut ch_metadata = base_metadata.clone();
+            ch_metadata.insert("kind".to_string(), "change_history".to_string());
+
+            let ch_obj = crate::api::types::CasChangeHistoryObject {
+                change_history: change_history.clone(),
+            };
+            let ch_json = serde_json::to_value(&ch_obj).map_err(|e| {
+                GitAiError::Generic(format!("Failed to serialize change_history: {}", e))
+            })?;
+
+            let hash = enqueue_and_submit(&ch_json, &ch_metadata)?;
+
+            authorship_metadata.change_history_url =
+                Some(format!("{}/cas/{}", api_base_url, hash));
+            authorship_metadata.change_history = None;
         }
     }
 

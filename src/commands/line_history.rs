@@ -207,12 +207,17 @@ fn build_commit_entry(
 ) -> Result<CommitHistoryEntry, GitAiError> {
     let checkpoints = match get_reference_as_authorship_log_v3(repo, &commit.sha) {
         Ok(log) => {
-            if let Some(change_history) = log.metadata.change_history {
-                find_checkpoints_that_touched_line(
-                    &change_history,
-                    file,
-                    commit.target_line_in_commit,
-                )
+            // Try inline change_history first, then fall back to CAS URL
+            let change_history = if let Some(ch) = log.metadata.change_history {
+                Some(ch)
+            } else if let Some(url) = &log.metadata.change_history_url {
+                resolve_change_history_from_cas(url)
+            } else {
+                None
+            };
+
+            if let Some(ch) = change_history {
+                find_checkpoints_that_touched_line(&ch, file, commit.target_line_in_commit)
             } else {
                 vec![]
             }
@@ -227,6 +232,66 @@ fn build_commit_entry(
         target_line: commit.target_line_in_commit,
         checkpoints,
     })
+}
+
+/// Resolve change_history from CAS (local cache first, then API).
+/// Follows the same pattern as prompt resolution in show_prompt.rs.
+fn resolve_change_history_from_cas(url: &str) -> Option<Vec<ChangeHistoryEntry>> {
+    use crate::api::client::{ApiClient, ApiContext};
+    use crate::api::types::CasChangeHistoryObject;
+    use crate::authorship::internal_db::InternalDatabase;
+
+    let hash = url.rsplit('/').next().filter(|h| !h.is_empty())?;
+
+    // 1. Check cas_cache (instant, local)
+    if let Ok(db_mutex) = InternalDatabase::global()
+        && let Ok(db_guard) = db_mutex.lock()
+        && let Ok(Some(cached_json)) = db_guard.get_cas_cache(hash)
+        && let Ok(cas_obj) = serde_json::from_str::<CasChangeHistoryObject>(&cached_json)
+    {
+        tracing::debug!("line-history: resolved change_history from cas_cache");
+        return Some(cas_obj.change_history);
+    }
+
+    // 2. If cache miss, fetch from CAS API (network)
+    let context = ApiContext::new(None);
+    if context.auth_token.is_some() {
+        tracing::debug!(
+            "line-history: trying CAS API for change_history hash {}",
+            &hash[..8.min(hash.len())]
+        );
+        let client = ApiClient::new(context);
+        match client.read_ca_prompt_store(&[hash]) {
+            Ok(response) => {
+                for result in &response.results {
+                    if result.status == "ok"
+                        && let Some(content) = &result.content
+                    {
+                        let json_str = serde_json::to_string(content).unwrap_or_default();
+                        if let Ok(cas_obj) =
+                            serde_json::from_value::<CasChangeHistoryObject>(content.clone())
+                        {
+                            tracing::debug!("line-history: resolved change_history from CAS API");
+                            // Cache for next time
+                            if let Ok(db_mutex) = InternalDatabase::global()
+                                && let Ok(mut db_guard) = db_mutex.lock()
+                            {
+                                let _ = db_guard.set_cas_cache(hash, &json_str);
+                            }
+                            return Some(cas_obj.change_history);
+                        }
+                    }
+                }
+            }
+            Err(e) => {
+                tracing::debug!("line-history: CAS API error: {}", e);
+            }
+        }
+    } else {
+        tracing::debug!("line-history: no auth token, skipping CAS API");
+    }
+
+    None
 }
 
 // --- Line mapping algorithm (ported from tests/line_mapping_tests.rs) ---

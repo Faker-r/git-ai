@@ -63,5 +63,6 @@ AuthorshipLogV3 {
         prompts: {},
         humans: {},
         change_history: None,
+        change_history_url: None,
     },
 }
