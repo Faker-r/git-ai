@@ -1,0 +1,56 @@
+self-hosted-server/auth.py
+  40a87d37039af8a2 1-240
+self-hosted-server/main.py
+  40a87d37039af8a2 4,9,27,42,60,79,110,137
+self-hosted-server/schema.sql
+  40a87d37039af8a2 1-56
+self-hosted-server/templates/device_callback.html
+  40a87d37039af8a2 1-51
+self-hosted-server/requirements.txt
+  40a87d37039af8a2 7
+self-hosted-server/.env.example
+  40a87d37039af8a2 3
+self-hosted-server/templates/device.html
+  40a87d37039af8a2 1-48
+---
+{
+  "schema_version": "authorship/4.0.0",
+  "git_ai_version": "development:1.3.1",
+  "base_commit_sha": "eb8937fb6830f2d70e108f8de44ba09d0d757669",
+  "prompts": {
+    "2ef0fa9381bd3da8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "11f57708-c71e-4e08-bdb9-60b1ff43e844",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Andrew Wang",
+      "messages": [],
+      "total_additions": 1,
+      "total_deletions": 1,
+      "accepted_lines": 0,
+      "overriden_lines": 1,
+      "messages_url": "https://git-ai-production.up.railway.app/cas/4cbf9c8a72fcdd201b8fef310f8e7fe171cfc6bcf9e389067e2f7c1fceba676d"
+    },
+    "40a87d37039af8a2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6cda59e9-bdc4-4592-a830-9a6f89ecbb5a",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Andrew Wang",
+      "messages": [],
+      "total_additions": 496,
+      "total_deletions": 95,
+      "accepted_lines": 405,
+      "overriden_lines": 0,
+      "messages_url": "https://git-ai-production.up.railway.app/cas/7d870d2427cae1652f60a36381d6f66a385a7ebb34eda937744f56abee0f04ba"
+    }
+  },
+  "humans": {
+    "h_36b021ee800750": {
+      "author": "Andrew Wang"
+    }
+  },
+  "change_history_url": "https://git-ai-production.up.railway.app/cas/bb14adcbaaee610b514a965897b771eac285cb34ff87742fce9a6bd58e50ff57"
+}
