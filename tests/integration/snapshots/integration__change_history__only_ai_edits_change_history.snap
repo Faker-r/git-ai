@@ -5,7 +5,7 @@ expression: sanitized
 [
     ChangeHistoryEntry {
         timestamp: 0,
-        kind: "human",
+        kind: "known_human",
         conversation_id: None,
         agent_type: None,
         prompt_id: None,

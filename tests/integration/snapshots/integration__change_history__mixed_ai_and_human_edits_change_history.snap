@@ -5,7 +5,7 @@ expression: sanitized
 [
     ChangeHistoryEntry {
         timestamp: 0,
-        kind: "human",
+        kind: "known_human",
         conversation_id: None,
         agent_type: None,
         prompt_id: None,
@@ -75,7 +75,7 @@ expression: sanitized
     },
     ChangeHistoryEntry {
         timestamp: 0,
-        kind: "human",
+        kind: "known_human",
         conversation_id: None,
         agent_type: None,
         prompt_id: None,
@@ -93,29 +93,12 @@ expression: sanitized
                 ],
                 deleted_line_contents: [],
             },
-            "feature.txt": FileChangeDetail {
-                added_lines: [
-                    "2-4",
-                ],
-                deleted_lines: [
-                    "2-3",
-                ],
-                added_line_contents: [
-                    "2:     println!(\"goodbye\");",
-                    "3: }",
-                    "4: fn helper() {}",
-                ],
-                deleted_line_contents: [
-                    "2:     println!(\"hello\");",
-                    "3: }",
-                ],
-            },
         },
         line_stats: CheckpointLineStats {
-            additions: 5,
-            deletions: 2,
-            additions_sloc: 5,
-            deletions_sloc: 2,
+            additions: 2,
+            deletions: 0,
+            additions_sloc: 2,
+            deletions_sloc: 0,
         },
     },
     ChangeHistoryEntry {
@@ -154,6 +137,40 @@ expression: sanitized
             additions: 2,
             deletions: 2,
             additions_sloc: 2,
+            deletions_sloc: 2,
+        },
+    },
+    ChangeHistoryEntry {
+        timestamp: 0,
+        kind: "human",
+        conversation_id: None,
+        agent_type: None,
+        prompt_id: None,
+        model: None,
+        prompt_text: None,
+        files: {
+            "feature.txt": FileChangeDetail {
+                added_lines: [
+                    "2-4",
+                ],
+                deleted_lines: [
+                    "2-3",
+                ],
+                added_line_contents: [
+                    "2:     println!(\"goodbye\");",
+                    "3: }",
+                    "4: fn helper() {}",
+                ],
+                deleted_line_contents: [
+                    "2:     println!(\"hello\");",
+                    "3: }",
+                ],
+            },
+        },
+        line_stats: CheckpointLineStats {
+            additions: 3,
+            deletions: 2,
+            additions_sloc: 3,
             deletions_sloc: 2,
         },
     },
