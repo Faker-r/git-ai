@@ -1,11 +1,12 @@
 import os
 from datetime import datetime, timezone
 
-from fastapi import FastAPI, Query, Request
+from fastapi import Depends, FastAPI, Query, Request
 from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
 
 from db import supabase
+from auth import router as auth_router, get_current_user
 from models import (
     CasUploadRequest,
     CasUploadResponse,
@@ -23,6 +24,7 @@ load_dotenv()
 BASE_URL = os.environ.get("BASE_URL", "http://localhost:8000")
 
 app = FastAPI(title="git-ai self-hosted server", version="1.0.0")
+app.include_router(auth_router)
 
 
 # --- Health Check ---
@@ -37,7 +39,7 @@ async def health():
 
 
 @app.post("/worker/cas/upload", response_model=CasUploadResponse, response_model_exclude_none=True)
-async def cas_upload(req: CasUploadRequest, request: Request):
+async def cas_upload(req: CasUploadRequest, request: Request, user=Depends(get_current_user)):
     results = []
     success_count = 0
     failure_count = 0
@@ -55,6 +57,7 @@ async def cas_upload(req: CasUploadRequest, request: Request):
                     "content": obj.content,
                     "metadata": obj.metadata,
                     "uploaded_by": request.headers.get("X-Author-Identity"),
+                    "user_id": str(user.id),
                 },
                 on_conflict="hash",
                 ignore_duplicates=True,
@@ -73,7 +76,7 @@ async def cas_upload(req: CasUploadRequest, request: Request):
 
 
 @app.get("/worker/cas/", response_model=CasReadResponse, response_model_exclude_none=True)
-async def cas_read(hashes: str = Query(...)):
+async def cas_read(hashes: str = Query(...), user=Depends(get_current_user)):
     hash_list = [h.strip() for h in hashes.split(",") if h.strip()]
 
     if not hash_list or len(hash_list) > 100:
@@ -104,7 +107,7 @@ async def cas_read(hashes: str = Query(...)):
 
 
 @app.post("/worker/metrics/upload", response_model=MetricsUploadResponse)
-async def metrics_upload(req: MetricsBatch, request: Request):
+async def metrics_upload(req: MetricsBatch, request: Request, user=Depends(get_current_user)):
     errors = []
 
     if req.v != 1:
@@ -131,6 +134,7 @@ async def metrics_upload(req: MetricsBatch, request: Request):
             "commit_sha": attrs.get("3"),
             "branch": attrs.get("5"),
             "git_ai_version": attrs.get("0"),
+            "user_id": str(user.id),
         })
 
     if rows:

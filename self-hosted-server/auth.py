@@ -1,0 +1,240 @@
+"""OAuth 2.0 Device Authorization Grant backed by Supabase Auth (Google provider).
+
+Flow:
+  1. CLI POSTs /worker/oauth/device/code → we mint a device_code + user_code.
+  2. User opens /device?user_code=... in a browser. A minimal page immediately
+     triggers supabase.auth.signInWithOAuth({provider:"google"}), so the only UI
+     the user actually sees is Google's consent screen.
+  3. Supabase redirects to /device/callback. A tiny script picks up the session
+     and POSTs its JWT to /device/approve, which binds it to the user_code.
+  4. The CLI's polling hits /worker/oauth/token and receives the Supabase JWT.
+"""
+import os
+import secrets
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import JSONResponse
+from fastapi.templating import Jinja2Templates
+from pydantic import BaseModel
+
+from db import supabase
+
+router = APIRouter()
+templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
+
+DEVICE_CODE_TTL_SECONDS = 900  # 15 min
+POLL_INTERVAL_SECONDS = 5
+REFRESH_TOKEN_TTL_SECONDS = 30 * 24 * 3600  # Supabase doesn't expose this; use a sane default
+
+SUPABASE_URL = os.environ["SUPABASE_URL"]
+SUPABASE_ANON_KEY = os.environ["SUPABASE_ANON_KEY"]
+BASE_URL = os.environ.get("BASE_URL", "http://localhost:8000")
+
+USER_CODE_ALPHABET = "BCDFGHJKLMNPQRSTVWXZ"  # no vowels/ambiguous chars
+
+
+def _oauth_error(code: str, description: str | None = None, status: int = 400) -> JSONResponse:
+    body: dict = {"error": code}
+    if description:
+        body["error_description"] = description
+    return JSONResponse(status_code=status, content=body)
+
+
+# ---------------- CLI-facing OAuth endpoints ----------------
+
+
+@router.post("/worker/oauth/device/code")
+async def device_code():
+    device_code_val = secrets.token_urlsafe(32)
+    user_code = "".join(secrets.choice(USER_CODE_ALPHABET) for _ in range(8))
+    expires_at = datetime.now(timezone.utc) + timedelta(seconds=DEVICE_CODE_TTL_SECONDS)
+
+    supabase.table("device_codes").insert({
+        "device_code": device_code_val,
+        "user_code": user_code,
+        "status": "pending",
+        "expires_at": expires_at.isoformat(),
+    }).execute()
+
+    verification_uri = f"{BASE_URL}/device"
+    return {
+        "device_code": device_code_val,
+        "user_code": user_code,
+        "verification_uri": verification_uri,
+        "verification_uri_complete": f"{verification_uri}?user_code={user_code}",
+        "expires_in": DEVICE_CODE_TTL_SECONDS,
+        "interval": POLL_INTERVAL_SECONDS,
+    }
+
+
+@router.post("/worker/oauth/token")
+async def oauth_token(request: Request):
+    try:
+        body = await request.json()
+    except Exception:
+        return _oauth_error("invalid_request", "Invalid JSON")
+
+    grant_type = body.get("grant_type")
+
+    if grant_type == "urn:ietf:params:oauth:grant-type:device_code":
+        return _exchange_device_code(body.get("device_code"))
+
+    if grant_type == "refresh_token":
+        return _refresh(body.get("refresh_token"))
+
+    return _oauth_error("unsupported_grant_type", f"Unsupported grant_type: {grant_type}")
+
+
+def _exchange_device_code(device_code_val: str | None):
+    if not device_code_val:
+        return _oauth_error("invalid_request", "Missing device_code")
+
+    resp = (
+        supabase.table("device_codes")
+        .select("*")
+        .eq("device_code", device_code_val)
+        .limit(1)
+        .execute()
+    )
+    if not resp.data:
+        return _oauth_error("invalid_grant", "Unknown device_code")
+    row = resp.data[0]
+
+    expires_at = datetime.fromisoformat(row["expires_at"])
+    if datetime.now(timezone.utc) > expires_at:
+        supabase.table("device_codes").delete().eq("device_code", device_code_val).execute()
+        return _oauth_error("expired_token", "Device code expired")
+
+    status = row["status"]
+    if status == "pending":
+        return _oauth_error("authorization_pending", "User has not yet authorized")
+    if status == "denied":
+        return _oauth_error("access_denied", "User denied the request")
+    if status != "approved":
+        return _oauth_error("invalid_grant", f"Invalid status: {status}")
+
+    access_expires_at = datetime.fromisoformat(row["access_token_expires_at"])
+    refresh_expires_at = datetime.fromisoformat(row["refresh_token_expires_at"])
+    now = datetime.now(timezone.utc)
+
+    # One-time use: delete row after handing out the tokens.
+    supabase.table("device_codes").delete().eq("device_code", device_code_val).execute()
+
+    return {
+        "access_token": row["supabase_access_token"],
+        "token_type": "Bearer",
+        "expires_in": max(int((access_expires_at - now).total_seconds()), 0),
+        "refresh_token": row["supabase_refresh_token"],
+        "refresh_expires_in": max(int((refresh_expires_at - now).total_seconds()), 0),
+    }
+
+
+def _refresh(refresh_token: str | None):
+    if not refresh_token:
+        return _oauth_error("invalid_request", "Missing refresh_token")
+    try:
+        result = supabase.auth.refresh_session(refresh_token)
+    except Exception as e:
+        return _oauth_error("invalid_grant", str(e))
+
+    session = getattr(result, "session", None)
+    if not session:
+        return _oauth_error("invalid_grant", "Refresh failed")
+
+    return {
+        "access_token": session.access_token,
+        "token_type": "Bearer",
+        "expires_in": session.expires_in,
+        "refresh_token": session.refresh_token,
+        "refresh_expires_in": REFRESH_TOKEN_TTL_SECONDS,
+    }
+
+
+# ---------------- Browser-facing web flow ----------------
+
+
+@router.get("/device")
+async def device_page(request: Request, user_code: str | None = None):
+    return templates.TemplateResponse(
+        request,
+        "device.html",
+        {
+            "user_code": user_code or "",
+            "supabase_url": SUPABASE_URL,
+            "supabase_anon_key": SUPABASE_ANON_KEY,
+        },
+    )
+
+
+@router.get("/device/callback")
+async def device_callback(request: Request, user_code: str):
+    return templates.TemplateResponse(
+        request,
+        "device_callback.html",
+        {
+            "user_code": user_code,
+            "supabase_url": SUPABASE_URL,
+            "supabase_anon_key": SUPABASE_ANON_KEY,
+        },
+    )
+
+
+class ApproveRequest(BaseModel):
+    user_code: str
+    access_token: str
+    refresh_token: str
+    expires_at: int  # unix seconds
+
+
+@router.post("/device/approve")
+async def device_approve(req: ApproveRequest):
+    try:
+        user_resp = supabase.auth.get_user(req.access_token)
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=f"Invalid token: {e}")
+
+    user = getattr(user_resp, "user", None)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    access_expires_at = datetime.fromtimestamp(req.expires_at, tz=timezone.utc)
+    refresh_expires_at = datetime.now(timezone.utc) + timedelta(seconds=REFRESH_TOKEN_TTL_SECONDS)
+
+    result = (
+        supabase.table("device_codes")
+        .update({
+            "status": "approved",
+            "supabase_access_token": req.access_token,
+            "supabase_refresh_token": req.refresh_token,
+            "access_token_expires_at": access_expires_at.isoformat(),
+            "refresh_token_expires_at": refresh_expires_at.isoformat(),
+            "user_id": user.id,
+        })
+        .eq("user_code", req.user_code)
+        .eq("status", "pending")
+        .execute()
+    )
+    if not result.data:
+        raise HTTPException(status_code=400, detail="Invalid or expired user_code")
+
+    return {"ok": True}
+
+
+# ---------------- Auth dependency for protected routes ----------------
+
+
+async def get_current_user(request: Request):
+    header = request.headers.get("Authorization", "")
+    if not header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing bearer token")
+    token = header[7:]
+    try:
+        user_resp = supabase.auth.get_user(token)
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=f"Invalid token: {e}")
+    user = getattr(user_resp, "user", None)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    return user

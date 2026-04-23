@@ -1,0 +1,51 @@
+<!doctype html>
+<html>
+<head>
+  <title>Completing sign-in…</title>
+  <style>
+    body { font-family: system-ui; max-width: 420px; margin: 40px auto; padding: 0 16px; color: #222; }
+  </style>
+</head>
+<body>
+  <h2>Completing sign-in…</h2>
+  <div id="status">Please wait…</div>
+
+  <script type="module">
+    import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+    const SUPABASE_URL = {{ supabase_url | tojson }};
+    const SUPABASE_ANON_KEY = {{ supabase_anon_key | tojson }};
+    const USER_CODE = {{ user_code | tojson }};
+
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const status = document.getElementById("status");
+
+    async function bind(session) {
+      const resp = await fetch("/device/approve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_code: USER_CODE,
+          access_token: session.access_token,
+          refresh_token: session.refresh_token,
+          expires_at: session.expires_at,
+        }),
+      });
+      if (resp.ok) {
+        status.textContent = "Signed in. You can close this tab and return to your terminal.";
+        await supabase.auth.signOut({ scope: "local" });
+      } else {
+        status.textContent = "Failed to bind device: " + (await resp.text());
+      }
+    }
+
+    supabase.auth.onAuthStateChange((event, session) => {
+      if (session && (event === "SIGNED_IN" || event === "INITIAL_SESSION")) {
+        bind(session);
+      } else if (event === "INITIAL_SESSION" && !session) {
+        status.textContent = "No session found. Please try signing in again.";
+      }
+    });
+  </script>
+</body>
+</html>

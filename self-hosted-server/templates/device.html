@@ -1,0 +1,48 @@
+<!doctype html>
+<html>
+<head>
+  <title>git-ai sign in</title>
+  <style>
+    body { font-family: system-ui; max-width: 420px; margin: 40px auto; padding: 0 16px; color: #222; }
+    code { background: #f4f4f4; padding: 2px 6px; border-radius: 4px; }
+    button { padding: 10px 20px; font-size: 16px; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <h2>Sign in to git-ai</h2>
+  <p>Code: <code>{{ user_code }}</code></p>
+  <div id="status">Redirecting to Google…</div>
+  <button id="btn" style="display:none" onclick="go()">Sign in with Google</button>
+
+  <script type="module">
+    import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+    const SUPABASE_URL = {{ supabase_url | tojson }};
+    const SUPABASE_ANON_KEY = {{ supabase_anon_key | tojson }};
+    const USER_CODE = {{ user_code | tojson }};
+
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const status = document.getElementById("status");
+    const btn = document.getElementById("btn");
+
+    if (!USER_CODE) {
+      status.textContent = "Missing user_code in URL.";
+    } else {
+      window.go = async () => {
+        btn.style.display = "none";
+        status.textContent = "Redirecting to Google…";
+        const redirectTo = window.location.origin + "/device/callback?user_code=" + encodeURIComponent(USER_CODE);
+        const { error } = await supabase.auth.signInWithOAuth({
+          provider: "google",
+          options: { redirectTo },
+        });
+        if (error) {
+          status.textContent = "Error: " + error.message;
+          btn.style.display = "inline-block";
+        }
+      };
+      window.go();
+    }
+  </script>
+</body>
+</html>
