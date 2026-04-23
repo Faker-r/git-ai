@@ -20,7 +20,12 @@
     const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     const status = document.getElementById("status");
 
+    let bound = false;
+
     async function bind(session) {
+      if (bound) return;
+      bound = true;
+
       const resp = await fetch("/device/approve", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -35,11 +40,13 @@
         status.textContent = "Signed in. You can close this tab and return to your terminal.";
         await supabase.auth.signOut({ scope: "local" });
       } else {
+        bound = false;
         status.textContent = "Failed to bind device: " + (await resp.text());
       }
     }
 
     supabase.auth.onAuthStateChange((event, session) => {
+      if (bound) return;
       if (session && (event === "SIGNED_IN" || event === "INITIAL_SESSION")) {
         bind(session);
       } else if (event === "INITIAL_SESSION" && !session) {
