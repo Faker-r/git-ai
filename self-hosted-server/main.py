@@ -20,8 +20,6 @@ from hash_utils import verify_hash
 
 load_dotenv()
 
-BASE_URL = os.environ.get("BASE_URL", "http://localhost:8000")
-
 app = FastAPI(title="git-ai self-hosted server", version="1.0.0")
 
 
@@ -30,7 +28,7 @@ app = FastAPI(title="git-ai self-hosted server", version="1.0.0")
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "version": "1.0.0"}
+    return {"status": "ok"}
 
 
 # --- CAS Upload ---
