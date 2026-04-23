@@ -38,7 +38,6 @@
       });
       if (resp.ok) {
         status.textContent = "Signed in. You can close this tab and return to your terminal.";
-        await supabase.auth.signOut({ scope: "local" });
       } else {
         bound = false;
         status.textContent = "Failed to bind device: " + (await resp.text());
