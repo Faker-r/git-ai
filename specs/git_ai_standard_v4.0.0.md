@@ -110,6 +110,8 @@ Each attestation entry MUST be indented with exactly two spaces and contain:
   d9978a8723e02b52 1-4,9-10,12,14,16
 ```
 
+Attestation entries MUST be sorted by their **hash**
+
 #### Line Range Specification
 
 Line ranges MUST use one of the following formats:
@@ -133,18 +135,15 @@ Line ranges:
 #### Attestation Section Example
 
 ```
-tests/simple_additions.rs
-  d9978a8723e02b52 1-4,9-10,12,14,16,21-22,24,26
-  e5be5f8723e02b52 1011-1012,1014-1045,1047-1065
-  967bda75801c3ee8 728-735,737-888,890,892-1010
-src/authorship/attribution_tracker.rs
-  e5be5f8723e02b52 829-838,1509-1512
-  866dabf162e96bcb 6,257,358,376-377,521
+src/main.rs
+  abcd1234abcd1234 1-10,15-20
+src/lib.rs
+  abcd1234abcd1234 1-50
 ```
 
 The above example can be read as:
 
-In `tests/simple_additions.rs`, 3 prompts `d9978a8723e02b52`, `e5be5f8723e02b52`, and `967bda75801c3ee8`, generated the lines above
+In `src/main.rs`, the prompt `abcd1234abcd1234` generated the lines above
 
 #### Hash Semantics
 
@@ -211,7 +210,7 @@ Each entry in the `prompts` object MUST contain:
 **NEW in v4.0.0.** Prompt records MAY represent "context conversations" — planning, research, or Q&A sessions that occurred between commits but produced no code changes. These are identified by having `total_additions`, `total_deletions`, `accepted_lines`, and `overriden_lines` all set to `0`.
 
 Context conversations:
-- MUST be scoped to the current workspace (conversations from unrelated workspaces MUST be excluded)
+- MUST be fetched iff the agent workspace (ex. IDE workspace, directory where Claude Code is initiated, ...) matches the git repository of the commit 
 - MUST be included to provide a complete picture of the development process, even though they did not directly produce code
 - MUST have been last updated between the parent commit and the current commit (conversations whose most recent activity falls outside this window MUST be excluded)
 
@@ -270,7 +269,7 @@ A checkpoint is a snapshot of file contents and the diff from the previous check
 - The author (human or AI)
 - Timestamp and metadata (model, prompt text, etc.)
 
-Checkpoint metadata is persisted into the `change_history` field in the metadata section.
+A subset of Checkpoint data is persisted into the `change_history` field in the metadata section. You can see the exact data being persisted in the `ChangeHistoryEntry` schema.
 
 #### Authorship
 
@@ -280,7 +279,7 @@ For the reference git-ai implementation, checkpoints are taken before and after 
 
 #### Prompt Association
 
-User messages and checkpoints have a 1-to-N relationship, where N can be `0` for non-code prompts. A single user message MAY trigger multiple file edits, each producing its own checkpoint. AI checkpoints MUST record the prompt that triggered them.
+User messages and checkpoints have a 1-to-N relationship, where N can be `0` for non-code prompts. A single user message MAY trigger multiple events, each producing its own checkpoint. AI checkpoints MUST record the prompt that triggered them.
 
 #### Tracked Files
 
@@ -289,7 +288,12 @@ A checkpoint MUST diff file contents for all tracked files. Tracked files are:
 - All files reported by `git status`
 - All files included in a previous checkpoint (ensures deleted files are captured)
 
-Files matching well-known generated paths (e.g., `node_modules/`, `.DS_Store`) SHOULD be excluded.
+Files matching the following SHOULD be excluded:
+- Well-known generated paths (e.g., `node_modules`, `*.lock`)
+- Files included in a `.git-ai-ignore` file at the repository root
+For the git-ai reference implementation, see ignored patterns in git-ai/src/authorship/ignore.rs
+
+
 
 ---
 
