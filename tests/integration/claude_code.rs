@@ -1,8 +1,11 @@
 use crate::test_utils::fixture_path;
 use git_ai::authorship::transcript::Message;
 use git_ai::commands::checkpoint_agent::agent_presets::{
-    AgentCheckpointFlags, AgentCheckpointPreset, ClaudePreset, extract_plan_from_tool_use,
+    AgentCheckpointFlags, AgentCheckpointPreset, extract_plan_from_tool_use,
     is_plan_file_path,
+};
+use git_ai::commands::checkpoint_agent::claude_preset::{
+    ClaudePreset, 
 };
 use serde_json::json;
 use std::collections::HashMap;

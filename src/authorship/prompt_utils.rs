@@ -2,11 +2,14 @@ use crate::authorship::authorship_log::PromptRecord;
 use crate::authorship::internal_db::InternalDatabase;
 use crate::authorship::transcript::AiTranscript;
 use crate::commands::checkpoint_agent::agent_presets::{
-    ClaudePreset, CodexPreset, ContinueCliPreset, 
+    CodexPreset, ContinueCliPreset, 
     DroidPreset, GeminiPreset, GithubCopilotPreset, WindsurfPreset,
 };
 use crate::commands::checkpoint_agent::cursor_preset::{
     CursorPreset, CursorSqliteTranscriptOutcome
+};
+use crate::commands::checkpoint_agent::claude_preset::{
+    ClaudePreset, 
 };
 use crate::commands::checkpoint_agent::amp_preset::AmpPreset;
 use crate::commands::checkpoint_agent::opencode_preset::OpenCodePreset;

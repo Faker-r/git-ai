@@ -6,12 +6,15 @@ use crate::authorship::stats::stats_command;
 use crate::authorship::working_log::{AgentId, CheckpointKind};
 use crate::commands;
 use crate::commands::checkpoint_agent::agent_presets::{
-    AgentCheckpointFlags, AgentCheckpointPreset, AgentRunResult, AiTabPreset, ClaudePreset,
+    AgentCheckpointFlags, AgentCheckpointPreset, AgentRunResult, AiTabPreset,
     CodexPreset, ContinueCliPreset,  DroidPreset,
     FirebenderPreset, GeminiPreset, GithubCopilotPreset, WindsurfPreset,
 };
 use crate::commands::checkpoint_agent::cursor_preset::{
     CursorPreset, CursorSqliteTranscriptOutcome,
+};
+use crate::commands::checkpoint_agent::claude_preset::{
+    ClaudePreset, 
 };
 use crate::commands::checkpoint_agent::agent_v1_preset::AgentV1Preset;
 use crate::commands::checkpoint_agent::amp_preset::AmpPreset;
