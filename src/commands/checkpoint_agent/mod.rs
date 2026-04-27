@@ -4,6 +4,7 @@ pub mod cursor_preset;
 pub mod claude_preset;
 pub mod github_copilot_preset;
 pub mod codex_preset;
+pub mod gemini_preset;
 pub mod amp_preset;
 pub mod bash_tool;
 pub mod opencode_preset;

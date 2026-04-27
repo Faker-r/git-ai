@@ -3,9 +3,10 @@ use crate::test_utils::fixture_path;
 use git_ai::authorship::transcript::Message;
 use git_ai::authorship::working_log::CheckpointKind;
 use git_ai::commands::checkpoint_agent::agent_presets::{
-    AgentCheckpointFlags, AgentCheckpointPreset, CodexPreset,
+    AgentCheckpointFlags, AgentCheckpointPreset, 
 };
 use git_ai::commands::checkpoint_agent::bash_tool;
+use git_ai::commands::checkpoint_agent::codex_preset::CodexPreset;
 use git_ai::error::GitAiError;
 use serde_json::json;
 use std::fs;
