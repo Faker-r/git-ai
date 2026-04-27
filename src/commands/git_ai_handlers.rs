@@ -12,7 +12,7 @@ use crate::commands::checkpoint_agent::agent_presets::{
 use crate::commands::checkpoint_agent::cursor_preset::{
     CursorPreset, CursorSqliteTranscriptOutcome,
 };
-use crate::commands::checkpoint_agent::claude_preset::ClaudePreset;
+use crate::commands::checkpoint_agent::claude_code_preset::ClaudePreset;
 use crate::commands::checkpoint_agent::github_copilot_preset::GithubCopilotPreset;
 use crate::commands::checkpoint_agent::codex_preset::CodexPreset;
 use crate::commands::checkpoint_agent::gemini_preset::GeminiPreset;

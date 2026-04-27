@@ -4,7 +4,7 @@ use git_ai::commands::checkpoint_agent::agent_presets::{
     AgentCheckpointFlags, AgentCheckpointPreset, extract_plan_from_tool_use,
     is_plan_file_path,
 };
-use git_ai::commands::checkpoint_agent::claude_preset::{
+use git_ai::commands::checkpoint_agent::claude_code_preset::{
     ClaudePreset, 
 };
 use serde_json::json;

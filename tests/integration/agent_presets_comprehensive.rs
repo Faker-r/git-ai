@@ -3,7 +3,7 @@ use git_ai::commands::checkpoint_agent::agent_presets::{
     AgentCheckpointFlags, AgentCheckpointPreset,
     ContinueCliPreset, DroidPreset,
 };
-use git_ai::commands::checkpoint_agent::claude_preset::ClaudePreset;
+use git_ai::commands::checkpoint_agent::claude_code_preset::ClaudePreset;
 use git_ai::commands::checkpoint_agent::github_copilot_preset::GithubCopilotPreset;
 use git_ai::commands::checkpoint_agent::cursor_preset::CursorPreset;
 use git_ai::commands::checkpoint_agent::codex_preset::CodexPreset;

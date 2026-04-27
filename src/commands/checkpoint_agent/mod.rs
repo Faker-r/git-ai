@@ -1,7 +1,7 @@
 pub mod agent_presets;
 pub mod agent_v1_preset;
 pub mod cursor_preset;
-pub mod claude_preset;
+pub mod claude_code_preset;
 pub mod github_copilot_preset;
 pub mod codex_preset;
 pub mod gemini_preset;
