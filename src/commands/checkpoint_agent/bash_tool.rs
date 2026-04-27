@@ -422,6 +422,11 @@ pub enum ToolClass {
 /// Classify a tool name for a given agent.
 pub fn classify_tool(agent: Agent, tool_name: &str) -> ToolClass {
     match agent {
+        Agent::Cursor => match tool_name {
+            "Write" | "Delete" | "StrReplace" => ToolClass::FileEdit,
+            "Shell" => ToolClass::Bash,
+            _ => ToolClass::Skip,
+        },
         Agent::Claude => match tool_name {
             "Write" | "Edit" | "MultiEdit" => ToolClass::FileEdit,
             "Bash" => ToolClass::Bash,
@@ -475,6 +480,7 @@ pub fn classify_tool(agent: Agent, tool_name: &str) -> ToolClass {
 /// Supported AI agents.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Agent {
+    Cursor,
     Claude,
     Gemini,
     ContinueCli,

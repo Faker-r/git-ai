@@ -272,7 +272,10 @@ fn cursor_db_env_lock() -> &'static Mutex<()> {
 fn test_cursor_preset_multi_root_workspace_detection() {
     use git_ai::authorship::working_log::CheckpointKind;
     use git_ai::commands::checkpoint_agent::agent_presets::{
-        AgentCheckpointFlags, AgentCheckpointPreset, CursorPreset,
+        AgentCheckpointFlags, AgentCheckpointPreset,
+    };
+    use git_ai::commands::checkpoint_agent::cursor_preset::{
+        CursorPreset,
     };
 
     // Helper function to test workspace selection
@@ -392,7 +395,10 @@ fn test_cursor_preset_multi_root_workspace_detection() {
 fn test_cursor_preset_human_checkpoint_no_filepath() {
     use git_ai::authorship::working_log::CheckpointKind;
     use git_ai::commands::checkpoint_agent::agent_presets::{
-        AgentCheckpointFlags, AgentCheckpointPreset, CursorPreset,
+        AgentCheckpointFlags, AgentCheckpointPreset, 
+    };
+    use git_ai::commands::checkpoint_agent::cursor_preset::{
+        CursorPreset,
     };
 
     let hook_input = r##"{
@@ -1021,7 +1027,7 @@ fn setup_mock_cursor_global_db_from_jsonl(
 
 #[test]
 fn test_list_workspace_conversation_ids_filters_by_workspace() {
-    use git_ai::commands::checkpoint_agent::agent_presets::CursorPreset;
+    use git_ai::commands::checkpoint_agent::cursor_preset::CursorPreset;
 
     let temp_dir = tempfile::TempDir::new().unwrap();
     let db_path = temp_dir.path().join("state.vscdb");
@@ -1051,7 +1057,7 @@ fn test_list_workspace_conversation_ids_filters_by_workspace() {
 
 #[test]
 fn test_list_workspace_conversation_ids_returns_timestamps_in_seconds() {
-    use git_ai::commands::checkpoint_agent::agent_presets::CursorPreset;
+    use git_ai::commands::checkpoint_agent::cursor_preset::CursorPreset;
 
     let temp_dir = tempfile::TempDir::new().unwrap();
     let db_path = temp_dir.path().join("state.vscdb");
@@ -1076,7 +1082,7 @@ fn test_list_workspace_conversation_ids_returns_timestamps_in_seconds() {
 
 #[test]
 fn test_list_workspace_conversation_ids_no_matching_workspace() {
-    use git_ai::commands::checkpoint_agent::agent_presets::CursorPreset;
+    use git_ai::commands::checkpoint_agent::cursor_preset::CursorPreset;
 
     let temp_dir = tempfile::TempDir::new().unwrap();
     let db_path = temp_dir.path().join("state.vscdb");
@@ -1099,7 +1105,7 @@ fn test_list_workspace_conversation_ids_no_matching_workspace() {
 
 #[test]
 fn test_list_workspace_conversation_ids_missing_headers_key() {
-    use git_ai::commands::checkpoint_agent::agent_presets::CursorPreset;
+    use git_ai::commands::checkpoint_agent::cursor_preset::CursorPreset;
 
     let temp_dir = tempfile::TempDir::new().unwrap();
     let db_path = temp_dir.path().join("state.vscdb");

@@ -303,7 +303,7 @@ pub fn post_commit_with_final_state(
     for pr in authorship_log.metadata.prompts.values_mut() {
         if pr.agent_id.tool == "cursor" {
             if let Some(subagent_ids) =
-                crate::commands::checkpoint_agent::agent_presets::CursorPreset::find_subagent_ids(
+                crate::commands::checkpoint_agent::cursor_preset::CursorPreset::find_subagent_ids(
                     &pr.agent_id.id,
                 )
             {
@@ -815,7 +815,7 @@ fn collect_context_conversations(
     use crate::authorship::authorship_log::PromptRecord;
     use crate::authorship::authorship_log_serialization::generate_short_hash;
     use crate::authorship::working_log::AgentId;
-    use crate::commands::checkpoint_agent::agent_presets::CursorPreset;
+    use crate::commands::checkpoint_agent::cursor_preset::CursorPreset;
 
     // Lower-bound timestamp: the moment the parent commit was made. Any conversation whose last
     // activity was after this point is a candidate for inclusion.
