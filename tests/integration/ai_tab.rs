@@ -6,8 +6,9 @@ use std::fs;
 use git_ai::{
     authorship::working_log::CheckpointKind,
     commands::checkpoint_agent::agent_presets::{
-        AgentCheckpointFlags, AgentCheckpointPreset, AiTabPreset,
+        AgentCheckpointFlags, AgentCheckpointPreset
     },
+    commands::checkpoint_agent::ai_tab_preset::AiTabPreset,
     error::GitAiError,
 };
 
