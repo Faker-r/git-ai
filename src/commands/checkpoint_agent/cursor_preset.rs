@@ -21,7 +21,8 @@ use rusqlite::{Connection, OpenFlags};
 use std::path::{Path, PathBuf};
 
 
-// Cursor to checkpoint preset
+const CURSOR_HOOK_PRE_TOOL_USE: &str = "preToolUse";
+const CURSOR_HOOK_POST_TOOL_USE: &str = "postToolUse";
 
 /// Result of reading transcript + model from Cursor's global SQLite composer state.
 #[derive(Debug)]
@@ -84,10 +85,12 @@ impl AgentCheckpointPreset for CursorPreset {
         }
 
         // Validate hook_event_name
-        if hook_event_name != "preToolUse" && hook_event_name != "postToolUse" {
+        if hook_event_name != CURSOR_HOOK_PRE_TOOL_USE
+            && hook_event_name != CURSOR_HOOK_POST_TOOL_USE
+        {
             return Err(GitAiError::PresetError(format!(
-                "Invalid hook_event_name: {}. Expected 'preToolUse' or 'postToolUse'",
-                hook_event_name
+                "Invalid hook_event_name: {}. Expected '{}' or '{}'",
+                hook_event_name, CURSOR_HOOK_PRE_TOOL_USE, CURSOR_HOOK_POST_TOOL_USE,
             )));
         }
 
@@ -127,7 +130,7 @@ impl AgentCheckpointPreset for CursorPreset {
         
             tracing::debug!("CursorPreset: resolved repo_working_dir={}", repo_working_dir);
 
-        if hook_event_name == "preToolUse" {
+        if hook_event_name == CURSOR_HOOK_PRE_TOOL_USE {
             let will_edit = if !file_path.is_empty() {
                 Some(vec![file_path.clone()])
             } else {

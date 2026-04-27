@@ -1,6 +1,6 @@
 use crate::test_utils::{fixture_path, load_fixture};
 use git_ai::authorship::transcript::Message;
-use git_ai::commands::checkpoint_agent::agent_presets::GithubCopilotPreset;
+use git_ai::commands::checkpoint_agent::github_copilot_preset::GithubCopilotPreset;
 use serde_json::json;
 use std::{fs, io::Write};
 

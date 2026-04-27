@@ -10,9 +10,10 @@ use crate::{
     commands::checkpoint_agent::{
         agent_presets::{
             AgentCheckpointFlags, AgentCheckpointPreset, AgentRunResult, 
-            GithubCopilotPreset, BashPreHookStrategy, 
+            BashPreHookStrategy, 
             extract_plan_from_tool_use, prepare_agent_bash_pre_hook
         },
+        github_copilot_preset::GithubCopilotPreset,
     },
     error::GitAiError,
     observability::log_error,
@@ -20,6 +21,9 @@ use crate::{
 use std::collections::HashMap;
 use std::path::{Path};
 
+
+const CLAUDE_HOOK_PRE_TOOL_USE: &str = "PreToolUse";
+const CLAUDE_HOOK_POST_TOOL_USE: &str = "PostToolUse";
 
 
 // Claude Code to checkpoint preset
@@ -61,10 +65,12 @@ impl AgentCheckpointPreset for ClaudePreset {
             .to_string();
 
         // Validate hook_event_name
-        if hook_event_name != "PreToolUse" && hook_event_name != "PostToolUse" {
+        if hook_event_name != CLAUDE_HOOK_PRE_TOOL_USE && hook_event_name != CLAUDE_HOOK_POST_TOOL_USE {
             return Err(GitAiError::PresetError(format!(
-                "Invalid hook_event_name: {}. Expected 'PreToolUse' or 'PostToolUse'",
-                hook_event_name
+                "Invalid hook_event_name: {}. Expected '{}' or '{}'",
+                hook_event_name,
+                CLAUDE_HOOK_PRE_TOOL_USE,
+                CLAUDE_HOOK_POST_TOOL_USE
             )));
         }
         

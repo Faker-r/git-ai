@@ -1,11 +1,10 @@
 use git_ai::authorship::working_log::CheckpointKind;
 use git_ai::commands::checkpoint_agent::agent_presets::{
     AgentCheckpointFlags, AgentCheckpointPreset, AiTabPreset, CodexPreset,
-    ContinueCliPreset, DroidPreset, GeminiPreset, GithubCopilotPreset,
+    ContinueCliPreset, DroidPreset, GeminiPreset,
 };
-use git_ai::commands::checkpoint_agent::claude_preset::{
-    ClaudePreset, 
-};
+use git_ai::commands::checkpoint_agent::claude_preset::ClaudePreset;
+use git_ai::commands::checkpoint_agent::github_copilot_preset::GithubCopilotPreset;
 use git_ai::commands::checkpoint_agent::cursor_preset::{
     CursorPreset,
 };

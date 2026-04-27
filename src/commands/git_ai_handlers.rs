@@ -8,14 +8,13 @@ use crate::commands;
 use crate::commands::checkpoint_agent::agent_presets::{
     AgentCheckpointFlags, AgentCheckpointPreset, AgentRunResult, AiTabPreset,
     CodexPreset, ContinueCliPreset,  DroidPreset,
-    FirebenderPreset, GeminiPreset, GithubCopilotPreset, WindsurfPreset,
+    FirebenderPreset, GeminiPreset, WindsurfPreset,
 };
 use crate::commands::checkpoint_agent::cursor_preset::{
     CursorPreset, CursorSqliteTranscriptOutcome,
 };
-use crate::commands::checkpoint_agent::claude_preset::{
-    ClaudePreset, 
-};
+use crate::commands::checkpoint_agent::claude_preset::ClaudePreset;
+use crate::commands::checkpoint_agent::github_copilot_preset::GithubCopilotPreset;
 use crate::commands::checkpoint_agent::agent_v1_preset::AgentV1Preset;
 use crate::commands::checkpoint_agent::amp_preset::AmpPreset;
 use crate::commands::checkpoint_agent::opencode_preset::OpenCodePreset;
