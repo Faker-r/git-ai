@@ -6,6 +6,7 @@ use git_ai::authorship::working_log::{Checkpoint, CheckpointKind};
 use serde_json::json;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 fn copy_fixture_to_temp(name: &str) -> (tempfile::TempDir, PathBuf) {
     let temp_dir = tempfile::tempdir().unwrap();
@@ -127,6 +128,9 @@ fn test_pi_after_edit_checkpoint_via_cli_creates_ai_checkpoint() {
     fs::create_dir_all(file_path.parent().unwrap()).unwrap();
     fs::write(&file_path, "fn main() {}\n").unwrap();
     repo.stage_all_and_commit("Initial commit").unwrap();
+
+    // Ensure checkpoints can't share the same (second-resolution) timestamp.
+    std::thread::sleep(Duration::from_secs(1));
 
     let (_temp_dir, session_path) = copy_fixture_to_temp("pi-session-tool.jsonl");
     fs::write(&file_path, "fn main() { println!(\"pi\"); }\n").unwrap();
