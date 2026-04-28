@@ -1,7 +1,8 @@
 use git_ai::authorship::working_log::CheckpointKind;
 use git_ai::commands::checkpoint_agent::agent_presets::{
-    AgentCheckpointFlags, AgentCheckpointPreset, FirebenderPreset,
+    AgentCheckpointFlags, AgentCheckpointPreset,
 };
+use git_ai::commands::checkpoint_agent::firebender_preset::FirebenderPreset;
 use git_ai::error::GitAiError;
 use serde_json::json;
 

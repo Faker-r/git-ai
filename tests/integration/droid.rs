@@ -2,8 +2,9 @@ use crate::test_utils::fixture_path;
 use git_ai::authorship::transcript::Message;
 use git_ai::authorship::working_log::CheckpointKind;
 use git_ai::commands::checkpoint_agent::agent_presets::{
-    AgentCheckpointFlags, AgentCheckpointPreset, DroidPreset,
+    AgentCheckpointFlags, AgentCheckpointPreset,
 };
+use git_ai::commands::checkpoint_agent::droid_preset::DroidPreset;
 use serde_json::json;
 use std::fs;
 use std::io::Write;

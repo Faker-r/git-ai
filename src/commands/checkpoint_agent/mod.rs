@@ -11,3 +11,6 @@ pub mod opencode_preset;
 pub mod pi_preset;
 pub mod ai_tab_preset;
 pub mod windsurf_preset;
+pub mod continue_cli_preset;
+pub mod droid_preset;
+pub mod firebender_preset;

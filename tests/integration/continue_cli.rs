@@ -3,8 +3,9 @@ use crate::repos::test_repo::TestRepo;
 use crate::test_utils::fixture_path;
 use git_ai::authorship::transcript::Message;
 use git_ai::commands::checkpoint_agent::agent_presets::{
-    AgentCheckpointFlags, AgentCheckpointPreset, ContinueCliPreset,
+    AgentCheckpointFlags, AgentCheckpointPreset,
 };
+use git_ai::commands::checkpoint_agent::continue_cli_preset::ContinueCliPreset;
 use serde_json::json;
 use std::fs;
 use std::io::Write;

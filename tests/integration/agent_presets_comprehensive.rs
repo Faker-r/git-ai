@@ -1,7 +1,6 @@
 use git_ai::authorship::working_log::CheckpointKind;
 use git_ai::commands::checkpoint_agent::agent_presets::{
     AgentCheckpointFlags, AgentCheckpointPreset,
-    ContinueCliPreset, DroidPreset,
 };
 use git_ai::commands::checkpoint_agent::claude_code_preset::ClaudePreset;
 use git_ai::commands::checkpoint_agent::github_copilot_preset::GithubCopilotPreset;
@@ -10,6 +9,8 @@ use git_ai::commands::checkpoint_agent::codex_preset::CodexPreset;
 use git_ai::commands::checkpoint_agent::gemini_preset::GeminiPreset;
 use git_ai::commands::checkpoint_agent::amp_preset::AmpPreset;
 use git_ai::commands::checkpoint_agent::ai_tab_preset::AiTabPreset;
+use git_ai::commands::checkpoint_agent::continue_cli_preset::ContinueCliPreset;
+use git_ai::commands::checkpoint_agent::droid_preset::DroidPreset;
 use git_ai::error::GitAiError;
 use serde_json::json;
 use std::fs;
