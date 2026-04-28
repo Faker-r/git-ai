@@ -20,7 +20,7 @@ use crate::{
 };
 use serde::Deserialize;
 use std::collections::HashMap;
-use std::path::{Path};
+use std::path::{Path, PathBuf};
 
 
 const CLAUDE_HOOK_PRE_TOOL_USE: &str = "PreToolUse";
@@ -437,4 +437,80 @@ impl ClaudePreset {
 
         Ok((transcript, model))
     }
+
+    /// Return candidate Claude Code project directories.
+    ///
+    /// Respects `GIT_AI_CLAUDE_AGENT_TRANSCRIPTS_PATH` for testability,
+    /// otherwise scans `~/.claude/projects/*/`.
+    ///
+    /// Claude Code stores transcripts directly under each project directory:
+    /// `~/.claude/projects/<project>/*.jsonl`
+    fn claude_agent_transcripts_dirs() -> Vec<PathBuf> {
+        if let Ok(p) = std::env::var("GIT_AI_CLAUDE_AGENT_TRANSCRIPTS_PATH") {
+            let path = PathBuf::from(p);
+            // Be forgiving: accept either the projects dir, a project dir, or a transcript file path.
+            if path.is_file() {
+                if let Some(parent) = path.parent() {
+                    return vec![parent.to_path_buf()];
+                }
+            }
+            return vec![path];
+        }
+        let home = match dirs::home_dir() {
+            Some(h) => h,
+            None => return vec![],
+        };
+        let projects_dir = home.join(".claude").join("projects");
+        if !projects_dir.is_dir() {
+            return vec![];
+        }
+        let mut dirs = Vec::new();
+        if let Ok(entries) = std::fs::read_dir(&projects_dir) {
+            for entry in entries.flatten() {
+                let project_dir = entry.path();
+                if project_dir.is_dir() {
+                    dirs.push(project_dir);
+                }
+            }
+        }
+        dirs
+    }
+
+    /// Find subagent session IDs for a given Claude Code conversation.
+    ///
+    /// Scans `~/.claude/projects/*/<conversation_id>/subagents/` for `.jsonl` files
+    /// and returns the session IDs extracted from filenames.
+    /// Returns `None` if no subagents exist.
+    pub fn find_subagent_ids(conversation_id: &str) -> Option<Vec<String>> {
+        for project_dir in Self::claude_agent_transcripts_dirs() {
+            let subagents_dir = project_dir.join(conversation_id).join("subagents");
+
+            if !subagents_dir.is_dir() {
+                continue;
+            }
+
+            let entries = match std::fs::read_dir(&subagents_dir) {
+                Ok(e) => e,
+                Err(_) => continue,
+            };
+
+            let mut ids = Vec::new();
+            for entry in entries.flatten() {
+                let filename = entry.file_name().to_string_lossy().to_string();
+                if let Some(id) = filename.strip_suffix(".jsonl") {
+                    if !id.trim().is_empty() {
+                        ids.push(id.to_string());
+                    }
+                }
+            }
+
+            if !ids.is_empty() {
+                ids.sort();
+                return Some(ids);
+            }
+        }
+
+        None
+    }
+    
 }

@@ -298,8 +298,10 @@ pub fn post_commit_with_final_state(
         }
     }
     
-    // For Cursor conversations, check for subagent IDs by scanning the
-    // agent-transcripts/<conversation_id>/subagents/ directory on disk.
+    // Populate `PromptRecord.subagents` when we can discover subagent transcripts on disk.
+    //
+    // - Cursor: scan `~/.cursor/projects/*/agent-transcripts/<conversation_id>/subagents/`
+    // - Claude Code: scan `~/.claude/projects/*/<conversation_id>/subagents/`
     for pr in authorship_log.metadata.prompts.values_mut() {
         if pr.agent_id.tool == "cursor" {
             if let Some(subagent_ids) =
@@ -309,6 +311,20 @@ pub fn post_commit_with_final_state(
             {
                 tracing::debug!(
                     "Found {} Cursor subagent(s) for conversation {}: {:?}",
+                    subagent_ids.len(),
+                    pr.agent_id.id,
+                    subagent_ids,
+                );
+                pr.subagents = Some(subagent_ids);
+            }
+        } else if pr.agent_id.tool == "claude" {
+            if let Some(subagent_ids) =
+                crate::commands::checkpoint_agent::claude_code_preset::ClaudePreset::find_subagent_ids(
+                    &pr.agent_id.id,
+                )
+            {
+                tracing::debug!(
+                    "Found {} Claude subagent(s) for conversation {}: {:?}",
                     subagent_ids.len(),
                     pr.agent_id.id,
                     subagent_ids,

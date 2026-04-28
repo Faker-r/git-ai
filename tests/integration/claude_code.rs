@@ -862,6 +862,68 @@ fn test_mixed_plan_and_code_edits_in_single_assistant_message() {
     );
 }
 
+#[test]
+fn test_claude_find_subagent_ids_from_transcript_path() {
+    use serial_test::serial;
+
+    #[derive(Debug)]
+    struct EnvVarGuard {
+        key: &'static str,
+        old: Option<String>,
+    }
+
+    impl EnvVarGuard {
+        fn set(key: &'static str, value: &str) -> Self {
+            let old = std::env::var(key).ok();
+            // SAFETY: this test is `serial` (no concurrent env mutation).
+            unsafe {
+                std::env::set_var(key, value);
+            }
+            Self { key, old }
+        }
+    }
+
+    impl Drop for EnvVarGuard {
+        fn drop(&mut self) {
+            // SAFETY: this test is `serial` (no concurrent env mutation).
+            unsafe {
+                if let Some(ref v) = self.old {
+                    std::env::set_var(self.key, v);
+                } else {
+                    std::env::remove_var(self.key);
+                }
+            }
+        }
+    }
+
+    #[serial]
+    fn run() {
+        let temp = tempfile::tempdir().unwrap();
+        let project_dir = temp.path().join(".claude").join("projects").join("myproj");
+        fs::create_dir_all(&project_dir).unwrap();
+
+        // Point claude preset scanning at our temp project dir.
+        let _guard =
+            EnvVarGuard::set("GIT_AI_CLAUDE_AGENT_TRANSCRIPTS_PATH", project_dir.to_str().unwrap());
+
+        let session_id = "146acbc5-7346-4265-8965-77b1a1d258e7";
+        let transcript_path = project_dir.join(format!("{}.jsonl", session_id));
+        fs::write(&transcript_path, r#"{"type":"summary","summary":"hi"}"#).unwrap();
+
+        let subagents_dir = project_dir.join(session_id).join("subagents");
+        fs::create_dir_all(&subagents_dir).unwrap();
+
+        // Two subagents
+        fs::write(subagents_dir.join("aaa.jsonl"), r#"{"type":"summary","summary":"a"}"#).unwrap();
+        fs::write(subagents_dir.join("bbb.jsonl"), r#"{"type":"summary","summary":"b"}"#).unwrap();
+
+        let ids = ClaudePreset::find_subagent_ids(session_id).expect("expected subagent ids");
+        assert_eq!(ids, vec!["aaa".to_string(), "bbb".to_string()]);
+    }
+
+    run();
+}
+
 crate::reuse_tests_in_worktree!(
     test_parse_example_claude_code_jsonl_with_model,
     test_claude_preset_extracts_edited_filepath,
@@ -886,4 +948,5 @@ crate::reuse_tests_in_worktree!(
     test_non_plan_edit_remains_tool_use,
     test_plan_message_serialization_roundtrip,
     test_mixed_plan_and_code_edits_in_single_assistant_message,
+    test_claude_find_subagent_ids_from_transcript_path,
 );
