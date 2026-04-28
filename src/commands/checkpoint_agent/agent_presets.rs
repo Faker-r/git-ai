@@ -1,13 +1,13 @@
 use crate::{
     authorship::{
-        transcript::{AiTranscript, Message},
+        transcript::{AiTranscript},
         working_log::{AgentId, CheckpointKind},
     },
     commands::checkpoint_agent::bash_tool::{
         self,
     },
     error::GitAiError,
-    observability::log_error,
+    // observability::log_error,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

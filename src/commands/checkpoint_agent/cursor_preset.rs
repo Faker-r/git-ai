@@ -5,12 +5,12 @@ use crate::{
         working_log::{AgentId, CheckpointKind},
     },
     commands::checkpoint_agent::bash_tool::{
-        self, Agent, ToolClass,
+        self, Agent, BashCheckpointAction, HookEvent, ToolClass,
     },
     commands::checkpoint_agent::{
         agent_presets::{
             AgentCheckpointFlags, AgentCheckpointPreset, AgentRunResult, 
-            extract_plan_from_tool_use
+            BashPreHookStrategy, extract_plan_from_tool_use, prepare_agent_bash_pre_hook
         },
     },
     error::GitAiError,
@@ -29,7 +29,6 @@ const CURSOR_HOOK_POST_TOOL_USE: &str = "postToolUse";
 #[derive(Debug, Deserialize)]
 struct CursorHookInput {
     #[serde(alias = "conversationId")]
-    #[serde(default)]
     conversation_id: Option<String>,
     #[serde(default)]
     model: Option<String>,
@@ -38,11 +37,11 @@ struct CursorHookInput {
     hook_event_name: Option<String>,
     #[serde(default)]
     workspace_roots: Option<Vec<String>>,
+    
     // preToolUse and postToolUse common input fields
-    #[serde(default)]
     tool_name: Option<String>,
-    #[serde(default)]
     tool_input: Option<serde_json::Value>,
+    
     // additional fields
     #[serde(flatten)]
     _extra: HashMap<String, serde_json::Value>,
@@ -75,32 +74,36 @@ impl AgentCheckpointPreset for CursorPreset {
         let CursorHookInput {
             conversation_id,
             hook_event_name,
+            model,
             workspace_roots,
             tool_name,
             tool_input,
-            model,
             ..
         } = hook_input;
 
         let conversation_id = conversation_id.ok_or_else(|| {
             GitAiError::PresetError("conversation_id not found in hook_input".to_string())
         })?;
+
         let workspace_roots = workspace_roots.ok_or_else(|| {
             GitAiError::PresetError("workspace_roots not found in hook_input".to_string())
         })?;
-        let hook_event_name = hook_event_name.ok_or_else(|| {
-            GitAiError::PresetError("hook_event_name not found in hook_input".to_string())
-        })?;
-
         let workspace_roots = workspace_roots
             .iter()
-            .map(|root| Self::normalize_cursor_path(root))
+            .filter_map(|root| {
+                let trimmed = root.trim();
+                if trimmed.is_empty() {
+                    None
+                } else {
+                    Some(Self::normalize_cursor_path(trimmed))
+                }
+            })
             .collect::<Vec<String>>();
 
-        tracing::debug!(
-            "CursorPreset: hook_event_name={}, conversation_id={}, workspace_roots={:?}",
-            hook_event_name, conversation_id, workspace_roots
-        );
+        let hook_event_name = hook_event_name
+            .unwrap_or_default()
+            .trim()
+            .to_string();
 
         // Legacy hooks no longer installed; exit silently for existing users who haven't reinstalled.
         if hook_event_name == "beforeSubmitPrompt" || hook_event_name == "afterFileEdit" {
@@ -121,25 +124,29 @@ impl AgentCheckpointPreset for CursorPreset {
             )));
         }
 
-        let tool_name = tool_name.as_deref();
-        
-        // Only checkpoint on file-mutating tools
-        let is_skip_tool = tool_name
-            .map(|name| bash_tool::classify_tool(Agent::Cursor, name) == ToolClass::Skip)
-            .unwrap_or(false);
-        if is_skip_tool {
-            return Err(GitAiError::PresetError(format!(
-                "Tool use that cause no file change: {}.",
-                tool_name.unwrap()
-            )));
-        }
-
-        // Extract model from hook input (Cursor provides this directly)
         let model = model
-            .unwrap_or_else(|| "unknown".to_string())
+            .unwrap_or_default()
             .trim()
             .to_string();
+        let model = if model.is_empty() {
+            "unknown".to_string()
+        } else {
+            model
+        };
 
+        let tool_name = tool_name.unwrap_or_default();
+        // Only checkpoint on file-mutating tools
+        let tool_class = bash_tool::classify_tool(Agent::Cursor, tool_name.as_str());
+        if tool_class == ToolClass::Skip {
+            tracing::debug!(
+                "CursorPreset: tool_name '{}' is not a file-mutating tool, skipping checkpoint",
+                tool_name
+            );
+            std::process::exit(0);
+        }
+        let is_bash_tool = tool_class == ToolClass::Bash;
+
+        // Absolute path of the file-to-edit, can be anything (e.g., None, file in the repo, file outside the repo)
         let file_path = Self::extract_file_path_from_tool_input(tool_input.as_ref())
             .map(|path| Self::normalize_cursor_path(&path))
             .unwrap_or_default();
@@ -148,33 +155,82 @@ impl AgentCheckpointPreset for CursorPreset {
             .ok_or_else(|| {
                 GitAiError::PresetError("No workspace root found in hook_input".to_string())
             })?;
-        
-            tracing::debug!("CursorPreset: resolved repo_working_dir={}", repo_working_dir);
+        tracing::debug!("CursorPreset: resolved repo_working_dir={}", repo_working_dir);
+
+
+        let session_id = conversation_id.clone();
+        let agent_id = AgentId {
+            tool: "cursor".to_string(),
+            id: session_id.clone(),
+            model: model.clone(),
+        };
+
+        let file_paths = if !file_path.is_empty() {
+            Some(vec![file_path.clone()])
+        } else {
+            None
+        };
 
         if hook_event_name == CURSOR_HOOK_PRE_TOOL_USE {
-            let will_edit = if !file_path.is_empty() {
-                Some(vec![file_path.clone()])
-            } else {
-                None
-            };
+            let pre_hook_captured_id = prepare_agent_bash_pre_hook(
+                is_bash_tool,
+                Some(repo_working_dir.as_str()),
+                &session_id,
+                "bash",
+                &agent_id,
+                None,
+                BashPreHookStrategy::EmitHumanCheckpoint,
+            )?
+            .captured_checkpoint_id();
 
             // early return, we're just adding a human checkpoint.
             return Ok(AgentRunResult {
-                agent_id: AgentId {
-                    tool: "cursor".to_string(),
-                    id: conversation_id.clone(),
-                    model: model.clone(),
-                },
+                agent_id,
                 agent_metadata: None,
                 checkpoint_kind: CheckpointKind::Human,
                 transcript: None,
                 repo_working_dir: Some(repo_working_dir),
                 edited_filepaths: None,
-                will_edit_filepaths: will_edit,
+                will_edit_filepaths: file_paths,
                 dirty_files: None,
-                captured_checkpoint_id: None,
+                captured_checkpoint_id: pre_hook_captured_id,
             });
         }
+
+        let bash_result = if is_bash_tool {
+            Some(repo_working_dir.clone()).as_ref().map(|cwd| {
+                bash_tool::handle_bash_tool(
+                    HookEvent::PostToolUse,
+                    Path::new(cwd),
+                    &conversation_id,
+                    "bash"
+                )
+            })
+        } else {
+            None
+        };
+
+        let edited_filepaths = if is_bash_tool {
+            match bash_result
+                .as_ref()
+                .and_then(|r| r.as_ref().ok())
+                .map(|r| &r.action)
+            {
+                Some(BashCheckpointAction::Checkpoint(paths)) => Some(paths.clone()),
+                Some(BashCheckpointAction::NoChanges)
+                | Some(BashCheckpointAction::TakePreSnapshot)
+                | Some(BashCheckpointAction::Fallback)
+                | None => None,
+            }
+        } else {
+            file_paths
+        };
+
+        let bash_captured_checkpoint_id = bash_result
+            .as_ref()
+            .and_then(|r| r.as_ref().ok())
+            .and_then(|r| r.captured_checkpoint.as_ref())
+            .map(|info| info.capture_id.clone());
 
         // // Option 1: Read transcript from JSONL file if available
         // let transcript_path = hook_data
@@ -234,19 +290,6 @@ impl AgentCheckpointPreset for CursorPreset {
 
         tracing::debug!("CursorPreset: transcript:\n{}", transcript);
 
-        
-        let edited_filepaths = if !file_path.is_empty() {
-            Some(vec![file_path.to_string()])
-        } else {
-            None
-        };
-
-        let agent_id = AgentId {
-            tool: "cursor".to_string(),
-            id: conversation_id,
-            model,
-        };
-
         // // Store transcript_path in metadata for re-reading at commit time
         // let agent_metadata =
         //     transcript_path.map(|tp| HashMap::from([("transcript_path".to_string(), tp)]));
@@ -256,11 +299,11 @@ impl AgentCheckpointPreset for CursorPreset {
             agent_metadata: None,
             checkpoint_kind: CheckpointKind::AiAgent,
             transcript: Some(transcript),
-            repo_working_dir: Some(repo_working_dir),
+            repo_working_dir: Some(repo_working_dir.clone()),
             edited_filepaths,
             will_edit_filepaths: None,
             dirty_files: None,
-            captured_checkpoint_id: None,
+            captured_checkpoint_id: bash_captured_checkpoint_id,
         })
     }
 
@@ -269,6 +312,9 @@ impl AgentCheckpointPreset for CursorPreset {
 
 impl CursorPreset {
     fn extract_file_path_from_tool_input(tool_input: Option<&serde_json::Value>) -> Option<String> {
+        // Looks at the optional tool_input object and returns the first non-empty string it finds 
+        // among these keys, in order: file_path, then path, then target_file. If tool_input is 
+        // missing or none of those keys have a usable string, returns None.
         let tool_input = tool_input?;
         for key in ["file_path", "path", "target_file"] {
             if let Some(path) = tool_input.get(key).and_then(|v| v.as_str()) {
