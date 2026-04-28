@@ -7,7 +7,7 @@ use crate::authorship::working_log::{AgentId, CheckpointKind};
 use crate::commands;
 use crate::commands::checkpoint_agent::agent_presets::{
     AgentCheckpointFlags, AgentCheckpointPreset, AgentRunResult,
-    ContinueCliPreset,  DroidPreset, FirebenderPreset, WindsurfPreset,
+    ContinueCliPreset,  DroidPreset, FirebenderPreset,
 };
 use crate::commands::checkpoint_agent::cursor_preset::{
     CursorPreset, CursorSqliteTranscriptOutcome,
@@ -21,6 +21,7 @@ use crate::commands::checkpoint_agent::amp_preset::AmpPreset;
 use crate::commands::checkpoint_agent::opencode_preset::OpenCodePreset;
 use crate::commands::checkpoint_agent::pi_preset::PiPreset;
 use crate::commands::checkpoint_agent::ai_tab_preset::AiTabPreset;
+use crate::commands::checkpoint_agent::windsurf_preset::WindsurfPreset;
 use crate::config;
 use crate::daemon::{
     CapturedCheckpointRunRequest, CheckpointRunRequest, ControlRequest, LiveCheckpointRunRequest,

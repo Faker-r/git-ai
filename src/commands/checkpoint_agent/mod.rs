@@ -10,3 +10,4 @@ pub mod bash_tool;
 pub mod opencode_preset;
 pub mod pi_preset;
 pub mod ai_tab_preset;
+pub mod windsurf_preset;

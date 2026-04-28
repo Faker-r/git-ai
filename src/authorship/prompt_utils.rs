@@ -2,7 +2,7 @@ use crate::authorship::authorship_log::PromptRecord;
 use crate::authorship::internal_db::InternalDatabase;
 use crate::authorship::transcript::AiTranscript;
 use crate::commands::checkpoint_agent::agent_presets::{
-    ContinueCliPreset, DroidPreset, WindsurfPreset,
+    ContinueCliPreset, DroidPreset,
 };
 use crate::commands::checkpoint_agent::cursor_preset::{
     CursorPreset, CursorSqliteTranscriptOutcome
@@ -14,6 +14,7 @@ use crate::commands::checkpoint_agent::gemini_preset::GeminiPreset;
 use crate::commands::checkpoint_agent::amp_preset::AmpPreset;
 use crate::commands::checkpoint_agent::opencode_preset::OpenCodePreset;
 use crate::commands::checkpoint_agent::pi_preset::PiPreset;
+use crate::commands::checkpoint_agent::windsurf_preset::WindsurfPreset;
 use crate::error::GitAiError;
 use crate::git::refs::{get_authorship, grep_ai_notes};
 use crate::git::repository::Repository;

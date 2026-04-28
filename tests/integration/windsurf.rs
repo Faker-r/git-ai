@@ -3,8 +3,9 @@ use crate::repos::test_repo::TestRepo;
 use git_ai::authorship::transcript::Message;
 use git_ai::authorship::working_log::CheckpointKind;
 use git_ai::commands::checkpoint_agent::agent_presets::{
-    AgentCheckpointFlags, AgentCheckpointPreset, WindsurfPreset,
+    AgentCheckpointFlags, AgentCheckpointPreset,
 };
+use git_ai::commands::checkpoint_agent::windsurf_preset::WindsurfPreset;
 use serde_json::json;
 use std::fs;
 use std::io::Write;
