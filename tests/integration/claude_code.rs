@@ -325,10 +325,10 @@ fn test_parse_claude_code_jsonl_with_thinking() {
     // Verify message types and count
     // Expected messages (tool_result is skipped as it's not human-authored):
     // 1. User: "add another hello world console log to @index.ts "
-    // 2. Assistant: thinking message (should be parsed as Assistant)
+    // 2. Thinking: thinking message (should be parsed as Thinking)
     // 3. Assistant: "I'll add another hello world console log to the file."
     // 4. ToolUse: Edit
-    // 5. Assistant: thinking message (should be parsed as Assistant)
+    // 5. Thinking: thinking message (should be parsed as Thinking)
     // 6. Assistant: "Done! I've added another `console.log('hello world')` statement at index.ts:21."
 
     assert_eq!(
@@ -343,12 +343,12 @@ fn test_parse_claude_code_jsonl_with_thinking() {
         "First message should be User"
     );
 
-    // Check second message is Assistant (thinking)
+    // Check second message is Thinking
     assert!(
-        matches!(transcript.messages()[1], Message::Assistant { .. }),
-        "Second message should be Assistant (thinking)"
+        matches!(transcript.messages()[1], Message::Thinking { .. }),
+        "Second message should be Thinking"
     );
-    if let Message::Assistant { text, .. } = &transcript.messages()[1] {
+    if let Message::Thinking { text, .. } = &transcript.messages()[1] {
         assert!(
             text.contains("add another"),
             "Thinking message should contain thinking content"
@@ -370,10 +370,10 @@ fn test_parse_claude_code_jsonl_with_thinking() {
         assert_eq!(name, "Edit", "Tool should be Edit");
     }
 
-    // Check fifth message is Assistant (thinking) - tool_result was skipped
+    // Check fifth message is Thinking - tool_result was skipped
     assert!(
-        matches!(transcript.messages()[4], Message::Assistant { .. }),
-        "Fifth message should be Assistant (thinking)"
+        matches!(transcript.messages()[4], Message::Thinking { .. }),
+        "Fifth message should be Thinking"
     );
 
     // Check sixth message is Assistant (text)

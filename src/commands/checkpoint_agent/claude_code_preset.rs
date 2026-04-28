@@ -312,6 +312,7 @@ impl ClaudePreset {
                 // Parse the raw JSONL entry
                 let raw_entry: serde_json::Value = serde_json::from_str(line)?;
                 let timestamp = raw_entry["timestamp"].as_str().map(|s| s.to_string());
+                let uuid = raw_entry["uuid"].as_str().map(|s| s.to_string());
 
                 // Extract model from assistant messages if we haven't found it yet
                 if model.is_none()
@@ -330,7 +331,7 @@ impl ClaudePreset {
                                 transcript.add_message(Message::User {
                                     text: content.to_string(),
                                     timestamp: timestamp.clone(),
-                                    id: None,
+                                    id: uuid.clone(),
                                 });
                             }
                         } else if let Some(content_array) =
@@ -338,27 +339,40 @@ impl ClaudePreset {
                         {
                             // Handle user messages with content array
                             for item in content_array {
-                                // Skip tool_result items - those are system-generated responses, not human input
-                                if item["type"].as_str() == Some("tool_result") {
-                                    continue;
-                                }
-                                // Handle text content blocks from actual user input
-                                if item["type"].as_str() == Some("text")
-                                    && let Some(text) = item["text"].as_str()
-                                    && !text.trim().is_empty()
-                                {
-                                    transcript.add_message(Message::User {
-                                        text: text.to_string(),
-                                        timestamp: timestamp.clone(),
-                                        id: None,
-                                    });
+                                match item["type"].as_str() {
+                                    Some("tool_result") => {
+                                        // Claude Code represents tool results as user-role messages.
+                                        // DO nothing
+                                    }
+                                    Some("text") => {
+                                        if let Some(text) = item["text"].as_str()
+                                            && !text.trim().is_empty()
+                                        {
+                                            transcript.add_message(Message::User {
+                                                text: text.to_string(),
+                                                timestamp: timestamp.clone(),
+                                                id: uuid.clone(),
+                                            });
+                                        }
+                                    }
+                                    _ => continue,
                                 }
                             }
                         }
                     }
                     Some("assistant") => {
                         // Handle assistant messages
-                        if let Some(content_array) = raw_entry["message"]["content"].as_array() {
+                        if let Some(content) = raw_entry["message"]["content"].as_str() {
+                            if !content.trim().is_empty() {
+                                transcript.add_message(Message::Assistant {
+                                    text: content.to_string(),
+                                    timestamp: timestamp.clone(),
+                                    id: uuid.clone(),
+                                });
+                            }
+                        } else if let Some(content_array) =
+                            raw_entry["message"]["content"].as_array()
+                        {
                             for item in content_array {
                                 match item["type"].as_str() {
                                     Some("text") => {
@@ -368,25 +382,22 @@ impl ClaudePreset {
                                             transcript.add_message(Message::Assistant {
                                                 text: text.to_string(),
                                                 timestamp: timestamp.clone(),
-                                                id: None,
+                                                id: uuid.clone(),
                                             });
                                         }
                                     }
                                     Some("thinking") => {
-                                        if let Some(thinking) = item["thinking"].as_str()
-                                            && !thinking.trim().is_empty()
-                                        {
-                                            transcript.add_message(Message::Assistant {
-                                                text: thinking.to_string(),
-                                                timestamp: timestamp.clone(),
-                                                id: None,
-                                            });
-                                        }
+                                        // "thinking" can be empty string in Claude Code logs; still record it.
+                                        let thinking =
+                                            item["thinking"].as_str().unwrap_or("").to_string();
+                                        transcript.add_message(Message::Thinking {
+                                            text: thinking,
+                                            timestamp: timestamp.clone(),
+                                            id: uuid.clone(),
+                                        });
                                     }
                                     Some("tool_use") => {
-                                        if let (Some(name), Some(_input)) =
-                                            (item["name"].as_str(), item["input"].as_object())
-                                        {
+                                        if let Some(name) = item["name"].as_str() {
                                             // Check if this is a Write/Edit to a plan file
                                             if let Some(plan_text) = extract_plan_from_tool_use(
                                                 name,
@@ -396,18 +407,24 @@ impl ClaudePreset {
                                                 transcript.add_message(Message::Plan {
                                                     text: plan_text,
                                                     timestamp: timestamp.clone(),
-                                                    id: None,
+                                                    id: item["id"]
+                                                        .as_str()
+                                                        .map(|s| s.to_string())
+                                                        .or_else(|| uuid.clone()),
                                                 });
                                             } else {
-                                                transcript.add_message(Message::tool_use_with_timestamp(
-                                                    name.to_string(),
-                                                    item["input"].clone(),
-                                                    timestamp.clone(),
-                                                ));
+                                                transcript.add_message(Message::ToolUse {
+                                                    name: name.to_string(),
+                                                    input: item["input"].clone(),
+                                                    timestamp: timestamp.clone(),
+                                                    id: item["id"]
+                                                        .as_str()
+                                                        .map(|s| s.to_string())
+                                                        .or_else(|| uuid.clone()),
+                                                });
                                             }
                                         }
                                     }
-                                    // YW TODO: add thinking messages, if any are present
                                     _ => continue, // Skip unknown content types
                                 }
                             }
