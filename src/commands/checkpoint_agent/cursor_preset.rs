@@ -18,11 +18,35 @@ use crate::{
 };
 use dirs;
 use rusqlite::{Connection, OpenFlags};
+use serde::Deserialize;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 
 const CURSOR_HOOK_PRE_TOOL_USE: &str = "preToolUse";
 const CURSOR_HOOK_POST_TOOL_USE: &str = "postToolUse";
+
+#[derive(Debug, Deserialize)]
+struct CursorHookInput {
+    #[serde(alias = "conversationId")]
+    #[serde(default)]
+    conversation_id: Option<String>,
+    #[serde(default)]
+    model: Option<String>,
+    #[serde(alias = "hookEventName")]
+    #[serde(default)]
+    hook_event_name: Option<String>,
+    #[serde(default)]
+    workspace_roots: Option<Vec<String>>,
+    // preToolUse and postToolUse common input fields
+    #[serde(default)]
+    tool_name: Option<String>,
+    #[serde(default)]
+    tool_input: Option<serde_json::Value>,
+    // additional fields
+    #[serde(flatten)]
+    _extra: HashMap<String, serde_json::Value>,
+}
 
 /// Result of reading transcript + model from Cursor's global SQLite composer state.
 #[derive(Debug)]
@@ -44,36 +68,39 @@ impl AgentCheckpointPreset for CursorPreset {
             GitAiError::PresetError("hook_input is required for Cursor preset".to_string())
         })?;
 
-        let hook_data: serde_json::Value = serde_json::from_str(&hook_input_json)
+        let hook_input: CursorHookInput = serde_json::from_str(&hook_input_json)
             .map_err(|e| GitAiError::PresetError(format!("Invalid JSON in hook_input: {}", e)))?;
-        tracing::debug!("CursorPreset: hook_data={:?}", hook_data);
+        tracing::debug!("CursorPreset: hook_input={:?}", hook_input);
 
-        // Extract conversation_id and workspace_roots from the JSON
-        let conversation_id = hook_data
-            .get("conversation_id")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| {
-                GitAiError::PresetError("conversation_id not found in hook_input".to_string())
-            })?
-            .to_string();
+        let CursorHookInput {
+            conversation_id,
+            hook_event_name,
+            workspace_roots,
+            tool_name,
+            tool_input,
+            model,
+            ..
+        } = hook_input;
 
-        let workspace_roots = hook_data
-            .get("workspace_roots")
-            .and_then(|v| v.as_array())
-            .ok_or_else(|| {
-                GitAiError::PresetError("workspace_roots not found in hook_input".to_string())
-            })?
+        let conversation_id = conversation_id.ok_or_else(|| {
+            GitAiError::PresetError("conversation_id not found in hook_input".to_string())
+        })?;
+        let workspace_roots = workspace_roots.ok_or_else(|| {
+            GitAiError::PresetError("workspace_roots not found in hook_input".to_string())
+        })?;
+        let hook_event_name = hook_event_name.ok_or_else(|| {
+            GitAiError::PresetError("hook_event_name not found in hook_input".to_string())
+        })?;
+
+        let workspace_roots = workspace_roots
             .iter()
-            .filter_map(|v| v.as_str().map(Self::normalize_cursor_path))
+            .map(|root| Self::normalize_cursor_path(root))
             .collect::<Vec<String>>();
 
-        let hook_event_name = hook_data
-            .get("hook_event_name")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| {
-                GitAiError::PresetError("hook_event_name not found in hook_input".to_string())
-            })?
-            .to_string();
+        tracing::debug!(
+            "CursorPreset: hook_event_name={}, conversation_id={}, workspace_roots={:?}",
+            hook_event_name, conversation_id, workspace_roots
+        );
 
         // Legacy hooks no longer installed; exit silently for existing users who haven't reinstalled.
         if hook_event_name == "beforeSubmitPrompt" || hook_event_name == "afterFileEdit" {
@@ -94,9 +121,7 @@ impl AgentCheckpointPreset for CursorPreset {
             )));
         }
 
-        let tool_name = hook_data
-            .get("tool_name")
-            .and_then(|v| v.as_str());
+        let tool_name = tool_name.as_deref();
         
         // Only checkpoint on file-mutating tools
         let is_skip_tool = tool_name
@@ -110,17 +135,13 @@ impl AgentCheckpointPreset for CursorPreset {
         }
 
         // Extract model from hook input (Cursor provides this directly)
-        let model = hook_data
-            .get("model")
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_string())
-            .unwrap_or_else(|| "unknown".to_string());
-    
-        let file_path = hook_data
-            .get("tool_input")
-            .and_then(|ti| ti.get("file_path"))
-            .and_then(|v| v.as_str())
-            .map(Self::normalize_cursor_path)
+        let model = model
+            .unwrap_or_else(|| "unknown".to_string())
+            .trim()
+            .to_string();
+
+        let file_path = Self::extract_file_path_from_tool_input(tool_input.as_ref())
+            .map(|path| Self::normalize_cursor_path(&path))
             .unwrap_or_default();
 
         let repo_working_dir = Self::resolve_repo_working_dir(&file_path, &workspace_roots)
@@ -154,11 +175,6 @@ impl AgentCheckpointPreset for CursorPreset {
                 captured_checkpoint_id: None,
             });
         }
-
-        tracing::debug!(
-            "CursorPreset: hook_event_name={}, conversation_id={}, workspace_roots={:?}",
-            hook_event_name, conversation_id, workspace_roots
-        );
 
         // // Option 1: Read transcript from JSONL file if available
         // let transcript_path = hook_data
@@ -252,6 +268,19 @@ impl AgentCheckpointPreset for CursorPreset {
 }
 
 impl CursorPreset {
+    fn extract_file_path_from_tool_input(tool_input: Option<&serde_json::Value>) -> Option<String> {
+        let tool_input = tool_input?;
+        for key in ["file_path", "path", "target_file"] {
+            if let Some(path) = tool_input.get(key).and_then(|v| v.as_str()) {
+                let trimmed = path.trim();
+                if !trimmed.is_empty() {
+                    return Some(trimmed.to_string());
+                }
+            }
+        }
+        None
+    }
+
     fn matching_workspace_root(file_path: &str, workspace_roots: &[String]) -> Option<String> {
         workspace_roots
             .iter()
