@@ -813,6 +813,7 @@ pub fn update_git_path_setting(
 /// Ensures:
 /// - `"chat.hookFilesLocations"` contains `"~/.github/hooks": true`
 /// - `"chat.useHooks"` is set to `true`
+/// - `"chat.useClaudeHooks"` is set to `false`
 ///
 /// Existing hook file locations are preserved.
 pub fn update_vscode_chat_hook_settings(
@@ -899,6 +900,27 @@ pub fn update_vscode_chat_hook_settings(
         }
         None => {
             object.append("chat.useHooks", jsonc_parser::json!(true));
+            changed = true;
+        }
+    }
+
+    match object.get("chat.useClaudeHooks") {
+        Some(prop) => {
+            let should_update = match prop.value() {
+                Some(node) => match node.as_boolean_lit() {
+                    Some(bool_node) => bool_node.value(),
+                    None => true,
+                },
+                None => true,
+            };
+
+            if should_update {
+                prop.set_value(jsonc_parser::json!(false));
+                changed = true;
+            }
+        }
+        None => {
+            object.append("chat.useClaudeHooks", jsonc_parser::json!(false));
             changed = true;
         }
     }
@@ -1141,7 +1163,8 @@ mod tests {
         ".github/hooks": true,
         "~/.github/hooks": true
     },
-    "chat.useHooks": false
+    "chat.useHooks": false,
+    "chat.useClaudeHooks": true
 }
 "#;
         fs::write(&settings_path, initial).unwrap();
@@ -1154,6 +1177,7 @@ mod tests {
         assert!(final_content.contains("\".github/hooks\": true"));
         assert!(final_content.contains("\"~/.github/hooks\": true"));
         assert!(final_content.contains("\"chat.useHooks\": true"));
+        assert!(final_content.contains("\"chat.useClaudeHooks\": false"));
     }
 
     #[test]
@@ -1165,7 +1189,8 @@ mod tests {
         ".github/hooks": true,
         "~/.github/hooks": true
     },
-    "chat.useHooks": true
+    "chat.useHooks": true,
+    "chat.useClaudeHooks": false
 }
 "#;
         fs::write(&settings_path, initial).unwrap();
@@ -1188,6 +1213,7 @@ mod tests {
 
         let final_content = fs::read_to_string(&settings_path).unwrap();
         assert!(final_content.contains("\"~/.github/hooks\": true"));
+        assert!(final_content.contains("\"chat.useClaudeHooks\": false"));
         let absolute_hook_dir = home_dir()
             .join(".github")
             .join("hooks")
