@@ -682,8 +682,10 @@ pub fn rewrite_authorship_after_squash_or_rebase(
     let mut authorship_log = merged_va.to_authorship_log()?;
     authorship_log.metadata.base_commit_sha = merge_commit_sha.to_string();
 
-    // Preserve accumulated totals from source commits (squash/rebase should not drop session totals).
+    // Preserve accumulated totals and change_history from source commits
+    // (squash/rebase should not drop session totals or edit history).
     let mut summed_totals: HashMap<String, (u32, u32)> = HashMap::new();
+    let mut merged_change_history: Vec<crate::authorship::authorship_log_serialization::ChangeHistoryEntry> = Vec::new();
     for commit_sha in &source_commits {
         if let Ok(log) = get_reference_as_authorship_log_v3(repo, commit_sha) {
             for (prompt_id, record) in log.metadata.prompts {
@@ -694,6 +696,9 @@ pub fn rewrite_authorship_after_squash_or_rebase(
             for (hash, record) in log.metadata.humans {
                 authorship_log.metadata.humans.entry(hash).or_insert(record);
             }
+            if let Some(entries) = log.metadata.change_history {
+                merged_change_history.extend(entries);
+            }
         }
     }
 
@@ -703,11 +708,15 @@ pub fn rewrite_authorship_after_squash_or_rebase(
             record.total_deletions = *deletions;
         }
     }
+    if !merged_change_history.is_empty() {
+        authorship_log.metadata.change_history = Some(merged_change_history);
+    }
 
     tracing::debug!(
-        "Created authorship log with {} attestations, {} prompts",
+        "Created authorship log with {} attestations, {} prompts, {} change histories",
         authorship_log.attestations.len(),
-        authorship_log.metadata.prompts.len()
+        authorship_log.metadata.prompts.len(),
+        authorship_log.metadata.change_history.as_ref().map(|v| v.len()).unwrap_or(0)
     );
 
     // Step 7: Save authorship log to git notes
@@ -1149,6 +1158,21 @@ pub fn rewrite_authorship_after_rebase_v2(
         .map(|(orig, new)| (new.clone(), orig.clone()))
         .collect();
 
+    // Build per-original-commit change_history lookup from cached note contents.
+    let original_change_histories: HashMap<String, Vec<crate::authorship::authorship_log_serialization::ChangeHistoryEntry>> = {
+        let mut map = HashMap::new();
+        for commit_sha in &original_commits_for_processing {
+            if let Some(content) = note_cache.original_note_contents.get(commit_sha.as_str()) {
+                if let Ok(log) = AuthorshipLog::deserialize_from_string(content) {
+                    if let Some(entries) = log.metadata.change_history {
+                        map.insert(commit_sha.clone(), entries);
+                    }
+                }
+            }
+        }
+        map
+    };
+
     // Step 1: Use AI-touched files directly from the note cache as pathspecs.
     // This eliminates a diff-tree --stdin subprocess call entirely.
     // The collect_changed_file_contents step will correctly filter to only files that changed.
@@ -1161,6 +1185,9 @@ pub fn rewrite_authorship_after_rebase_v2(
     if pathspecs.is_empty() {
         // No AI-touched files were rewritten. Preserve metadata-only / prompt-only notes by remapping
         // existing source notes to their corresponding rebased commits.
+        // Note: remap_notes_for_commit_pairs → remap_note_content_for_target_commit preserves
+        // change_history because it either does a targeted base_commit_sha string replacement
+        // (leaving all other JSON intact) or a full serde round-trip (which includes change_history).
         // Use cached note contents instead of loading again.
         let original_note_contents: HashMap<String, String> = original_commits_for_processing
             .iter()
@@ -1192,6 +1219,9 @@ pub fn rewrite_authorship_after_rebase_v2(
         new_commits.len()
     );
 
+    // Fast-path: if original notes can be blob-remapped to new commits, do so and exit.
+    // This preserves change_history because it copies note blobs directly or uses
+    // remap_note_content_for_target_commit which only updates base_commit_sha.
     if try_fast_path_rebase_note_remap_cached(
         repo,
         original_commits,
@@ -1421,7 +1451,7 @@ pub fn rewrite_authorship_after_rebase_v2(
     // metadata_json_template_parts below).  Attestations will be empty because
     // existing_files is empty, but that's fine — cached_file_attestation_text is also
     // empty and gets rebuilt per-commit.
-    let current_authorship_log = build_authorship_log_from_state(
+    let mut current_authorship_log = build_authorship_log_from_state(
         original_head,
         &current_prompts,
         &initial_humans,
@@ -1688,6 +1718,11 @@ pub fn rewrite_authorship_after_rebase_v2(
                 || current_original_commit != prev_original_commit.as_deref()
                 || delta_humans != prev_delta_humans
             {
+                // Carry forward change_history from the original commit's note.
+                current_authorship_log.metadata.change_history = current_original_commit
+                    .and_then(|orig| original_change_histories.get(orig))
+                    .cloned();
+
                 let active_ids: HashSet<String> = active_prompt_key.keys().cloned().collect();
                 metadata_json_template_parts = build_metadata_template_parts_filtered(
                     &current_authorship_log.metadata,
@@ -1958,6 +1993,8 @@ pub fn rewrite_authorship_after_cherry_pick(
     let pathspecs = filter_pathspecs_to_ai_touched_files(repo, source_commits, &pathspecs)?;
 
     if pathspecs.is_empty() {
+        // No AI-touched files in cherry-pick. Remap notes via remap_note_content_for_target_commit
+        // which preserves change_history (only base_commit_sha is updated).
         let source_note_contents = load_note_contents_for_commits(repo, &source_commits_for_pairs)?;
         let remapped_count =
             remap_notes_for_commit_pairs(repo, &commit_pairs, &source_note_contents)?;
@@ -2027,6 +2064,19 @@ pub fn rewrite_authorship_after_cherry_pick(
         )
     };
 
+    // Preload change_history from each source commit's note (1:1 mapping).
+    let source_change_histories: HashMap<String, Vec<crate::authorship::authorship_log_serialization::ChangeHistoryEntry>> = {
+        let mut map = HashMap::new();
+        for source_sha in source_commits {
+            if let Ok(log) = get_reference_as_authorship_log_v3(repo, source_sha) {
+                if let Some(entries) = log.metadata.change_history {
+                    map.insert(source_sha.clone(), entries);
+                }
+            }
+        }
+        map
+    };
+
     // Step 3: Process each new commit in order (oldest to newest)
     for (idx, new_commit) in new_commits.iter().enumerate() {
         tracing::debug!(
@@ -2081,6 +2131,10 @@ pub fn rewrite_authorship_after_cherry_pick(
         });
 
         authorship_log.metadata.base_commit_sha = new_commit.clone();
+
+        // Carry forward change_history from the source commit (1:1 mapping).
+        let source_commit = &source_commits[idx];
+        authorship_log.metadata.change_history = source_change_histories.get(source_commit).cloned();
 
         // Save computed note when it has payload; otherwise preserve original metadata-only notes.
         let computed_note_has_payload =
@@ -2937,6 +2991,10 @@ pub fn rewrite_authorship_after_commit_amend_with_snapshot(
         for (id, record) in original_log.metadata.humans {
             authorship_log.metadata.humans.entry(id).or_insert(record);
         }
+        // Preserve change_history from the original commit's note (1:1 carry-forward).
+        if original_log.metadata.change_history.is_some() {
+            authorship_log.metadata.change_history = original_log.metadata.change_history;
+        }
     }
 
     // Inject custom attributes into all PromptRecords (same behavior as post_commit).
@@ -3440,6 +3498,7 @@ fn build_metadata_only_authorship_log_from_source_notes(
     let mut merged_prompts = BTreeMap::new();
     let mut prompt_totals: HashMap<String, (u32, u32)> = HashMap::new();
     let mut merged_humans: BTreeMap<String, HumanRecord> = BTreeMap::new();
+    let mut merged_change_history: Vec<crate::authorship::authorship_log_serialization::ChangeHistoryEntry> = Vec::new();
     let mut saw_any_note = false;
 
     for commit_sha in source_commits {
@@ -3456,6 +3515,10 @@ fn build_metadata_only_authorship_log_from_source_notes(
         }
         for (hash, record) in log.metadata.humans {
             merged_humans.entry(hash).or_insert(record);
+        }
+        // Collect change_history entries from all source commits (chronological concat).
+        if let Some(entries) = log.metadata.change_history {
+            merged_change_history.extend(entries);
         }
     }
 
@@ -3474,6 +3537,9 @@ fn build_metadata_only_authorship_log_from_source_notes(
     authorship_log.metadata.base_commit_sha = target_commit_sha.to_string();
     authorship_log.metadata.prompts = merged_prompts;
     authorship_log.metadata.humans = merged_humans;
+    if !merged_change_history.is_empty() {
+        authorship_log.metadata.change_history = Some(merged_change_history);
+    }
     Ok(Some(authorship_log))
 }
 

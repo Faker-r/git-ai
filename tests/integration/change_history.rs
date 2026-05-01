@@ -1,6 +1,8 @@
 use crate::repos::test_file::ExpectedLineExt;
 use crate::repos::test_repo::TestRepo;
-use git_ai::authorship::authorship_log_serialization::{ChangeHistoryEntry, FileChangeDetail};
+use git_ai::authorship::authorship_log_serialization::{
+    AuthorshipLog, ChangeHistoryEntry, FileChangeDetail,
+};
 use git_ai::authorship::secrets::redact_secrets_from_change_history;
 use git_ai::authorship::working_log::CheckpointLineStats;
 use insta::assert_debug_snapshot;
@@ -27,6 +29,7 @@ fn sanitize_change_history(entries: &[ChangeHistoryEntry]) -> Vec<ChangeHistoryE
             model: e.model.clone(),
             files: e.files.clone(),
             line_stats: e.line_stats.clone(),
+            url: e.url.as_ref().map(|_| "CAS_URL".to_string()),
         })
         .collect()
 }
@@ -215,6 +218,7 @@ fn secret_in_prompt_text_redacted_in_change_history() {
         ),
         files,
         line_stats: CheckpointLineStats::default(),
+        url: None,
     }];
     
     let count = redact_secrets_from_change_history(&mut change_history);
@@ -317,5 +321,240 @@ fn secrets_in_added_and_deleted_line_contents_redacted_in_change_history() {
         all_added.iter().any(|l| l.contains("os.environ")),
         "Safe replacement line should remain intact.\nGot: {:#?}",
         all_added
+    );
+}
+
+// --- History rewriting: change_history preservation tests ---
+
+/// Helper: parse the authorship note for a commit SHA and return its change_history.
+fn get_change_history_for_commit(
+    repo: &TestRepo,
+    commit_sha: &str,
+) -> Option<Vec<ChangeHistoryEntry>> {
+    let raw = repo.read_authorship_note(commit_sha)?;
+    let log = AuthorshipLog::deserialize_from_string(&raw).ok()?;
+    log.metadata.change_history
+}
+
+/// Amend should preserve change_history from the original commit.
+#[test]
+fn amend_preserves_change_history() {
+    let repo = TestRepo::new();
+
+    let mut file = repo.filename("feature.txt");
+    file.set_contents(crate::lines!["line 1"]);
+    repo.stage_all_and_commit("Initial commit").unwrap();
+
+    // AI creates content → commit with change_history
+    file.set_contents(crate::lines!["line 1", "ai line 2".ai()]);
+    let original = repo.stage_all_and_commit("Add AI line").unwrap();
+
+    let original_history = original
+        .authorship_log
+        .metadata
+        .change_history
+        .as_ref()
+        .expect("original commit should have change_history");
+    let original_entry_count = original_history.len();
+    assert!(original_entry_count > 0);
+
+    // Amend the commit (add a human line)
+    std::fs::write(
+        repo.path().join("feature.txt"),
+        "line 1\nai line 2\nhuman line 3\n",
+    )
+    .unwrap();
+    repo.git(&["add", "-A"]).unwrap();
+    repo.git(&["commit", "--amend", "-m", "Amended commit"])
+        .unwrap();
+
+    let amended_sha = repo
+        .git(&["rev-parse", "HEAD"])
+        .unwrap()
+        .trim()
+        .to_string();
+    let amended_history = get_change_history_for_commit(&repo, &amended_sha)
+        .expect("amended commit should have change_history");
+
+    assert_eq!(
+        amended_history.len(),
+        original_entry_count,
+        "amend should carry forward all change_history entries from original"
+    );
+}
+
+/// Rebase should preserve change_history on rebased commits.
+#[test]
+fn rebase_preserves_change_history() {
+    let repo = TestRepo::new();
+
+    let mut main_file = repo.filename("main.txt");
+    main_file.set_contents(crate::lines!["main content"]);
+    repo.stage_all_and_commit("Initial commit").unwrap();
+
+    let default_branch = repo.current_branch();
+
+    // Feature branch: AI commit with change_history
+    repo.git(&["checkout", "-b", "feature"]).unwrap();
+    let mut feature_file = repo.filename("feature.txt");
+    feature_file.set_contents(crate::lines![
+        "ai feature 1".ai(),
+        "ai feature 2".ai(),
+    ]);
+    let feature_commit = repo.stage_all_and_commit("AI feature").unwrap();
+    let original_history = feature_commit
+        .authorship_log
+        .metadata
+        .change_history
+        .as_ref()
+        .expect("feature commit should have change_history");
+    let original_entry_count = original_history.len();
+
+    // Advance main (non-conflicting)
+    repo.git(&["checkout", &default_branch]).unwrap();
+    let mut other_file = repo.filename("other.txt");
+    other_file.set_contents(crate::lines!["other content"]);
+    repo.stage_all_and_commit("Main advances").unwrap();
+
+    // Rebase feature onto main
+    repo.git(&["checkout", "feature"]).unwrap();
+    repo.git(&["rebase", &default_branch]).unwrap();
+
+    let rebased_sha = repo
+        .git(&["rev-parse", "HEAD"])
+        .unwrap()
+        .trim()
+        .to_string();
+    let rebased_history = get_change_history_for_commit(&repo, &rebased_sha)
+        .expect("rebased commit should have change_history");
+
+    assert_eq!(
+        rebased_history.len(),
+        original_entry_count,
+        "rebase should carry forward all change_history entries"
+    );
+}
+
+/// Cherry-pick should preserve change_history from the source commit.
+#[test]
+fn cherry_pick_preserves_change_history() {
+    let repo = TestRepo::new();
+
+    let mut file = repo.filename("file.txt");
+    file.set_contents(crate::lines!["initial content"]);
+    repo.stage_all_and_commit("Initial commit").unwrap();
+
+    let main_branch = repo.current_branch();
+
+    // Feature branch: AI commit
+    repo.git(&["checkout", "-b", "feature"]).unwrap();
+    let mut feature_file = repo.filename("ai_feature.txt");
+    feature_file.set_contents(crate::lines!["ai line 1".ai(), "ai line 2".ai()]);
+    let feature_commit = repo.stage_all_and_commit("AI feature").unwrap();
+    let feature_sha = feature_commit.commit_sha.clone();
+    let original_history = feature_commit
+        .authorship_log
+        .metadata
+        .change_history
+        .as_ref()
+        .expect("feature commit should have change_history");
+    let original_entry_count = original_history.len();
+
+    // Cherry-pick onto main
+    repo.git(&["checkout", &main_branch]).unwrap();
+    repo.git(&["cherry-pick", &feature_sha]).unwrap();
+
+    let picked_sha = repo
+        .git(&["rev-parse", "HEAD"])
+        .unwrap()
+        .trim()
+        .to_string();
+    let picked_history = get_change_history_for_commit(&repo, &picked_sha)
+        .expect("cherry-picked commit should have change_history");
+
+    assert_eq!(
+        picked_history.len(),
+        original_entry_count,
+        "cherry-pick should carry forward all change_history entries"
+    );
+}
+
+/// CI squash merge (rewrite_authorship_after_squash_or_rebase) should concatenate
+/// change_history from all source commits into the merge commit.
+/// Note: `git merge --squash` + `git commit` goes through the normal post_commit path
+/// which creates fresh change_history from working log checkpoints. The concatenation
+/// logic lives in rewrite_authorship_after_squash_or_rebase, used by CI squash merges.
+#[test]
+fn ci_squash_merge_concatenates_change_history() {
+    use crate::repos::test_repo::GitTestMode;
+    use git_ai::authorship::rebase_authorship::rewrite_authorship_after_squash_or_rebase;
+    use git_ai::git::repository as GitAiRepository;
+
+    let repo = TestRepo::new_with_mode(GitTestMode::Wrapper);
+
+    let mut file = repo.filename("main.txt");
+    file.set_contents(crate::lines!["main line 1"]);
+    repo.stage_all_and_commit("Initial commit").unwrap();
+    repo.git(&["branch", "-M", "main"]).unwrap();
+
+    // Feature branch: two AI commits, each producing change_history
+    repo.git(&["checkout", "-b", "feature"]).unwrap();
+
+    let mut f1 = repo.filename("feat1.txt");
+    f1.set_contents(crate::lines!["ai feat 1".ai()]);
+    let commit1 = repo.stage_all_and_commit("AI feature 1").unwrap();
+    let history1_count = commit1
+        .authorship_log
+        .metadata
+        .change_history
+        .as_ref()
+        .map_or(0, |h| h.len());
+
+    let mut f2 = repo.filename("feat2.txt");
+    f2.set_contents(crate::lines!["ai feat 2".ai()]);
+    let commit2 = repo.stage_all_and_commit("AI feature 2").unwrap();
+    let feature_sha = commit2.commit_sha.clone();
+    let history2_count = commit2
+        .authorship_log
+        .metadata
+        .change_history
+        .as_ref()
+        .map_or(0, |h| h.len());
+
+    let total_source_entries = history1_count + history2_count;
+    assert!(
+        total_source_entries > 0,
+        "source commits should have change_history entries"
+    );
+
+    // Simulate CI squash merge: create merge commit on main, then call rewrite function
+    repo.git(&["checkout", "main"]).unwrap();
+    f1.set_contents(crate::lines!["ai feat 1"]);
+    f2.set_contents(crate::lines!["ai feat 2"]);
+    let merge_commit = repo
+        .stage_all_and_commit("Squash merge feature")
+        .unwrap();
+    let merge_sha = merge_commit.commit_sha.clone();
+
+    let git_ai_repo = GitAiRepository::find_repository_in_path(repo.path().to_str().unwrap())
+        .expect("Failed to find repository");
+
+    rewrite_authorship_after_squash_or_rebase(
+        &git_ai_repo,
+        "feature",
+        "main",
+        &feature_sha,
+        &merge_sha,
+        false,
+    )
+    .unwrap();
+
+    let squash_history = get_change_history_for_commit(&repo, &merge_sha)
+        .expect("CI squash merge commit should have change_history");
+
+    assert_eq!(
+        squash_history.len(),
+        total_source_entries,
+        "CI squash merge should concatenate change_history from all source commits"
     );
 }
