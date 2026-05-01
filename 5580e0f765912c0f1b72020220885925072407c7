@@ -1,0 +1,60 @@
+self-hosted-server/db.py
+  eecefb929835f814 8,10-13
+self-hosted-server/auth.py
+  eecefb929835f814 205,229,233-242,250
+self-hosted-server/main.py
+  eecefb929835f814 9,42,79,110
+self-hosted-server/.env.example
+  eecefb929835f814 1
+---
+{
+  "schema_version": "authorship/4.0.0",
+  "git_ai_version": "development:1.3.1",
+  "base_commit_sha": "5580e0f765912c0f1b72020220885925072407c7",
+  "prompts": {
+    "6a1e1463a00242b8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b1429237-59bc-45e5-9d3e-8fb46fe10d40",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Andrew Wang",
+      "messages": [],
+      "total_additions": 361,
+      "total_deletions": 46,
+      "accepted_lines": 317,
+      "overriden_lines": 1
+    },
+    "b8c35ff9a5076a0f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e13caead-2961-43ed-8ec3-b4fac743c320",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Andrew Wang",
+      "messages": [],
+      "total_additions": 176,
+      "total_deletions": 87,
+      "accepted_lines": 176,
+      "overriden_lines": 0
+    },
+    "eecefb929835f814": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0f9812fa-c734-444b-8e62-ba7b2e68805c",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Andrew Wang",
+      "messages": [],
+      "total_additions": 95,
+      "total_deletions": 338,
+      "accepted_lines": 42,
+      "overriden_lines": 0
+    }
+  },
+  "humans": {
+    "h_36b021ee800750": {
+      "author": "Andrew Wang"
+    }
+  }
+}
