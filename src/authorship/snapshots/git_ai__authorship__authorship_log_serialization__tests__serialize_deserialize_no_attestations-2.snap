@@ -30,6 +30,5 @@ AuthorshipLogV3 {
         },
         humans: {},
         change_history: None,
-        change_history_url: None,
     },
 }

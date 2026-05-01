@@ -207,16 +207,8 @@ fn build_commit_entry(
 ) -> Result<CommitHistoryEntry, GitAiError> {
     let checkpoints = match get_reference_as_authorship_log_v3(repo, &commit.sha) {
         Ok(log) => {
-            // Try inline change_history first, then fall back to CAS URL
-            let change_history = if let Some(ch) = log.metadata.change_history {
-                Some(ch)
-            } else if let Some(url) = &log.metadata.change_history_url {
-                resolve_change_history_from_cas(url)
-            } else {
-                None
-            };
-
-            if let Some(ch) = change_history {
+            if let Some(mut ch) = log.metadata.change_history {
+                hydrate_stripped_entries(&mut ch);
                 find_checkpoints_that_touched_line(&ch, file, commit.target_line_in_commit)
             } else {
                 vec![]
@@ -234,64 +226,122 @@ fn build_commit_entry(
     })
 }
 
-/// Resolve change_history from CAS (local cache first, then API).
-/// Follows the same pattern as prompt resolution in show_prompt.rs.
-fn resolve_change_history_from_cas(url: &str) -> Option<Vec<ChangeHistoryEntry>> {
-    use crate::api::client::{ApiClient, ApiContext};
-    use crate::api::types::CasChangeHistoryObject;
+/// Replace stripped entries (Default mode: only `timestamp + kind + url` populated)
+/// with full bodies fetched from CAS. Order is preserved; entries that fail to resolve
+/// are left untouched so callers see the same behavior as today's bulk-resolver miss.
+///
+/// Cache hits run inline. Cache misses are batched into a single
+/// `read_ca_prompt_store` call to avoid N round-trips per commit.
+fn hydrate_stripped_entries(entries: &mut [ChangeHistoryEntry]) {
+    use crate::authorship::secrets::entry_is_stripped;
+
+    // Indices and hashes for entries that need a CAS fetch.
+    let mut pending: Vec<(usize, String)> = Vec::new();
+
+    for (idx, entry) in entries.iter_mut().enumerate() {
+        if !entry_is_stripped(entry) {
+            continue;
+        }
+        let Some(url) = entry.url.as_deref() else {
+            continue;
+        };
+        let Some(hash) = url.rsplit('/').next().filter(|h| !h.is_empty()).map(String::from) else {
+            continue;
+        };
+
+        if let Some(fetched) = try_resolve_entry_from_cache(&hash) {
+            apply_fetched_entry(entry, fetched);
+        } else {
+            pending.push((idx, hash));
+        }
+    }
+
+    if pending.is_empty() {
+        return;
+    }
+
+    let fetched_by_hash = fetch_entries_from_api(&pending);
+    for (idx, hash) in pending {
+        if let Some(fetched) = fetched_by_hash.get(&hash) {
+            apply_fetched_entry(&mut entries[idx], fetched.clone());
+        }
+    }
+}
+
+/// Overlay a CAS-resolved entry onto the stripped placeholder.
+/// Preserves the original `url` so re-stripping detection still works.
+fn apply_fetched_entry(target: &mut ChangeHistoryEntry, fetched: ChangeHistoryEntry) {
+    let preserved_url = target.url.clone();
+    *target = fetched;
+    if target.url.is_none() {
+        target.url = preserved_url;
+    }
+}
+
+fn try_resolve_entry_from_cache(hash: &str) -> Option<ChangeHistoryEntry> {
+    use crate::api::types::CasChangeHistoryEntryObject;
     use crate::authorship::internal_db::InternalDatabase;
 
-    let hash = url.rsplit('/').next().filter(|h| !h.is_empty())?;
+    let db_mutex = InternalDatabase::global().ok()?;
+    let db_guard = db_mutex.lock().ok()?;
+    let cached_json = db_guard.get_cas_cache(hash).ok().flatten()?;
+    let obj: CasChangeHistoryEntryObject = serde_json::from_str(&cached_json).ok()?;
+    tracing::debug!("line-history: resolved change_history entry from cas_cache");
+    Some(obj.entry)
+}
 
-    // 1. Check cas_cache (instant, local)
-    if let Ok(db_mutex) = InternalDatabase::global()
-        && let Ok(db_guard) = db_mutex.lock()
-        && let Ok(Some(cached_json)) = db_guard.get_cas_cache(hash)
-        && let Ok(cas_obj) = serde_json::from_str::<CasChangeHistoryObject>(&cached_json)
-    {
-        tracing::debug!("line-history: resolved change_history from cas_cache");
-        return Some(cas_obj.change_history);
-    }
+/// Batch-fetch missing entries from the CAS API.
+/// On any error or missing auth, returns an empty map (callers fall back to the
+/// stripped placeholder, matching today's degradation behavior).
+fn fetch_entries_from_api(
+    pending: &[(usize, String)],
+) -> std::collections::HashMap<String, ChangeHistoryEntry> {
+    use crate::api::client::{ApiClient, ApiContext};
+    use crate::api::types::CasChangeHistoryEntryObject;
+    use crate::authorship::internal_db::InternalDatabase;
+    use std::collections::HashMap;
 
-    // 2. If cache miss, fetch from CAS API (network)
+    let mut out: HashMap<String, ChangeHistoryEntry> = HashMap::new();
+
     let context = ApiContext::new(None);
-    if context.auth_token.is_some() {
-        tracing::debug!(
-            "line-history: trying CAS API for change_history hash {}",
-            &hash[..8.min(hash.len())]
-        );
-        let client = ApiClient::new(context);
-        match client.read_ca_prompt_store(&[hash]) {
-            Ok(response) => {
-                for result in &response.results {
-                    if result.status == "ok"
-                        && let Some(content) = &result.content
-                    {
-                        let json_str = serde_json::to_string(content).unwrap_or_default();
-                        if let Ok(cas_obj) =
-                            serde_json::from_value::<CasChangeHistoryObject>(content.clone())
-                        {
-                            tracing::debug!("line-history: resolved change_history from CAS API");
-                            // Cache for next time
-                            if let Ok(db_mutex) = InternalDatabase::global()
-                                && let Ok(mut db_guard) = db_mutex.lock()
-                            {
-                                let _ = db_guard.set_cas_cache(hash, &json_str);
-                            }
-                            return Some(cas_obj.change_history);
-                        }
-                    }
-                }
-            }
-            Err(e) => {
-                tracing::debug!("line-history: CAS API error: {}", e);
-            }
-        }
-    } else {
-        tracing::debug!("line-history: no auth token, skipping CAS API");
+    if context.auth_token.is_none() {
+        tracing::debug!("line-history: no auth token, skipping CAS API for {} entries", pending.len());
+        return out;
     }
 
-    None
+    let hashes: Vec<&str> = pending.iter().map(|(_, h)| h.as_str()).collect();
+    let client = ApiClient::new(context);
+    let response = match client.read_ca_prompt_store(&hashes) {
+        Ok(r) => r,
+        Err(e) => {
+            tracing::debug!("line-history: CAS API error: {}", e);
+            return out;
+        }
+    };
+
+    for result in &response.results {
+        if result.status != "ok" {
+            continue;
+        }
+        let Some(content) = &result.content else { continue };
+        let Ok(obj) = serde_json::from_value::<CasChangeHistoryEntryObject>(content.clone()) else {
+            continue;
+        };
+        let json_str = serde_json::to_string(content).unwrap_or_default();
+        if let Ok(db_mutex) = InternalDatabase::global()
+            && let Ok(mut db_guard) = db_mutex.lock()
+        {
+            let _ = db_guard.set_cas_cache(&result.hash, &json_str);
+        }
+        out.insert(result.hash.clone(), obj.entry);
+    }
+
+    tracing::debug!(
+        "line-history: resolved {}/{} change_history entries from CAS API",
+        out.len(),
+        pending.len()
+    );
+    out
 }
 
 // --- Line mapping algorithm (ported from tests/line_mapping_tests.rs) ---

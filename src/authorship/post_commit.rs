@@ -5,7 +5,8 @@ use crate::authorship::ignore::{
 };
 use crate::authorship::prompt_utils::{PromptUpdateResult, update_prompt_from_tool};
 use crate::authorship::secrets::{
-    redact_secrets_from_change_history, redact_secrets_from_prompts, strip_prompt_messages,
+    entry_is_stripped, redact_secrets_from_change_history, redact_secrets_from_prompts,
+    strip_entry_to_url, strip_prompt_messages,
 };
 use crate::authorship::stats::{stats_for_commit_stats, write_stats_to_terminal};
 use crate::authorship::virtual_attribution::VirtualAttributions;
@@ -264,6 +265,7 @@ pub fn post_commit_with_final_state(
                     prompt_text,
                     files,
                     line_stats: cp.line_stats.clone(),
+                    url: None,
                 }
             })
             .collect();
@@ -405,7 +407,8 @@ pub fn post_commit_with_final_state(
                     strip_prompt_messages(&mut authorship_log.metadata.prompts);
                     authorship_log.metadata.change_history = None;
                 }
-                // Success: enqueue function already cleared messages and change_history
+                // Success: messages cleared per prompt; change_history entries reduced
+                // to {timestamp, kind, url} so each is independently re-fetchable from CAS.
             } else {
                 // Not enqueueing - strip messages and change_history (never keep in notes for "default")
                 strip_prompt_messages(&mut authorship_log.metadata.prompts);
@@ -936,9 +939,11 @@ fn collect_context_conversations(
 /// - Serialize messages to JSON, enqueue to CAS, set messages_url
 /// - If `strip_after_upload`: clear messages from the note
 ///
-/// For change_history (if present):
-/// - Serialize entire Vec as one CAS object, enqueue, set change_history_url
-/// - If `strip_after_upload`: clear change_history from the note
+/// For each change_history entry (if present):
+/// - Serialize the entry as its own CAS object, enqueue, set entry.url
+/// - If `strip_after_upload`: reduce entry to `{timestamp, kind, url}`
+/// - Skip entries that already have a url and are already stripped (carried forward
+///   from another note in default mode — re-uploading would be wasted work).
 fn enqueue_authorship_metadata_to_cas(
     repo: &Repository,
     authorship_metadata: &mut crate::authorship::authorship_log_serialization::AuthorshipMetadata,
@@ -1027,25 +1032,31 @@ fn enqueue_authorship_metadata_to_cas(
         }
     }
 
-    // --- Change history ---
-    if let Some(ref change_history) = authorship_metadata.change_history {
-        if !change_history.is_empty() {
-            let mut ch_metadata = base_metadata.clone();
-            ch_metadata.insert("kind".to_string(), "change_history".to_string());
+    // --- Change history (per entry) ---
+    if let Some(ref mut entries) = authorship_metadata.change_history {
+        let mut ch_metadata = base_metadata.clone();
+        ch_metadata.insert("kind".to_string(), "change_history_entry".to_string());
 
-            let ch_obj = crate::api::types::CasChangeHistoryObject {
-                change_history: change_history.clone(),
+        for entry in entries.iter_mut() {
+            // Carry-forward case: entry already has a url and was stripped previously.
+            // Re-uploading produces a different hash (entries are mutable in transit), so
+            // skip to preserve the original CAS pointer.
+            if entry.url.is_some() && entry_is_stripped(entry) {
+                continue;
+            }
+
+            let obj = crate::api::types::CasChangeHistoryEntryObject {
+                entry: entry.clone(),
             };
-            let ch_json = serde_json::to_value(&ch_obj).map_err(|e| {
-                GitAiError::Generic(format!("Failed to serialize change_history: {}", e))
+            let entry_json = serde_json::to_value(&obj).map_err(|e| {
+                GitAiError::Generic(format!("Failed to serialize change_history entry: {}", e))
             })?;
 
-            let hash = enqueue_and_submit(&ch_json, &ch_metadata)?;
+            let hash = enqueue_and_submit(&entry_json, &ch_metadata)?;
+            entry.url = Some(format!("{}/cas/{}", api_base_url, hash));
 
-            authorship_metadata.change_history_url =
-                Some(format!("{}/cas/{}", api_base_url, hash));
             if strip_after_upload {
-                authorship_metadata.change_history = None;
+                strip_entry_to_url(entry);
             }
         }
     }

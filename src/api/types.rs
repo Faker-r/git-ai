@@ -118,11 +118,11 @@ pub struct CasMessagesObject {
     pub messages: Vec<crate::authorship::transcript::Message>,
 }
 
-/// Wrapper for change_history stored in CAS
+/// Wrapper for a single change_history entry stored in CAS.
+/// Each entry uploads as its own CAS object, mirroring `CasMessagesObject`.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct CasChangeHistoryObject {
-    pub change_history:
-        Vec<crate::authorship::authorship_log_serialization::ChangeHistoryEntry>,
+pub struct CasChangeHistoryEntryObject {
+    pub entry: crate::authorship::authorship_log_serialization::ChangeHistoryEntry,
 }
 
 /// Single result from CA prompt store batch read

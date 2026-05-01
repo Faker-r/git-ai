@@ -58,8 +58,12 @@ pub struct ChangeHistoryEntry {
     pub model: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub prompt_text: Option<String>,
+    #[serde(default)]
     pub files: BTreeMap<String, FileChangeDetail>,
+    #[serde(default)]
     pub line_stats: CheckpointLineStats,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
 }
 
 /// Metadata section that goes below the divider as JSON
@@ -73,8 +77,6 @@ pub struct AuthorshipMetadata {
     pub humans: BTreeMap<String, HumanRecord>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub change_history: Option<Vec<ChangeHistoryEntry>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub change_history_url: Option<String>,
 }
 
 impl AuthorshipMetadata {
@@ -86,7 +88,6 @@ impl AuthorshipMetadata {
             prompts: BTreeMap::new(),
             humans: BTreeMap::new(),
             change_history: None,
-            change_history_url: None,
         }
     }
 }
