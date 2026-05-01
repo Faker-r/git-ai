@@ -6,7 +6,7 @@ from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
 
 from db import supabase
-from auth import router as auth_router, get_current_user
+from auth import router as auth_router, require_auth
 from models import (
     CasUploadRequest,
     CasUploadResponse,
@@ -39,7 +39,7 @@ async def health():
 
 
 @app.post("/worker/cas/upload", response_model=CasUploadResponse, response_model_exclude_none=True)
-async def cas_upload(req: CasUploadRequest, request: Request, user=Depends(get_current_user)):
+async def cas_upload(req: CasUploadRequest, request: Request, user=Depends(require_auth)):
     results = []
     success_count = 0
     failure_count = 0
@@ -76,7 +76,7 @@ async def cas_upload(req: CasUploadRequest, request: Request, user=Depends(get_c
 
 
 @app.get("/worker/cas/", response_model=CasReadResponse, response_model_exclude_none=True)
-async def cas_read(hashes: str = Query(...), user=Depends(get_current_user)):
+async def cas_read(hashes: str = Query(...), user=Depends(require_auth)):
     hash_list = [h.strip() for h in hashes.split(",") if h.strip()]
 
     if not hash_list or len(hash_list) > 100:
@@ -107,7 +107,7 @@ async def cas_read(hashes: str = Query(...), user=Depends(get_current_user)):
 
 
 @app.post("/worker/metrics/upload", response_model=MetricsUploadResponse)
-async def metrics_upload(req: MetricsBatch, request: Request, user=Depends(get_current_user)):
+async def metrics_upload(req: MetricsBatch, request: Request, user=Depends(require_auth)):
     errors = []
 
     if req.v != 1:

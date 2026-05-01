@@ -202,6 +202,7 @@ async def device_approve(req: ApproveRequest):
     access_expires_at = datetime.fromtimestamp(req.expires_at, tz=timezone.utc)
     refresh_expires_at = datetime.now(timezone.utc) + timedelta(seconds=REFRESH_TOKEN_TTL_SECONDS)
 
+    supabase.postgrest.auth(req.access_token)
     result = (
         supabase.table("device_codes")
         .update({
@@ -225,11 +226,20 @@ async def device_approve(req: ApproveRequest):
 # ---------------- Auth dependency for protected routes ----------------
 
 
-async def get_current_user(request: Request):
+def _extract_token(request: Request) -> str:
     header = request.headers.get("Authorization", "")
     if not header.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Missing bearer token")
-    token = header[7:]
+    return header[7:]
+
+
+async def require_auth(request: Request):
+    """Validate the bearer token, set it on the PostgREST client for RLS, and return the user.
+
+    Sets supabase.postgrest.auth(token) so all subsequent table operations
+    in the request run under the authenticated user's RLS context.
+    """
+    token = _extract_token(request)
     try:
         user_resp = supabase.auth.get_user(token)
     except Exception as e:
@@ -237,4 +247,5 @@ async def get_current_user(request: Request):
     user = getattr(user_resp, "user", None)
     if not user:
         raise HTTPException(status_code=401, detail="Invalid token")
+    supabase.postgrest.auth(token)
     return user
