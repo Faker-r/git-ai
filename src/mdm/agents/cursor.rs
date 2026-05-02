@@ -43,20 +43,23 @@ impl HookInstaller for CursorInstaller {
     }
 
     fn check_hooks(&self, _params: &HookInstallerParams) -> Result<HookCheckResult, GitAiError> {
-        let resolved_cli = resolve_editor_cli("cursor");
-        let has_cli = resolved_cli.is_some();
         let has_dotfiles = home_dir().join(".cursor").exists();
         let has_settings_targets = Self::settings_targets()
             .iter()
             .any(|path| should_process_settings_target(path));
 
-        if !has_cli && !has_dotfiles && !has_settings_targets {
+        // Skip the editor CLI probe entirely when there is no user profile
+        // evidence. The `cursor` CLI is still multi-second on a cold path; if
+        // the user has no profile, we have nothing meaningful to ask it about.
+        if !has_dotfiles && !has_settings_targets {
             return Ok(HookCheckResult {
                 tool_installed: false,
                 hooks_installed: false,
                 hooks_up_to_date: false,
             });
         }
+
+        let resolved_cli = resolve_editor_cli("cursor");
 
         // If we have a CLI, check version
         if let Some(cli) = &resolved_cli

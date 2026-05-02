@@ -27,20 +27,25 @@ impl HookInstaller for VSCodeInstaller {
     }
 
     fn check_hooks(&self, _params: &HookInstallerParams) -> Result<HookCheckResult, GitAiError> {
-        let resolved_cli = resolve_editor_cli("code");
-        let has_cli = resolved_cli.is_some();
         let has_dotfiles = home_dir().join(".vscode").exists();
         let has_settings_targets = Self::settings_targets()
             .iter()
             .any(|path| should_process_settings_target(path));
 
-        if !has_cli && !has_dotfiles && !has_settings_targets {
+        // Skip the editor CLI probe entirely when there is no user profile
+        // evidence. Resolving `code` can fall back to launching
+        // /Applications/Visual Studio Code.app/Contents/MacOS/Electron with
+        // ELECTRON_RUN_AS_NODE=1, which is multi-second on macOS. If the user
+        // has no profile, we have nothing meaningful to ask the CLI about.
+        if !has_dotfiles && !has_settings_targets {
             return Ok(HookCheckResult {
                 tool_installed: false,
                 hooks_installed: false,
                 hooks_up_to_date: false,
             });
         }
+
+        let resolved_cli = resolve_editor_cli("code");
 
         // If we have a CLI, check version
         if let Some(cli) = &resolved_cli
