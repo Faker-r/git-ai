@@ -31,6 +31,7 @@ expression: sanitized
             additions_sloc: 3,
             deletions_sloc: 0,
         },
+        url: None,
     },
     ChangeHistoryEntry {
         timestamp: 0,
@@ -72,6 +73,7 @@ expression: sanitized
             additions_sloc: 3,
             deletions_sloc: 3,
         },
+        url: None,
     },
     ChangeHistoryEntry {
         timestamp: 0,
@@ -111,5 +113,6 @@ expression: sanitized
             additions_sloc: 1,
             deletions_sloc: 3,
         },
+        url: None,
     },
 ]
