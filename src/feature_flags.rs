@@ -57,7 +57,6 @@ define_feature_flags!(
     auth_keyring: auth_keyring, debug = false, release = false,
     async_mode: async_mode, debug = false, release = true,
     git_hooks_enabled: git_hooks_enabled, debug = false, release = false,
-    git_hooks_externally_managed: git_hooks_externally_managed, debug = false, release = false,
 );
 
 impl FeatureFlags {
@@ -132,7 +131,6 @@ mod tests {
             assert!(!flags.auth_keyring);
             assert!(!flags.async_mode);
             assert!(!flags.git_hooks_enabled);
-            assert!(!flags.git_hooks_externally_managed);
         }
         #[cfg(not(debug_assertions))]
         {
@@ -141,7 +139,6 @@ mod tests {
             assert!(!flags.auth_keyring);
             assert!(flags.async_mode);
             assert!(!flags.git_hooks_enabled);
-            assert!(!flags.git_hooks_externally_managed);
         }
     }
 
@@ -250,7 +247,6 @@ mod tests {
             auth_keyring: true,
             async_mode: true,
             git_hooks_enabled: false,
-            git_hooks_externally_managed: false,
         };
 
         let serialized = serde_json::to_string(&flags).unwrap();
@@ -259,7 +255,6 @@ mod tests {
         assert!(serialized.contains("auth_keyring"));
         assert!(serialized.contains("async_mode"));
         assert!(serialized.contains("git_hooks_enabled"));
-        assert!(serialized.contains("git_hooks_externally_managed"));
     }
 
     #[test]
@@ -270,7 +265,6 @@ mod tests {
             auth_keyring: true,
             async_mode: true,
             git_hooks_enabled: true,
-            git_hooks_externally_managed: false,
         };
         let cloned = flags.clone();
         assert_eq!(cloned.rewrite_stash, flags.rewrite_stash);
@@ -278,10 +272,6 @@ mod tests {
         assert_eq!(cloned.auth_keyring, flags.auth_keyring);
         assert_eq!(cloned.async_mode, flags.async_mode);
         assert_eq!(cloned.git_hooks_enabled, flags.git_hooks_enabled);
-        assert_eq!(
-            cloned.git_hooks_externally_managed,
-            flags.git_hooks_externally_managed
-        );
     }
 
     #[test]
