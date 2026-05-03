@@ -101,7 +101,6 @@ fn print_config_help() {
     eprintln!("  allow_repositories           Allowed repos (array)");
     eprintln!("  exclude_repositories         Excluded repos (array)");
     eprintln!("  telemetry_oss                OSS telemetry setting (on/off)");
-    eprintln!("  telemetry_enterprise_dsn     Enterprise telemetry DSN");
     eprintln!("  disable_version_checks       Disable version checks (bool)");
     eprintln!("  disable_auto_updates         Disable auto updates (bool)");
     eprintln!("  update_channel               Update channel (latest/next)");
@@ -270,14 +269,6 @@ fn show_all_config() -> Result<(), String> {
         Value::Bool(runtime_config.auto_updates_disabled()),
     );
 
-    // Optional strings
-    if let Some(ref dsn) = file_config.telemetry_enterprise_dsn {
-        effective_config.insert(
-            "telemetry_enterprise_dsn".to_string(),
-            Value::String(dsn.clone()),
-        );
-    }
-
     effective_config.insert(
         "update_channel".to_string(),
         Value::String(runtime_config.update_channel().as_str().to_string()),
@@ -356,13 +347,6 @@ fn get_config_value(key: &str) -> Result<(), String> {
                 }
             }
             "telemetry_oss_disabled" => Value::Bool(runtime_config.is_telemetry_oss_disabled()),
-            "telemetry_enterprise_dsn" => {
-                if let Some(ref dsn) = file_config.telemetry_enterprise_dsn {
-                    Value::String(dsn.clone())
-                } else {
-                    Value::Null
-                }
-            }
             "disable_version_checks" => Value::Bool(runtime_config.version_checks_disabled()),
             "disable_auto_updates" => Value::Bool(runtime_config.auto_updates_disabled()),
             "update_channel" => Value::String(runtime_config.update_channel().as_str().to_string()),
@@ -467,11 +451,6 @@ fn set_config_value(key: &str, value: &str, add_mode: bool) -> Result<(), String
                 file_config.telemetry_oss = Some(value.to_string());
                 crate::config::save_file_config(&file_config)?;
                 eprintln!("[telemetry_oss]: {}", value);
-            }
-            "telemetry_enterprise_dsn" => {
-                file_config.telemetry_enterprise_dsn = Some(value.to_string());
-                crate::config::save_file_config(&file_config)?;
-                eprintln!("[telemetry_enterprise_dsn]: {}", value);
             }
             "disable_version_checks" => {
                 let bool_value = parse_bool(value)?;
@@ -689,13 +668,6 @@ fn unset_config_value(key: &str) -> Result<(), String> {
                 crate::config::save_file_config(&file_config)?;
                 if let Some(v) = old_value {
                     eprintln!("- [telemetry_oss]: {}", v);
-                }
-            }
-            "telemetry_enterprise_dsn" => {
-                let old_value = file_config.telemetry_enterprise_dsn.take();
-                crate::config::save_file_config(&file_config)?;
-                if let Some(v) = old_value {
-                    eprintln!("- [telemetry_enterprise_dsn]: {}", v);
                 }
             }
             "disable_version_checks" => {

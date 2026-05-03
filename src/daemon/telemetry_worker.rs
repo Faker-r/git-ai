@@ -336,17 +336,6 @@ fn flush_sentry_and_posthog(
     performances: &[PerformanceEvent],
     messages: &[MessageEvent],
 ) {
-    // Check for Enterprise DSN
-    let enterprise_dsn = config
-        .telemetry_enterprise_dsn()
-        .map(|s| s.to_string())
-        .or_else(|| {
-            std::env::var("SENTRY_ENTERPRISE")
-                .ok()
-                .or_else(|| option_env!("SENTRY_ENTERPRISE").map(|s| s.to_string()))
-                .filter(|s| !s.is_empty())
-        });
-
     // Check for OSS DSN
     let oss_dsn = if config.is_telemetry_oss_disabled() {
         None
@@ -375,7 +364,6 @@ fn flush_sentry_and_posthog(
 
     // Build Sentry clients
     let oss_client = oss_dsn.and_then(|dsn| SentryClient::from_dsn(&dsn));
-    let enterprise_client = enterprise_dsn.and_then(|dsn| SentryClient::from_dsn(&dsn));
 
     // Build base tags
     let mut base_tags = BTreeMap::new();
@@ -405,9 +393,6 @@ fn flush_sentry_and_posthog(
         });
 
         if let Some(client) = &oss_client {
-            let _ = client.send_event(event.clone());
-        }
-        if let Some(client) = &enterprise_client {
             let _ = client.send_event(event);
         }
     }
@@ -443,9 +428,6 @@ fn flush_sentry_and_posthog(
         });
 
         if let Some(client) = &oss_client {
-            let _ = client.send_event(event.clone());
-        }
-        if let Some(client) = &enterprise_client {
             let _ = client.send_event(event);
         }
     }
@@ -472,9 +454,6 @@ fn flush_sentry_and_posthog(
         });
 
         if let Some(client) = &oss_client {
-            let _ = client.send_event(sentry_event.clone());
-        }
-        if let Some(client) = &enterprise_client {
             let _ = client.send_event(sentry_event);
         }
 

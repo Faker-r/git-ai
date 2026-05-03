@@ -70,7 +70,6 @@ pub struct Config {
     #[serde(serialize_with = "serialize_patterns")]
     exclude_repositories: Vec<Pattern>,
     telemetry_oss_disabled: bool,
-    telemetry_enterprise_dsn: Option<String>,
     disable_version_checks: bool,
     disable_auto_updates: bool,
     update_channel: UpdateChannel,
@@ -128,8 +127,6 @@ pub struct FileConfig {
     pub exclude_repositories: Option<Vec<String>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub telemetry_oss: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub telemetry_enterprise_dsn: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub disable_version_checks: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -293,11 +290,6 @@ impl Config {
     /// Returns true if OSS telemetry is disabled.
     pub fn is_telemetry_oss_disabled(&self) -> bool {
         self.telemetry_oss_disabled
-    }
-
-    /// Returns the telemetry_enterprise_dsn if set.
-    pub fn telemetry_enterprise_dsn(&self) -> Option<&str> {
-        self.telemetry_enterprise_dsn.as_deref()
     }
 
     pub fn version_checks_disabled(&self) -> bool {
@@ -541,10 +533,6 @@ fn build_config() -> Config {
         .and_then(|c| c.telemetry_oss.clone())
         .filter(|s| s == "off")
         .is_some();
-    let telemetry_enterprise_dsn = file_cfg
-        .as_ref()
-        .and_then(|c| c.telemetry_enterprise_dsn.clone())
-        .filter(|s| !s.is_empty());
 
     // Default to disabled (true) unless this is an OSS build
     // OSS builds set OSS_BUILD env var at compile time to "1", which enables auto-updates by default
@@ -649,7 +637,6 @@ fn build_config() -> Config {
             allow_repositories,
             exclude_repositories,
             telemetry_oss_disabled,
-            telemetry_enterprise_dsn,
             disable_version_checks,
             disable_auto_updates,
             update_channel,
@@ -673,7 +660,6 @@ fn build_config() -> Config {
         allow_repositories,
         exclude_repositories,
         telemetry_oss_disabled,
-        telemetry_enterprise_dsn,
         disable_version_checks,
         disable_auto_updates,
         update_channel,
@@ -1074,7 +1060,6 @@ mod tests {
                 .filter_map(|s| Pattern::new(&s).ok())
                 .collect(),
             telemetry_oss_disabled: false,
-            telemetry_enterprise_dsn: None,
             disable_version_checks: false,
             disable_auto_updates: false,
             update_channel: UpdateChannel::Latest,
@@ -1182,7 +1167,6 @@ mod tests {
             allow_repositories: vec![],
             exclude_repositories: vec![],
             telemetry_oss_disabled: false,
-            telemetry_enterprise_dsn: None,
             disable_version_checks: false,
             disable_auto_updates: false,
             update_channel: UpdateChannel::Latest,
@@ -1299,7 +1283,6 @@ mod tests {
             allow_repositories: vec![],
             exclude_repositories: vec![],
             telemetry_oss_disabled: false,
-            telemetry_enterprise_dsn: None,
             disable_version_checks: false,
             disable_auto_updates: false,
             update_channel: UpdateChannel::Latest,
