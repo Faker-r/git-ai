@@ -31,7 +31,9 @@ expression: sanitized
             additions_sloc: 3,
             deletions_sloc: 0,
         },
-        url: None,
+        url: Some(
+            "CAS_URL",
+        ),
     },
     ChangeHistoryEntry {
         timestamp: 0,
@@ -73,7 +75,9 @@ expression: sanitized
             additions_sloc: 3,
             deletions_sloc: 3,
         },
-        url: None,
+        url: Some(
+            "CAS_URL",
+        ),
     },
     ChangeHistoryEntry {
         timestamp: 0,
@@ -102,7 +106,9 @@ expression: sanitized
             additions_sloc: 2,
             deletions_sloc: 0,
         },
-        url: None,
+        url: Some(
+            "CAS_URL",
+        ),
     },
     ChangeHistoryEntry {
         timestamp: 0,
@@ -142,7 +148,9 @@ expression: sanitized
             additions_sloc: 2,
             deletions_sloc: 2,
         },
-        url: None,
+        url: Some(
+            "CAS_URL",
+        ),
     },
     ChangeHistoryEntry {
         timestamp: 0,
@@ -177,6 +185,8 @@ expression: sanitized
             additions_sloc: 3,
             deletions_sloc: 2,
         },
-        url: None,
+        url: Some(
+            "CAS_URL",
+        ),
     },
 ]
