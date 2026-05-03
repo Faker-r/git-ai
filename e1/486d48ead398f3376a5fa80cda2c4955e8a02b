@@ -1,0 +1,73 @@
+---
+{
+  "schema_version": "authorship/4.0.0",
+  "git_ai_version": "1.3.1",
+  "base_commit_sha": "e1486d48ead398f3376a5fa80cda2c4955e8a02b",
+  "prompts": {},
+  "change_history": [
+    {
+      "timestamp": 1777786085,
+      "kind": "human",
+      "files": {
+        "self-hosted-server/auth.py": {
+          "added_lines": [
+            "13",
+            "28-31",
+            "76",
+            "115",
+            "119",
+            "129",
+            "145"
+          ],
+          "deleted_lines": [
+            "71",
+            "113",
+            "123",
+            "139"
+          ],
+          "added_line_contents": [
+            "13: import hashlib",
+            "28: def _hash_device_code(code: str) -> str:",
+            "29:     return hashlib.sha256(code.encode(\"utf-8\")).hexdigest()",
+            "30: ",
+            "31: ",
+            "76:         \"device_code_hash\": _hash_device_code(device_code_val),",
+            "115:     device_code_hash = _hash_device_code(device_code_val)",
+            "119:         .eq(\"device_code_hash\", device_code_hash)",
+            "129:         supabase.table(\"device_codes\").delete().eq(\"device_code_hash\", device_code_hash).execute()",
+            "145:     supabase.table(\"device_codes\").delete().eq(\"device_code_hash\", device_code_hash).execute()"
+          ],
+          "deleted_line_contents": [
+            "71:         \"device_code\": device_code_val,",
+            "113:         .eq(\"device_code\", device_code_val)",
+            "123:         supabase.table(\"device_codes\").delete().eq(\"device_code\", device_code_val).execute()",
+            "139:     supabase.table(\"device_codes\").delete().eq(\"device_code\", device_code_val).execute()"
+          ]
+        },
+        "self-hosted-server/schema.sql": {
+          "added_lines": [
+            "44-45",
+            "47"
+          ],
+          "deleted_lines": [
+            "45"
+          ],
+          "added_line_contents": [
+            "44: -- The primary key is sha256(device_code) so a DB read does not yield the",
+            "45: -- plaintext bearer secret. Plaintext is only ever held in CLI memory.",
+            "47:     device_code_hash text primary key,"
+          ],
+          "deleted_line_contents": [
+            "45:     device_code text primary key,"
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 13,
+        "deletions": 5,
+        "additions_sloc": 11,
+        "deletions_sloc": 5
+      }
+    }
+  ]
+}
