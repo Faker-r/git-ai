@@ -323,7 +323,7 @@ impl Config {
 
     /// Returns the prompt storage mode: "default", "notes", or "local"
     /// - "default": Messages uploaded via CAS API
-    /// - "notes": Messages stored in git notes
+    /// - "notes": Messages stored in git notes and uploaded via CAS API
     /// - "local": Messages only stored in sqlite (not in notes, not uploaded)
     pub fn prompt_storage(&self) -> &str {
         &self.prompt_storage

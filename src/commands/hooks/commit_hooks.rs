@@ -12,6 +12,9 @@ pub fn commit_pre_command_hook(
         return false;
     }
 
+    // Pre-commit auth warning so the user sees it before the commit runs.
+    crate::commands::git_handlers::warn_if_cas_upload_deferred(repository);
+
     // store HEAD context for post-command hook
     repository.require_pre_command_head();
 

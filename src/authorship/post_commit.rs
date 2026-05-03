@@ -1,4 +1,3 @@
-use crate::api::{ApiClient, ApiContext};
 use crate::authorship::authorship_log_serialization::AuthorshipLog;
 use crate::authorship::ignore::{
     build_ignore_matcher, effective_ignore_patterns, should_ignore_file_with_matcher,
@@ -340,9 +339,8 @@ pub fn post_commit_with_final_state(
     // Always use Config::fresh() to support runtime config updates
     // (especially important for daemon mode, but also good for consistency)
     let config = Config::fresh();
-    let (effective_storage, using_custom_api, custom_attrs) = (
+    let (effective_storage, custom_attrs) = (
         config.effective_prompt_storage(&Some(repo.clone())),
-        config.api_base_url() != crate::config::DEFAULT_API_BASE_URL,
         config.custom_attributes().clone(),
     );
 
@@ -360,57 +358,37 @@ pub fn post_commit_with_final_state(
             authorship_log.metadata.change_history = None;
         }
         PromptStorageMode::Notes => {
-            // Store in notes: redact secrets, upload to CAS, but keep data in notes
+            // Store in notes: redact secrets, enqueue to CAS, keep prompts/change_history in notes.
             let count = redact_secrets_from_prompts(&mut authorship_log.metadata.prompts);
             if count > 0 {
                 tracing::debug!("Redacted {} secrets from prompts", count);
             }
 
-            let context = ApiContext::new(None);
-            let client = ApiClient::new(context);
-            let should_enqueue_cas =
-                client.is_logged_in() || using_custom_api;
-
-            if should_enqueue_cas {
-                if let Err(e) =
-                    enqueue_authorship_metadata_to_cas(repo, &mut authorship_log.metadata, false)
-                {
-                    tracing::debug!("[Warning] Failed to enqueue authorship metadata to CAS (notes mode): {}", e);
-                }
+            if let Err(e) =
+                enqueue_authorship_metadata_to_cas(repo, &mut authorship_log.metadata, false)
+            {
+                tracing::debug!("[Warning] Failed to enqueue authorship metadata to CAS (notes mode): {}", e);
             }
         }
         PromptStorageMode::Default => {
-            // "default" - attempt CAS upload, NEVER keep messages/change_history in notes
-            // Check conditions for CAS upload:
-            // - user is logged in OR using custom API URL
-            let context = ApiContext::new(None);
-            let client = ApiClient::new(context);
-            let should_enqueue_cas =
-                client.is_logged_in() || using_custom_api;
+            // "default": redact secrets, enqueue to CAS, do not keep prompts/change_history in notes.
+            let redaction_count =
+                redact_secrets_from_prompts(&mut authorship_log.metadata.prompts);
+            if redaction_count > 0 {
+                tracing::debug!(
+                    "Redacted {} secrets from prompts before CAS upload",
+                    redaction_count
+                );
+            }
 
-            if should_enqueue_cas {
-                // Redact secrets before uploading to CAS
-                let redaction_count =
-                    redact_secrets_from_prompts(&mut authorship_log.metadata.prompts);
-                if redaction_count > 0 {
-                    tracing::debug!(
-                        "Redacted {} secrets from prompts before CAS upload",
-                        redaction_count
-                    );
-                }
-
-                if let Err(e) =
-                    enqueue_authorship_metadata_to_cas(repo, &mut authorship_log.metadata, true)
-                {
-                    tracing::debug!("[Warning] Failed to enqueue authorship metadata to CAS: {}", e);
-                    // Enqueue failed - still strip (never keep in notes for "default")
-                    strip_prompt_messages(&mut authorship_log.metadata.prompts);
-                    authorship_log.metadata.change_history = None;
-                }
-                // Success: messages cleared per prompt; change_history entries reduced
-                // to {timestamp, kind, url} so each is independently re-fetchable from CAS.
-            } else {
-                // Not enqueueing - strip messages and change_history (never keep in notes for "default")
+            if let Err(e) =
+                enqueue_authorship_metadata_to_cas(repo, &mut authorship_log.metadata, true)
+            {
+                tracing::debug!(
+                    "[Warning] Failed to enqueue authorship metadata to CAS: {}",
+                    e
+                );
+                // Enqueue failed - still strip (never keep in notes for "default")
                 strip_prompt_messages(&mut authorship_log.metadata.prompts);
                 authorship_log.metadata.change_history = None;
             }

@@ -174,6 +174,15 @@ pub fn handle_git(args: &[String]) {
         // processes the atexit trace event and starts the wrapper state timeout.
         send_wrapper_pre_state_to_daemon(&invocation_id, worktree.as_deref(), &pre_state);
 
+        // Pre-commit auth warning: in async mode, post_commit runs in the daemon
+        // and its stderr never reaches the user. Print the warning here, before
+        // the commit runs, so the user sees it on the way to the commit.
+        if parsed.command.as_deref() == Some("commit")
+            && let Some(repo) = repository.as_ref()
+        {
+            warn_if_cas_upload_deferred(repo);
+        }
+
         let exit_status = proxy_to_git(args, false, None, Some(&invocation_id));
 
         let post_state = worktree
@@ -757,6 +766,57 @@ fn maybe_show_async_post_commit_stats(parsed: &ParsedGitInvocation, repo: &Repos
     if let Ok(stats) = stats_for_commit_stats(repo, &commit_sha, &ignore_patterns) {
         write_stats_to_terminal(&stats, true);
     }
+}
+
+/// Print a banner warning when CAS upload will be deferred because the user
+/// is not logged in. Called pre-commit so the user sees the message before
+/// the commit output (which is more attention-grabbing than post-commit).
+///
+/// Items still get enqueued locally and will be uploaded automatically once
+/// the user runs `git-ai login`.
+pub fn warn_if_cas_upload_deferred(repo: &Repository) {
+    use crate::api::{ApiClient, ApiContext};
+    use crate::config::{Config, DEFAULT_API_BASE_URL, PromptStorageMode};
+    use std::io::IsTerminal;
+
+    if !std::io::stderr().is_terminal() {
+        return;
+    }
+
+    let cfg = Config::fresh();
+    let storage = cfg.effective_prompt_storage(&Some(repo.clone()));
+    if matches!(storage, PromptStorageMode::Local) {
+        return;
+    }
+    if cfg.api_base_url() != DEFAULT_API_BASE_URL {
+        return;
+    }
+    if ApiClient::new(ApiContext::new(None)).is_logged_in() {
+        return;
+    }
+
+    eprintln!();
+    eprintln!(
+        "\x1b[1;33m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\x1b[0m"
+    );
+    eprintln!("\x1b[1;33m⚠  git-ai: You are not logged in.\x1b[0m");
+    eprintln!(
+        "\x1b[1;33m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\x1b[0m"
+    );
+    eprintln!();
+    eprintln!(
+        "   This commit's prompts and change history will be queued locally"
+    );
+    eprintln!("   and uploaded once you log in.");
+    eprintln!();
+    eprintln!("   To upload, run:");
+    eprintln!(
+        "     1. \x1b[1;36mgit-ai login\x1b[0m         authenticate to the CAS server"
+    );
+    eprintln!(
+        "     2. \x1b[1;36mgit-ai flush-cas\x1b[0m     upload queued CAS objects"
+    );
+    eprintln!();
 }
 
 fn head_state_to_repo_context(
