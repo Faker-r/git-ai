@@ -78,8 +78,6 @@ pub struct Config {
     api_base_url: String,
     prompt_storage: String,
     default_prompt_storage: Option<String>,
-    #[serde(serialize_with = "serialize_masked_api_key")]
-    api_key: Option<String>,
     quiet: bool,
     custom_attributes: HashMap<String, String>,
     git_ai_hooks: HashMap<String, Vec<String>>,
@@ -146,8 +144,6 @@ pub struct FileConfig {
     pub prompt_storage: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub default_prompt_storage: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub api_key: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub quiet: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -396,11 +392,6 @@ impl Config {
         }
     }
 
-    /// Returns the API key if configured
-    pub fn api_key(&self) -> Option<&str> {
-        self.api_key.as_deref()
-    }
-
     /// Returns true if quiet mode is enabled (suppresses chart output after commits)
     pub fn is_quiet(&self) -> bool {
         self.quiet
@@ -477,23 +468,6 @@ where
 {
     let as_strings: Vec<&str> = patterns.iter().map(Pattern::as_str).collect();
     as_strings.serialize(serializer)
-}
-
-fn serialize_masked_api_key<S>(api_key: &Option<String>, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: Serializer,
-{
-    let masked = api_key.as_ref().map(|key| {
-        let chars: Vec<char> = key.chars().collect();
-        if chars.len() > 8 {
-            let prefix: String = chars[..4].iter().collect();
-            let suffix: String = chars[chars.len() - 4..].iter().collect();
-            format!("{}...{}", prefix, suffix)
-        } else {
-            "****".to_string()
-        }
-    });
-    masked.serialize(serializer)
 }
 
 fn build_config() -> Config {
@@ -636,17 +610,6 @@ fn build_config() -> Config {
             }
         });
 
-    // Get API key from env var or config file (env var takes precedence)
-    let api_key = env::var("GIT_AI_API_KEY")
-        .ok()
-        .filter(|s| !s.is_empty())
-        .or_else(|| {
-            file_cfg
-                .as_ref()
-                .and_then(|c| c.api_key.clone())
-                .filter(|s| !s.is_empty())
-        });
-
     // Get quiet setting (defaults to false)
     let quiet = file_cfg.as_ref().and_then(|c| c.quiet).unwrap_or(false);
 
@@ -694,7 +657,6 @@ fn build_config() -> Config {
             api_base_url,
             prompt_storage,
             default_prompt_storage,
-            api_key,
             quiet,
             custom_attributes: custom_attributes.clone(),
             git_ai_hooks: git_ai_hooks.clone(),
@@ -719,7 +681,6 @@ fn build_config() -> Config {
         api_base_url,
         prompt_storage,
         default_prompt_storage,
-        api_key,
         quiet,
         custom_attributes,
         git_ai_hooks,
@@ -1121,7 +1082,6 @@ mod tests {
             api_base_url: DEFAULT_API_BASE_URL.to_string(),
             prompt_storage: "default".to_string(),
             default_prompt_storage: None,
-            api_key: None,
             quiet: false,
             custom_attributes: HashMap::new(),
             git_ai_hooks: HashMap::new(),
@@ -1230,7 +1190,6 @@ mod tests {
             api_base_url: DEFAULT_API_BASE_URL.to_string(),
             prompt_storage: "default".to_string(),
             default_prompt_storage: None,
-            api_key: None,
             quiet: false,
             custom_attributes: HashMap::new(),
             git_ai_hooks: HashMap::new(),
@@ -1348,7 +1307,6 @@ mod tests {
             api_base_url: DEFAULT_API_BASE_URL.to_string(),
             prompt_storage: prompt_storage.to_string(),
             default_prompt_storage: default_prompt_storage.map(|s| s.to_string()),
-            api_key: None,
             quiet: false,
             custom_attributes: HashMap::new(),
             git_ai_hooks: HashMap::new(),

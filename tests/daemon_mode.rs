@@ -910,7 +910,6 @@ fn claude_fixture_path() -> PathBuf {
 fn assert_post_commit_uploads_prompt_cas(mode: GitTestMode) {
     let mock_api = MockApiServer::start();
     let _api_base_url = ScopedEnvVar::set("GIT_AI_API_BASE_URL", mock_api.base_url());
-    let _api_key = ScopedEnvVar::set("GIT_AI_API_KEY", "test-api-key");
 
     // These tests depend on per-test API env vars being visible to the daemon.
     // A shared daemon may already be running from an earlier test with different env.

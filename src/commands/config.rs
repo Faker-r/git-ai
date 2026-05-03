@@ -106,7 +106,6 @@ fn print_config_help() {
     eprintln!("  disable_auto_updates         Disable auto updates (bool)");
     eprintln!("  update_channel               Update channel (latest/next)");
     eprintln!("  feature_flags                Feature flags (object)");
-    eprintln!("  api_key                      API key for X-API-Key header");
     eprintln!("  prompt_storage               Prompt storage mode (default/notes/local)");
     eprintln!("  include_prompts_in_repositories  Repos to include for prompt storage (array)");
     eprintln!("  default_prompt_storage       Fallback storage mode for non-included repos");
@@ -318,12 +317,6 @@ fn show_all_config() -> Result<(), String> {
         .unwrap_or_else(|_| Value::Object(serde_json::Map::new()));
     effective_config.insert("feature_flags".to_string(), flags_value);
 
-    // API key - show masked value if set
-    if let Some(ref key) = file_config.api_key {
-        let masked = mask_api_key(key);
-        effective_config.insert("api_key".to_string(), Value::String(masked));
-    }
-
     let json = serde_json::to_string_pretty(&effective_config)
         .map_err(|e| format!("Failed to serialize config: {}", e))?;
 
@@ -377,13 +370,6 @@ fn get_config_value(key: &str) -> Result<(), String> {
                 // Show effective flags with defaults applied
                 serde_json::to_value(runtime_config.get_feature_flags())
                     .unwrap_or_else(|_| Value::Object(serde_json::Map::new()))
-            }
-            "api_key" => {
-                if let Some(ref key) = file_config.api_key {
-                    Value::String(mask_api_key(key))
-                } else {
-                    Value::Null
-                }
             }
             "prompt_storage" => Value::String(runtime_config.prompt_storage().to_string()),
             "include_prompts_in_repositories" => {
@@ -523,12 +509,6 @@ fn set_config_value(key: &str, value: &str, add_mode: bool) -> Result<(), String
                 file_config.feature_flags = Some(json_value);
                 crate::config::save_file_config(&file_config)?;
                 eprintln!("[feature_flags]: {}", value);
-            }
-            "api_key" => {
-                file_config.api_key = Some(value.to_string());
-                crate::config::save_file_config(&file_config)?;
-                let masked = mask_api_key(value);
-                eprintln!("[api_key]: {}", masked);
             }
             "prompt_storage" => {
                 validate_prompt_storage_value(value)?;
@@ -744,13 +724,6 @@ fn unset_config_value(key: &str) -> Result<(), String> {
                 crate::config::save_file_config(&file_config)?;
                 if let Some(v) = old_value {
                     eprintln!("- [feature_flags]: {}", v);
-                }
-            }
-            "api_key" => {
-                let old_value = file_config.api_key.take();
-                crate::config::save_file_config(&file_config)?;
-                if old_value.is_some() {
-                    eprintln!("- [api_key]: ****");
                 }
             }
             "prompt_storage" => {
@@ -1057,15 +1030,6 @@ fn parse_value(value: &str) -> Result<Value, String> {
     Ok(Value::String(value.to_string()))
 }
 
-/// Mask an API key for display (show first 4 and last 4 chars if long enough)
-fn mask_api_key(key: &str) -> String {
-    if key.len() > 8 {
-        format!("{}...{}", &key[..4], &key[key.len() - 4..])
-    } else {
-        "****".to_string()
-    }
-}
-
 /// Validate prompt_storage value
 fn validate_prompt_storage_value(value: &str) -> Result<(), String> {
     if value != "default" && value != "notes" && value != "local" {
@@ -1202,34 +1166,6 @@ mod tests {
     fn test_parse_value_plain_string() {
         let result = parse_value("plain text").unwrap();
         assert_eq!(result, Value::String("plain text".to_string()));
-    }
-
-    #[test]
-    fn test_mask_api_key_long() {
-        let key = "abcdefghijklmnop";
-        let masked = mask_api_key(key);
-        assert_eq!(masked, "abcd...mnop");
-    }
-
-    #[test]
-    fn test_mask_api_key_short() {
-        let key = "short";
-        let masked = mask_api_key(key);
-        assert_eq!(masked, "****");
-    }
-
-    #[test]
-    fn test_mask_api_key_exactly_eight() {
-        let key = "12345678";
-        let masked = mask_api_key(key);
-        assert_eq!(masked, "****");
-    }
-
-    #[test]
-    fn test_mask_api_key_nine_chars() {
-        let key = "123456789";
-        let masked = mask_api_key(key);
-        assert_eq!(masked, "1234...6789");
     }
 
     #[test]

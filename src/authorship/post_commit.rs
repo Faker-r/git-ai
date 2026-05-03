@@ -369,7 +369,7 @@ pub fn post_commit_with_final_state(
             let context = ApiContext::new(None);
             let client = ApiClient::new(context);
             let should_enqueue_cas =
-                client.is_logged_in() || client.has_api_key() || using_custom_api;
+                client.is_logged_in() || using_custom_api;
 
             if should_enqueue_cas {
                 if let Err(e) =
@@ -382,11 +382,11 @@ pub fn post_commit_with_final_state(
         PromptStorageMode::Default => {
             // "default" - attempt CAS upload, NEVER keep messages/change_history in notes
             // Check conditions for CAS upload:
-            // - user is logged in OR has API key OR using custom API URL
+            // - user is logged in OR using custom API URL
             let context = ApiContext::new(None);
             let client = ApiClient::new(context);
             let should_enqueue_cas =
-                client.is_logged_in() || client.has_api_key() || using_custom_api;
+                client.is_logged_in() || using_custom_api;
 
             if should_enqueue_cas {
                 // Redact secrets before uploading to CAS
