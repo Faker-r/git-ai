@@ -41,8 +41,10 @@ create index if not exists idx_metrics_tool_model on metrics_events(tool, model)
 create index if not exists idx_metrics_user_id on metrics_events(user_id);
 
 -- Pending/approved device codes for the OAuth 2.0 device flow.
+-- The primary key is sha256(device_code) so a DB read does not yield the
+-- plaintext bearer secret. Plaintext is only ever held in CLI memory.
 create table if not exists device_codes (
-    device_code text primary key,
+    device_code_hash text primary key,
     user_code text unique not null,
     status text not null default 'pending', -- pending | approved | denied
     expires_at timestamptz not null,

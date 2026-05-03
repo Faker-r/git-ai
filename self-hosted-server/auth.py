@@ -10,6 +10,7 @@ Flow:
   4. The CLI's polling hits /worker/oauth/token and receives the Supabase JWT.
 """
 import base64
+import hashlib
 import json
 import os
 import secrets
@@ -22,6 +23,10 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
 from db import supabase
+
+
+def _hash_device_code(code: str) -> str:
+    return hashlib.sha256(code.encode("utf-8")).hexdigest()
 
 
 def _jwt_exp(token: str) -> int:
@@ -68,7 +73,7 @@ async def device_code():
     expires_at = datetime.now(timezone.utc) + timedelta(seconds=DEVICE_CODE_TTL_SECONDS)
 
     supabase.table("device_codes").insert({
-        "device_code": device_code_val,
+        "device_code_hash": _hash_device_code(device_code_val),
         "user_code": user_code,
         "status": "pending",
         "expires_at": expires_at.isoformat(),
@@ -107,10 +112,11 @@ def _exchange_device_code(device_code_val: str | None):
     if not device_code_val:
         return _oauth_error("invalid_request", "Missing device_code")
 
+    device_code_hash = _hash_device_code(device_code_val)
     resp = (
         supabase.table("device_codes")
         .select("*")
-        .eq("device_code", device_code_val)
+        .eq("device_code_hash", device_code_hash)
         .limit(1)
         .execute()
     )
@@ -120,7 +126,7 @@ def _exchange_device_code(device_code_val: str | None):
 
     expires_at = datetime.fromisoformat(row["expires_at"])
     if datetime.now(timezone.utc) > expires_at:
-        supabase.table("device_codes").delete().eq("device_code", device_code_val).execute()
+        supabase.table("device_codes").delete().eq("device_code_hash", device_code_hash).execute()
         return _oauth_error("expired_token", "Device code expired")
 
     status = row["status"]
@@ -136,7 +142,7 @@ def _exchange_device_code(device_code_val: str | None):
     now = datetime.now(timezone.utc)
 
     # One-time use: delete row after handing out the tokens.
-    supabase.table("device_codes").delete().eq("device_code", device_code_val).execute()
+    supabase.table("device_codes").delete().eq("device_code_hash", device_code_hash).execute()
 
     return {
         "access_token": row["supabase_access_token"],
