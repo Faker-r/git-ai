@@ -1,0 +1,471 @@
+---
+{
+  "schema_version": "authorship/4.0.0",
+  "git_ai_version": "1.3.1",
+  "base_commit_sha": "c1cf9be3558a66f33ef0bbe0dee3a95ab90d45e9",
+  "prompts": {},
+  "change_history": [
+    {
+      "timestamp": 1777789581,
+      "kind": "human",
+      "files": {
+        "src/api/client.rs": {
+          "added_lines": [],
+          "deleted_lines": [
+            "4",
+            "64-81",
+            "89-92",
+            "105-106",
+            "153-159",
+            "163-164",
+            "174-180",
+            "184-185",
+            "195-201",
+            "205-206",
+            "239-244",
+            "259-264",
+            "300-304"
+          ],
+          "deleted_line_contents": [
+            "4: use crate::git::repository::{exec_git, parse_git_var_identity};",
+            "64: /// Resolve the git author identity without requiring a Repository instance.",
+            "65: ///",
+            "66: /// Runs `git var GIT_COMMITTER_IDENT` to get the current user's identity,",
+            "67: /// respecting the full git precedence chain (env vars > config > system defaults).",
+            "68: /// Returns `None` if the identity cannot be determined.",
+            "69: fn resolve_git_identity() -> Option<String> {",
+            "70:     let args = vec![\"var\".to_string(), \"GIT_COMMITTER_IDENT\".to_string()];",
+            "71:     if let Ok(output) = exec_git(&args)",
+            "72:         && let Ok(stdout) = String::from_utf8(output.stdout)",
+            "73:     {",
+            "74:         let identity = parse_git_var_identity(&stdout);",
+            "75:         if let Some(formatted) = identity.formatted() {",
+            "76:             return Some(formatted);",
+            "77:         }",
+            "78:     }",
+            "79:     None",
+            "80: }",
+            "81: ",
+            "89:     /// Optional API key for X-API-Key header",
+            "90:     pub api_key: Option<String>,",
+            "91:     /// Optional git author identity for X-Author-Identity header (only sent when API key is set)",
+            "92:     pub author_identity: Option<String>,",
+            "105:             .field(\"api_key\", &self.api_key.as_ref().map(|_| \"[REDACTED]\"))",
+            "106:             .field(\"author_identity\", &self.author_identity)",
+            "153:         let cfg = config::Config::fresh();",
+            "154:         let api_key = cfg.api_key().map(|s| s.to_string());",
+            "155:         let author_identity = if api_key.is_some() {",
+            "156:             resolve_git_identity()",
+            "157:         } else {",
+            "158:             None",
+            "159:         };",
+            "163:             api_key,",
+            "164:             author_identity,",
+            "174:         let cfg = config::Config::fresh();",
+            "175:         let api_key = cfg.api_key().map(|s| s.to_string());",
+            "176:         let author_identity = if api_key.is_some() {",
+            "177:             resolve_git_identity()",
+            "178:         } else {",
+            "179:             None",
+            "180:         };",
+            "184:             api_key,",
+            "185:             author_identity,",
+            "195:         let cfg = config::Config::fresh();",
+            "196:         let api_key = cfg.api_key().map(|s| s.to_string());",
+            "197:         let author_identity = if api_key.is_some() {",
+            "198:             resolve_git_identity()",
+            "199:         } else {",
+            "200:             None",
+            "201:         };",
+            "205:             api_key,",
+            "206:             author_identity,",
+            "239:         if let Some(api_key) = &self.api_key {",
+            "240:             request = request.set(\"X-API-Key\", api_key);",
+            "241:             if let Some(identity) = &self.author_identity {",
+            "242:                 request = request.set(\"X-Author-Identity\", identity);",
+            "243:             }",
+            "244:         }",
+            "259:         if let Some(api_key) = &self.api_key {",
+            "260:             request = request.set(\"X-API-Key\", api_key);",
+            "261:             if let Some(identity) = &self.author_identity {",
+            "262:                 request = request.set(\"X-Author-Identity\", identity);",
+            "263:             }",
+            "264:         }",
+            "300: ",
+            "301:     /// Check if an API key is configured",
+            "302:     pub fn has_api_key(&self) -> bool {",
+            "303:         self.context.api_key.is_some()",
+            "304:     }"
+          ]
+        },
+        "src/authorship/post_commit.rs": {
+          "added_lines": [
+            "372",
+            "385",
+            "389"
+          ],
+          "deleted_lines": [
+            "372",
+            "385",
+            "389"
+          ],
+          "added_line_contents": [
+            "372:                 client.is_logged_in() || using_custom_api;",
+            "385:             // - user is logged in OR using custom API URL",
+            "389:                 client.is_logged_in() || using_custom_api;"
+          ],
+          "deleted_line_contents": [
+            "372:                 client.is_logged_in() || client.has_api_key() || using_custom_api;",
+            "385:             // - user is logged in OR has API key OR using custom API URL",
+            "389:                 client.is_logged_in() || client.has_api_key() || using_custom_api;"
+          ]
+        },
+        "src/commands/config.rs": {
+          "added_lines": [
+            "514-516"
+          ],
+          "deleted_lines": [
+            "109",
+            "321-326",
+            "381-387",
+            "528-531",
+            "749-755",
+            "1060-1068",
+            "1207-1234"
+          ],
+          "added_line_contents": [
+            "514:                 return Err(",
+            "515:                     \"api_key is no longer supported; use `git-ai login`. Remove a saved key with: git-ai config unset api_key\".to_string(),",
+            "516:                 );"
+          ],
+          "deleted_line_contents": [
+            "109:     eprintln!(\"  api_key                      API key for X-API-Key header\");",
+            "321:     // API key - show masked value if set",
+            "322:     if let Some(ref key) = file_config.api_key {",
+            "323:         let masked = mask_api_key(key);",
+            "324:         effective_config.insert(\"api_key\".to_string(), Value::String(masked));",
+            "325:     }",
+            "326: ",
+            "381:             \"api_key\" => {",
+            "382:                 if let Some(ref key) = file_config.api_key {",
+            "383:                     Value::String(mask_api_key(key))",
+            "384:                 } else {",
+            "385:                     Value::Null",
+            "386:                 }",
+            "387:             }",
+            "528:                 file_config.api_key = Some(value.to_string());",
+            "529:                 crate::config::save_file_config(&file_config)?;",
+            "530:                 let masked = mask_api_key(value);",
+            "531:                 eprintln!(\"[api_key]: {}\", masked);",
+            "749:             \"api_key\" => {",
+            "750:                 let old_value = file_config.api_key.take();",
+            "751:                 crate::config::save_file_config(&file_config)?;",
+            "752:                 if old_value.is_some() {",
+            "753:                     eprintln!(\"- [api_key]: ****\");",
+            "754:                 }",
+            "755:             }",
+            "1060: /// Mask an API key for display (show first 4 and last 4 chars if long enough)",
+            "1061: fn mask_api_key(key: &str) -> String {",
+            "1062:     if key.len() > 8 {",
+            "1063:         format!(\"{}...{}\", &key[..4], &key[key.len() - 4..])",
+            "1064:     } else {",
+            "1065:         \"****\".to_string()",
+            "1066:     }",
+            "1067: }",
+            "1068: ",
+            "1207:     #[test]",
+            "1208:     fn test_mask_api_key_long() {",
+            "1209:         let key = \"abcdefghijklmnop\";",
+            "1210:         let masked = mask_api_key(key);",
+            "1211:         assert_eq!(masked, \"abcd...mnop\");",
+            "1212:     }",
+            "1213: ",
+            "1214:     #[test]",
+            "1215:     fn test_mask_api_key_short() {",
+            "1216:         let key = \"short\";",
+            "1217:         let masked = mask_api_key(key);",
+            "1218:         assert_eq!(masked, \"****\");",
+            "1219:     }",
+            "1220: ",
+            "1221:     #[test]",
+            "1222:     fn test_mask_api_key_exactly_eight() {",
+            "1223:         let key = \"12345678\";",
+            "1224:         let masked = mask_api_key(key);",
+            "1225:         assert_eq!(masked, \"****\");",
+            "1226:     }",
+            "1227: ",
+            "1228:     #[test]",
+            "1229:     fn test_mask_api_key_nine_chars() {",
+            "1230:         let key = \"123456789\";",
+            "1231:         let masked = mask_api_key(key);",
+            "1232:         assert_eq!(masked, \"1234...6789\");",
+            "1233:     }",
+            "1234: "
+          ]
+        },
+        "src/commands/flush_cas.rs": {
+          "added_lines": [
+            "15"
+          ],
+          "deleted_lines": [
+            "15"
+          ],
+          "added_line_contents": [
+            "15:     if using_default_api && !client.is_logged_in() {"
+          ],
+          "deleted_line_contents": [
+            "15:     if using_default_api && !client.is_logged_in() && !client.has_api_key() {"
+          ]
+        },
+        "src/commands/flush_metrics_db.rs": {
+          "added_lines": [
+            "14",
+            "20"
+          ],
+          "deleted_lines": [
+            "14",
+            "20"
+          ],
+          "added_line_contents": [
+            "14:     // Check conditions: (!using_default_api) || is_logged_in()",
+            "20:     if using_default_api && !client.is_logged_in() {"
+          ],
+          "deleted_line_contents": [
+            "14:     // Check conditions: (!using_default_api) || is_logged_in() || has_api_key()",
+            "20:     if using_default_api && !client.is_logged_in() && !client.has_api_key() {"
+          ]
+        },
+        "src/commands/whoami.rs": {
+          "added_lines": [
+            "29",
+            "36",
+            "40"
+          ],
+          "deleted_lines": [
+            "1",
+            "23",
+            "28-32",
+            "36-38",
+            "45-47",
+            "51-53",
+            "101-110"
+          ],
+          "added_line_contents": [
+            "29:             std::process::exit(1);",
+            "36:             std::process::exit(1);",
+            "40:             std::process::exit(1);"
+          ],
+          "deleted_line_contents": [
+            "1: use crate::api::client::ApiContext;",
+            "23:     let api_ctx = ApiContext::new(None);",
+            "28:     if let Some(api_key) = &api_ctx.api_key {",
+            "29:         let masked = mask_api_key(api_key);",
+            "30:         println!(\"API key: {}\", masked);",
+            "31:     }",
+            "32: ",
+            "36:             if api_ctx.api_key.is_none() {",
+            "37:                 std::process::exit(1);",
+            "38:             }",
+            "45:             if api_ctx.api_key.is_none() {",
+            "46:                 std::process::exit(1);",
+            "47:             }",
+            "51:             if api_ctx.api_key.is_none() {",
+            "52:                 std::process::exit(1);",
+            "53:             }",
+            "101: fn mask_api_key(key: &str) -> String {",
+            "102:     let chars: Vec<char> = key.chars().collect();",
+            "103:     if chars.len() <= 8 {",
+            "104:         return \"*\".repeat(chars.len());",
+            "105:     }",
+            "106:     let prefix: String = chars[..4].iter().collect();",
+            "107:     let suffix: String = chars[chars.len() - 4..].iter().collect();",
+            "108:     format!(\"{}...{}\", prefix, suffix)",
+            "109: }",
+            "110: "
+          ]
+        },
+        "src/config.rs": {
+          "added_lines": [],
+          "deleted_lines": [
+            "81-82",
+            "150-151",
+            "399-403",
+            "482-498",
+            "639-649",
+            "697",
+            "722",
+            "1124",
+            "1233",
+            "1351"
+          ],
+          "deleted_line_contents": [
+            "81:     #[serde(serialize_with = \"serialize_masked_api_key\")]",
+            "82:     api_key: Option<String>,",
+            "150:     pub api_key: Option<String>,",
+            "151:     #[serde(default, skip_serializing_if = \"Option::is_none\")]",
+            "399:     /// Returns the API key if configured",
+            "400:     pub fn api_key(&self) -> Option<&str> {",
+            "401:         self.api_key.as_deref()",
+            "402:     }",
+            "403: ",
+            "482: fn serialize_masked_api_key<S>(api_key: &Option<String>, serializer: S) -> Result<S::Ok, S::Error>",
+            "483: where",
+            "484:     S: Serializer,",
+            "485: {",
+            "486:     let masked = api_key.as_ref().map(|key| {",
+            "487:         let chars: Vec<char> = key.chars().collect();",
+            "488:         if chars.len() > 8 {",
+            "489:             let prefix: String = chars[..4].iter().collect();",
+            "490:             let suffix: String = chars[chars.len() - 4..].iter().collect();",
+            "491:             format!(\"{}...{}\", prefix, suffix)",
+            "492:         } else {",
+            "493:             \"****\".to_string()",
+            "494:         }",
+            "495:     });",
+            "496:     masked.serialize(serializer)",
+            "497: }",
+            "498: ",
+            "639:     // Get API key from env var or config file (env var takes precedence)",
+            "640:     let api_key = env::var(\"GIT_AI_API_KEY\")",
+            "641:         .ok()",
+            "642:         .filter(|s| !s.is_empty())",
+            "643:         .or_else(|| {",
+            "644:             file_cfg",
+            "645:                 .as_ref()",
+            "646:                 .and_then(|c| c.api_key.clone())",
+            "647:                 .filter(|s| !s.is_empty())",
+            "648:         });",
+            "649: ",
+            "697:             api_key,",
+            "722:         api_key,",
+            "1124:             api_key: None,",
+            "1233:             api_key: None,",
+            "1351:             api_key: None,"
+          ]
+        },
+        "src/daemon/telemetry_worker.rs": {
+          "added_lines": [
+            "294",
+            "524"
+          ],
+          "deleted_lines": [
+            "294",
+            "524"
+          ],
+          "added_line_contents": [
+            "294:     let should_upload = !using_default_api || client.is_logged_in();",
+            "524:     if using_default_api && !client.is_logged_in() {"
+          ],
+          "deleted_line_contents": [
+            "294:     let should_upload = !using_default_api || client.is_logged_in() || client.has_api_key();",
+            "524:     if using_default_api && !client.is_logged_in() && !client.has_api_key() {"
+          ]
+        },
+        "tests/config_fresh_test.rs": {
+          "added_lines": [
+            "5"
+          ],
+          "deleted_lines": [
+            "5",
+            "148-183",
+            "292-327"
+          ],
+          "added_line_contents": [
+            "5: use git_ai::config::{Config, save_file_config};"
+          ],
+          "deleted_line_contents": [
+            "5: use git_ai::config::{Config, load_file_config_public, save_file_config};",
+            "148: /// Test that api_key changes are picked up by Config::fresh()",
+            "149: #[test]",
+            "150: #[serial]",
+            "151: fn test_config_fresh_picks_up_api_key_changes() {",
+            "152:     let temp_dir = TempDir::new().expect(\"Failed to create temp dir\");",
+            "153:     let config_dir = temp_dir.path().join(\".git-ai\");",
+            "154:     std::fs::create_dir_all(&config_dir).expect(\"Failed to create config dir\");",
+            "155: ",
+            "156:     let _home_guard = HomeEnvGuard::set(temp_dir.path());",
+            "157: ",
+            "158:     // Initially no API key",
+            "159:     let file_config = git_ai::config::FileConfig::default();",
+            "160:     save_file_config(&file_config).expect(\"Failed to save config\");",
+            "161: ",
+            "162:     let config1 = Config::fresh();",
+            "163:     assert!(config1.api_key().is_none());",
+            "164: ",
+            "165:     // Add API key",
+            "166:     let mut file_config = load_file_config_public().expect(\"Failed to load config\");",
+            "167:     file_config.api_key = Some(\"test_api_key_12345\".to_string());",
+            "168:     save_file_config(&file_config).expect(\"Failed to save updated config\");",
+            "169: ",
+            "170:     // Config::fresh() should see the new API key",
+            "171:     let config2 = Config::fresh();",
+            "172:     assert_eq!(config2.api_key(), Some(\"test_api_key_12345\"));",
+            "173: ",
+            "174:     // Remove API key",
+            "175:     let mut file_config = load_file_config_public().expect(\"Failed to load config\");",
+            "176:     file_config.api_key = None;",
+            "177:     save_file_config(&file_config).expect(\"Failed to save updated config\");",
+            "178: ",
+            "179:     // Config::fresh() should see it's gone",
+            "180:     let config3 = Config::fresh();",
+            "181:     assert!(config3.api_key().is_none());",
+            "182: }",
+            "183: ",
+            "292: ",
+            "293: /// Test that api_key changes are picked up by ApiContext",
+            "294: #[test]",
+            "295: #[serial]",
+            "296: fn test_api_context_picks_up_api_key_changes() {",
+            "297:     let temp_dir = TempDir::new().expect(\"Failed to create temp dir\");",
+            "298:     let _home_guard = HomeEnvGuard::set(temp_dir.path());",
+            "299: ",
+            "300:     let config_dir = temp_dir.path().join(\".git-ai\");",
+            "301:     std::fs::create_dir_all(&config_dir).expect(\"Failed to create config dir\");",
+            "302: ",
+            "303:     // Initially no API key",
+            "304:     let file_config = git_ai::config::FileConfig::default();",
+            "305:     save_file_config(&file_config).expect(\"Failed to save config\");",
+            "306: ",
+            "307:     let ctx1 = ApiContext::new(None);",
+            "308:     assert!(ctx1.api_key.is_none());",
+            "309: ",
+            "310:     // Add API key",
+            "311:     let mut file_config = load_file_config_public().expect(\"Failed to load config\");",
+            "312:     file_config.api_key = Some(\"test_key_123\".to_string());",
+            "313:     save_file_config(&file_config).expect(\"Failed to save updated config\");",
+            "314: ",
+            "315:     // Create new ApiContext - should pick up the API key",
+            "316:     let ctx2 = ApiContext::new(None);",
+            "317:     assert_eq!(ctx2.api_key, Some(\"test_key_123\".to_string()));",
+            "318: ",
+            "319:     // Remove API key",
+            "320:     let mut file_config = load_file_config_public().expect(\"Failed to load config\");",
+            "321:     file_config.api_key = None;",
+            "322:     save_file_config(&file_config).expect(\"Failed to save updated config\");",
+            "323: ",
+            "324:     // Create new ApiContext - should see no API key",
+            "325:     let ctx3 = ApiContext::new(None);",
+            "326:     assert!(ctx3.api_key.is_none());",
+            "327: }"
+          ]
+        },
+        "tests/daemon_mode.rs": {
+          "added_lines": [],
+          "deleted_lines": [
+            "913"
+          ],
+          "deleted_line_contents": [
+            "913:     let _api_key = ScopedEnvVar::set(\"GIT_AI_API_KEY\", \"test-api-key\");"
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 15,
+        "deletions": 281,
+        "additions_sloc": 15,
+        "deletions_sloc": 252
+      },
+      "url": "https://git-ai-production.up.railway.app/cas/dc99eade17ce5650947f324fd23476c5dded6be486be1661b2f78f9a7506d065"
+    }
+  ]
+}
