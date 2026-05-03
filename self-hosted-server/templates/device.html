@@ -4,15 +4,23 @@
   <title>git-ai sign in</title>
   <style>
     body { font-family: system-ui; max-width: 420px; margin: 40px auto; padding: 0 16px; color: #222; }
-    code { background: #f4f4f4; padding: 2px 6px; border-radius: 4px; }
+    code { background: #f4f4f4; padding: 4px 8px; border-radius: 4px; font-size: 18px; letter-spacing: 1px; }
     button { padding: 10px 20px; font-size: 16px; cursor: pointer; }
+    button[disabled] { cursor: not-allowed; opacity: 0.6; }
+    .verify { margin: 24px 0; padding: 16px; border: 1px solid #ddd; border-radius: 6px; background: #fafafa; }
+    .verify p { margin: 0 0 8px 0; }
   </style>
 </head>
 <body>
   <h2>Sign in to git-ai</h2>
-  <p>Code: <code>{{ user_code }}</code></p>
-  <div id="status">Redirecting to Google…</div>
-  <button id="btn" style="display:none" onclick="go()">Sign in with Google</button>
+
+  <div class="verify">
+    <p>Confirm this code matches the one shown in your terminal:</p>
+    <p><code id="user-code">{{ user_code }}</code></p>
+  </div>
+
+  <div id="status"></div>
+  <button id="btn" disabled onclick="go()">Sign in with Google</button>
 
   <script type="module">
     import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -28,8 +36,9 @@
     if (!USER_CODE) {
       status.textContent = "Missing user_code in URL.";
     } else {
+      btn.disabled = false;
       window.go = async () => {
-        btn.style.display = "none";
+        btn.disabled = true;
         status.textContent = "Redirecting to Google…";
         const redirectTo = window.location.origin + "/device/callback?user_code=" + encodeURIComponent(USER_CODE);
         const { error } = await supabase.auth.signInWithOAuth({
@@ -38,10 +47,9 @@
         });
         if (error) {
           status.textContent = "Error: " + error.message;
-          btn.style.display = "inline-block";
+          btn.disabled = false;
         }
       };
-      window.go();
     }
   </script>
 </body>

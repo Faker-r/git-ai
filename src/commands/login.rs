@@ -36,7 +36,7 @@ pub fn handle_login(_args: &[String]) {
     eprintln!("  1. Open this URL in your browser:");
     eprintln!("     {}", display_url);
     eprintln!();
-    eprintln!("  2. Enter this code when prompted:");
+    eprintln!("  2. Verify the page shows this code:");
     eprintln!("     {}", auth_response.user_code);
     eprintln!();
 
