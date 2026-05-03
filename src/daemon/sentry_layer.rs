@@ -7,7 +7,7 @@ use tracing_subscriber::layer::{Context, Layer};
 
 /// A tracing Layer that intercepts ERROR-level events and routes them
 /// to the daemon's telemetry worker as `TelemetryEnvelope::Error` events,
-/// which get forwarded to both enterprise and OSS Sentry DSNs.
+/// which get forwarded to the OSS Sentry DSN.
 pub struct SentryLayer;
 
 struct MessageVisitor {

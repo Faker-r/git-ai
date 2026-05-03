@@ -83,7 +83,6 @@ fn write_async_mode_config(repo: &TestRepo) {
     let config_path = config_dir.join("config.json");
     let config = serde_json::json!({
         "git_path": real_git_executable(),
-        "disable_auto_updates": true,
         "feature_flags": {
             "async_mode": true,
             "git_hooks_enabled": false

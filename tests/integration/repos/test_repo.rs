@@ -855,18 +855,6 @@ impl TestRepo {
                 serde_json::Value::String(value.to_string()),
             );
         }
-        if let Some(disable_version_checks) = patch.disable_version_checks {
-            config.insert(
-                "disable_version_checks".to_string(),
-                serde_json::Value::Bool(disable_version_checks),
-            );
-        }
-        if let Some(disable_auto_updates) = patch.disable_auto_updates {
-            config.insert(
-                "disable_auto_updates".to_string(),
-                serde_json::Value::Bool(disable_auto_updates),
-            );
-        }
         if let Some(prompt_storage) = &patch.prompt_storage {
             config.insert(
                 "prompt_storage".to_string(),

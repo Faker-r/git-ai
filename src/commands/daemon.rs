@@ -183,10 +183,6 @@ fn handle_run(args: &[String]) -> Result<(), String> {
         .block_on(async move { crate::daemon::run_daemon(config).await })
         .map_err(|e| e.to_string())?;
 
-    // Daemon is fully dead (lock released, sockets removed, threads joined).
-    // Now safe to self-update — install.sh can start a fresh daemon.
-    crate::daemon::daemon_run_pending_self_update();
-
     Ok(())
 }
 
@@ -627,7 +623,7 @@ fn wait_for_daemon_dead(config: &DaemonConfig, timeout: Duration) -> bool {
 }
 
 /// Shut down the running daemon (soft then hard) and wait for it to fully exit.
-/// Used by internal callers (install-hooks, upgrade) that need the daemon stopped
+/// Used by internal callers (install-hooks) that need the daemon stopped
 /// before proceeding.
 pub(crate) fn stop_daemon(config: &DaemonConfig, timeout: Duration) -> Result<(), String> {
     // Nothing to do if daemon isn't running.

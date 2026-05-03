@@ -3779,8 +3779,6 @@ pub struct ActorDaemonCoordinator {
     wrapper_state_notify: Notify,
     shutting_down: AtomicBool,
     shutdown_notify: Notify,
-    shutdown_condvar: std::sync::Condvar,
-    shutdown_condvar_mutex: Mutex<()>,
 }
 
 struct WrapperStateEntry {
@@ -3840,8 +3838,6 @@ impl ActorDaemonCoordinator {
             wrapper_state_notify: Notify::new(),
             shutting_down: AtomicBool::new(false),
             shutdown_notify: Notify::new(),
-            shutdown_condvar: std::sync::Condvar::new(),
-            shutdown_condvar_mutex: Mutex::new(()),
         }
     }
 
@@ -3858,13 +3854,6 @@ impl ActorDaemonCoordinator {
         // The ingest worker exits via its select! shutdown arm (watching
         // shutdown_notify); we no longer rely on channel closure to stop it.
         self.shutdown_notify.notify_waiters();
-        // Hold the condvar mutex so notify_all cannot race with the
-        // check-then-wait sequence in daemon_update_check_loop.
-        let _guard = self
-            .shutdown_condvar_mutex
-            .lock()
-            .unwrap_or_else(|e| e.into_inner());
-        self.shutdown_condvar.notify_all();
     }
 
     async fn wait_for_shutdown(&self) {
@@ -7779,107 +7768,6 @@ fn disable_trace2_for_daemon_process() {
     }
 }
 
-/// How often the daemon wakes up to evaluate whether an update check is due.
-const DAEMON_UPDATE_CHECK_INTERVAL_SECS: u64 = 3600;
-
-/// Maximum daemon uptime before a proactive restart (24.5 hours).
-/// Deliberately offset from the 24h update-check cadence so the uptime restart
-/// never races with an update-triggered shutdown.
-const DAEMON_MAX_UPTIME_SECS: u64 = 24 * 3600 + 30 * 60;
-
-/// Returns the update check interval, respecting an env var override for testing.
-fn daemon_update_check_interval() -> u64 {
-    std::env::var("GIT_AI_DAEMON_UPDATE_CHECK_INTERVAL")
-        .ok()
-        .and_then(|v| v.parse::<u64>().ok())
-        .unwrap_or(DAEMON_UPDATE_CHECK_INTERVAL_SECS)
-}
-
-/// Returns the maximum uptime in nanoseconds, respecting an env var override for testing.
-fn daemon_max_uptime_ns() -> u128 {
-    let secs = std::env::var("GIT_AI_DAEMON_MAX_UPTIME_SECS")
-        .ok()
-        .and_then(|v| v.parse::<u64>().ok())
-        .unwrap_or(DAEMON_MAX_UPTIME_SECS);
-    secs as u128 * 1_000_000_000
-}
-
-/// Background loop that periodically checks for available updates.
-///
-/// Sleeps in short increments so it can exit promptly when the coordinator
-/// signals shutdown.  When an update is detected, it requests a graceful
-/// shutdown so the daemon can self-update after draining in-flight work.
-fn daemon_update_check_loop(coordinator: Arc<ActorDaemonCoordinator>, started_at_ns: u128) {
-    use crate::commands::upgrade::{DaemonUpdateCheckResult, check_for_update_available};
-
-    let interval = daemon_update_check_interval().max(1);
-
-    loop {
-        {
-            let guard = coordinator
-                .shutdown_condvar_mutex
-                .lock()
-                .unwrap_or_else(|e| e.into_inner());
-            if coordinator.is_shutting_down() {
-                return;
-            }
-            let _ = coordinator
-                .shutdown_condvar
-                .wait_timeout(guard, std::time::Duration::from_secs(interval));
-        }
-
-        if coordinator.is_shutting_down() {
-            return;
-        }
-
-        coordinator.gc_stale_family_state();
-
-        match check_for_update_available() {
-            Ok(DaemonUpdateCheckResult::UpdateReady) => {
-                tracing::info!("update check: newer version available, requesting shutdown");
-                coordinator.request_shutdown();
-                return;
-            }
-            Ok(DaemonUpdateCheckResult::NoUpdate) => {
-                tracing::info!("update check: no update needed");
-            }
-            Err(err) => {
-                tracing::warn!(%err, "update check failed");
-            }
-        }
-
-        let uptime_ns = now_unix_nanos().saturating_sub(started_at_ns);
-        if uptime_ns >= daemon_max_uptime_ns() {
-            tracing::info!("uptime exceeded max, requesting restart");
-            coordinator.request_shutdown();
-            return;
-        }
-    }
-}
-
-/// After the daemon has fully shut down, attempt to install any pending update.
-///
-/// On Unix the installer atomically replaces the binary via `mv`; on Windows
-/// the installer is spawned as a detached process that polls until the exe is
-/// unlocked.
-pub(crate) fn daemon_run_pending_self_update() {
-    use crate::commands::upgrade::{
-        DaemonUpdateCheckResult, check_and_install_update_if_available,
-    };
-
-    match check_and_install_update_if_available() {
-        Ok(DaemonUpdateCheckResult::UpdateReady) => {
-            tracing::info!("self-update: installation completed successfully");
-        }
-        Ok(DaemonUpdateCheckResult::NoUpdate) => {
-            tracing::info!("self-update: no update to install");
-        }
-        Err(err) => {
-            tracing::warn!(%err, "self-update: installation failed");
-        }
-    }
-}
-
 pub async fn run_daemon(config: DaemonConfig) -> Result<(), GitAiError> {
     sanitize_git_env_for_daemon();
     disable_trace2_for_daemon_process();
@@ -7982,12 +7870,6 @@ pub async fn run_daemon(config: DaemonConfig) -> Result<(), GitAiError> {
         trace_shutdown_coord.request_shutdown();
     });
 
-    let started_at_ns = now_unix_nanos();
-    let update_coord = coordinator.clone();
-    let update_thread = std::thread::spawn(move || {
-        daemon_update_check_loop(update_coord, started_at_ns);
-    });
-
     coordinator.wait_for_shutdown().await;
 
     // best effort wake listeners to allow clean process exit
@@ -8000,7 +7882,6 @@ pub async fn run_daemon(config: DaemonConfig) -> Result<(), GitAiError> {
 
     let _ = control_thread.join();
     let _ = trace_thread.join();
-    let _ = update_thread.join();
 
     remove_socket_if_exists(&config.trace_socket_path)?;
     remove_socket_if_exists(&config.control_socket_path)?;

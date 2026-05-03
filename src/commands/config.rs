@@ -101,9 +101,6 @@ fn print_config_help() {
     eprintln!("  allow_repositories           Allowed repos (array)");
     eprintln!("  exclude_repositories         Excluded repos (array)");
     eprintln!("  telemetry_oss                OSS telemetry setting (on/off)");
-    eprintln!("  disable_version_checks       Disable version checks (bool)");
-    eprintln!("  disable_auto_updates         Disable auto updates (bool)");
-    eprintln!("  update_channel               Update channel (latest/next)");
     eprintln!("  feature_flags                Feature flags (object)");
     eprintln!("  prompt_storage               Prompt storage mode (default/notes/local)");
     eprintln!("  include_prompts_in_repositories  Repos to include for prompt storage (array)");
@@ -119,7 +116,6 @@ fn print_config_help() {
     eprintln!();
     eprintln!("Examples:");
     eprintln!("  git-ai config exclude_repositories");
-    eprintln!("  git-ai config set disable_auto_updates true");
     eprintln!("  git-ai config set exclude_repositories \"private/*\"");
     eprintln!("  git-ai config set exclude_repositories .         # Uses current repo's remotes");
     eprintln!("  git-ai config --add exclude_repositories \"temp/*\"");
@@ -260,19 +256,6 @@ fn show_all_config() -> Result<(), String> {
         "telemetry_oss_disabled".to_string(),
         Value::Bool(runtime_config.is_telemetry_oss_disabled()),
     );
-    effective_config.insert(
-        "disable_version_checks".to_string(),
-        Value::Bool(runtime_config.version_checks_disabled()),
-    );
-    effective_config.insert(
-        "disable_auto_updates".to_string(),
-        Value::Bool(runtime_config.auto_updates_disabled()),
-    );
-
-    effective_config.insert(
-        "update_channel".to_string(),
-        Value::String(runtime_config.update_channel().as_str().to_string()),
-    );
 
     effective_config.insert(
         "prompt_storage".to_string(),
@@ -347,9 +330,6 @@ fn get_config_value(key: &str) -> Result<(), String> {
                 }
             }
             "telemetry_oss_disabled" => Value::Bool(runtime_config.is_telemetry_oss_disabled()),
-            "disable_version_checks" => Value::Bool(runtime_config.version_checks_disabled()),
-            "disable_auto_updates" => Value::Bool(runtime_config.auto_updates_disabled()),
-            "update_channel" => Value::String(runtime_config.update_channel().as_str().to_string()),
             "feature_flags" => {
                 // Show effective flags with defaults applied
                 serde_json::to_value(runtime_config.get_feature_flags())
@@ -451,29 +431,6 @@ fn set_config_value(key: &str, value: &str, add_mode: bool) -> Result<(), String
                 file_config.telemetry_oss = Some(value.to_string());
                 crate::config::save_file_config(&file_config)?;
                 eprintln!("[telemetry_oss]: {}", value);
-            }
-            "disable_version_checks" => {
-                let bool_value = parse_bool(value)?;
-                file_config.disable_version_checks = Some(bool_value);
-                crate::config::save_file_config(&file_config)?;
-                eprintln!("[disable_version_checks]: {}", bool_value);
-            }
-            "disable_auto_updates" => {
-                let bool_value = parse_bool(value)?;
-                file_config.disable_auto_updates = Some(bool_value);
-                crate::config::save_file_config(&file_config)?;
-                eprintln!("[disable_auto_updates]: {}", bool_value);
-            }
-            "update_channel" => {
-                // Validate update channel
-                if value != "latest" && value != "next" {
-                    return Err(
-                        "Invalid update_channel value. Expected 'latest' or 'next'".to_string()
-                    );
-                }
-                file_config.update_channel = Some(value.to_string());
-                crate::config::save_file_config(&file_config)?;
-                eprintln!("[update_channel]: {}", value);
             }
             "feature_flags" => {
                 if add_mode {
@@ -668,27 +625,6 @@ fn unset_config_value(key: &str) -> Result<(), String> {
                 crate::config::save_file_config(&file_config)?;
                 if let Some(v) = old_value {
                     eprintln!("- [telemetry_oss]: {}", v);
-                }
-            }
-            "disable_version_checks" => {
-                let old_value = file_config.disable_version_checks.take();
-                crate::config::save_file_config(&file_config)?;
-                if let Some(v) = old_value {
-                    eprintln!("- [disable_version_checks]: {}", v);
-                }
-            }
-            "disable_auto_updates" => {
-                let old_value = file_config.disable_auto_updates.take();
-                crate::config::save_file_config(&file_config)?;
-                if let Some(v) = old_value {
-                    eprintln!("- [disable_auto_updates]: {}", v);
-                }
-            }
-            "update_channel" => {
-                let old_value = file_config.update_channel.take();
-                crate::config::save_file_config(&file_config)?;
-                if let Some(v) = old_value {
-                    eprintln!("- [update_channel]: {}", v);
                 }
             }
             "feature_flags" => {

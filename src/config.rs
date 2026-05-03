@@ -70,9 +70,6 @@ pub struct Config {
     #[serde(serialize_with = "serialize_patterns")]
     exclude_repositories: Vec<Pattern>,
     telemetry_oss_disabled: bool,
-    disable_version_checks: bool,
-    disable_auto_updates: bool,
-    update_channel: UpdateChannel,
     feature_flags: FeatureFlags,
     api_base_url: String,
     prompt_storage: String,
@@ -80,37 +77,6 @@ pub struct Config {
     quiet: bool,
     custom_attributes: HashMap<String, String>,
     git_ai_hooks: HashMap<String, Vec<String>>,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Default, Serialize)]
-#[serde(rename_all = "kebab-case")]
-pub enum UpdateChannel {
-    #[default]
-    Latest,
-    Next,
-    EnterpriseLatest,
-    EnterpriseNext,
-}
-
-impl UpdateChannel {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            UpdateChannel::Latest => "latest",
-            UpdateChannel::Next => "next",
-            UpdateChannel::EnterpriseLatest => "enterprise-latest",
-            UpdateChannel::EnterpriseNext => "enterprise-next",
-        }
-    }
-
-    fn from_str(input: &str) -> Option<Self> {
-        match input.trim().to_lowercase().as_str() {
-            "latest" => Some(UpdateChannel::Latest),
-            "next" => Some(UpdateChannel::Next),
-            "enterprise-latest" => Some(UpdateChannel::EnterpriseLatest),
-            "enterprise-next" => Some(UpdateChannel::EnterpriseNext),
-            _ => None,
-        }
-    }
 }
 
 #[derive(Deserialize, Serialize, Default)]
@@ -127,12 +93,6 @@ pub struct FileConfig {
     pub exclude_repositories: Option<Vec<String>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub telemetry_oss: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub disable_version_checks: Option<bool>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub disable_auto_updates: Option<bool>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub update_channel: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub feature_flags: Option<serde_json::Value>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -163,10 +123,6 @@ pub struct ConfigPatch {
     pub exclude_prompts_in_repositories: Option<Vec<String>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub telemetry_oss_disabled: Option<bool>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub disable_version_checks: Option<bool>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub disable_auto_updates: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub prompt_storage: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -290,18 +246,6 @@ impl Config {
     /// Returns true if OSS telemetry is disabled.
     pub fn is_telemetry_oss_disabled(&self) -> bool {
         self.telemetry_oss_disabled
-    }
-
-    pub fn version_checks_disabled(&self) -> bool {
-        self.disable_version_checks
-    }
-
-    pub fn auto_updates_disabled(&self) -> bool {
-        self.disable_auto_updates
-    }
-
-    pub fn update_channel(&self) -> UpdateChannel {
-        self.update_channel
     }
 
     pub fn feature_flags(&self) -> &FeatureFlags {
@@ -534,24 +478,6 @@ fn build_config() -> Config {
         .filter(|s| s == "off")
         .is_some();
 
-    // Default to disabled (true) unless this is an OSS build
-    // OSS builds set OSS_BUILD env var at compile time to "1", which enables auto-updates by default
-    let auto_update_flags_default_disabled = option_env!("OSS_BUILD") != Some("1");
-
-    let disable_version_checks = file_cfg
-        .as_ref()
-        .and_then(|c| c.disable_version_checks)
-        .unwrap_or(auto_update_flags_default_disabled);
-    let disable_auto_updates = file_cfg
-        .as_ref()
-        .and_then(|c| c.disable_auto_updates)
-        .unwrap_or(auto_update_flags_default_disabled);
-    let update_channel = file_cfg
-        .as_ref()
-        .and_then(|c| c.update_channel.as_deref())
-        .and_then(UpdateChannel::from_str)
-        .unwrap_or_default();
-
     let git_path = resolve_git_path(&file_cfg);
 
     // Build feature flags from file config
@@ -637,9 +563,6 @@ fn build_config() -> Config {
             allow_repositories,
             exclude_repositories,
             telemetry_oss_disabled,
-            disable_version_checks,
-            disable_auto_updates,
-            update_channel,
             feature_flags,
             api_base_url,
             prompt_storage,
@@ -660,9 +583,6 @@ fn build_config() -> Config {
         allow_repositories,
         exclude_repositories,
         telemetry_oss_disabled,
-        disable_version_checks,
-        disable_auto_updates,
-        update_channel,
         feature_flags,
         api_base_url,
         prompt_storage,
@@ -814,7 +734,7 @@ pub fn git_ai_dir_path() -> Option<PathBuf> {
 }
 
 /// Returns the path to the internal state directory (~/.git-ai/internal)
-/// This is where git-ai stores internal files like distinct_id, update_check, etc.
+/// This is where git-ai stores internal files like distinct_id, etc.
 pub fn internal_dir_path() -> Option<PathBuf> {
     git_ai_dir_path().map(|dir| dir.join("internal"))
 }
@@ -868,11 +788,6 @@ pub fn get_or_create_distinct_id() -> String {
             new_id
         })
         .clone()
-}
-
-/// Returns the path to the update check cache file (~/.git-ai/internal/update_check)
-pub fn update_check_path() -> Option<PathBuf> {
-    internal_dir_path().map(|dir| dir.join("update_check"))
 }
 
 /// Load the raw file config
@@ -1006,12 +921,6 @@ fn apply_test_config_patch(config: &mut Config) {
         if let Some(telemetry_oss_disabled) = patch.telemetry_oss_disabled {
             config.telemetry_oss_disabled = telemetry_oss_disabled;
         }
-        if let Some(disable_version_checks) = patch.disable_version_checks {
-            config.disable_version_checks = disable_version_checks;
-        }
-        if let Some(disable_auto_updates) = patch.disable_auto_updates {
-            config.disable_auto_updates = disable_auto_updates;
-        }
         if let Some(prompt_storage) = patch.prompt_storage {
             // Validate the value
             if matches!(prompt_storage.as_str(), "default" | "notes" | "local") {
@@ -1060,9 +969,6 @@ mod tests {
                 .filter_map(|s| Pattern::new(&s).ok())
                 .collect(),
             telemetry_oss_disabled: false,
-            disable_version_checks: false,
-            disable_auto_updates: false,
-            update_channel: UpdateChannel::Latest,
             feature_flags: FeatureFlags::default(),
             api_base_url: DEFAULT_API_BASE_URL.to_string(),
             prompt_storage: "default".to_string(),
@@ -1167,9 +1073,6 @@ mod tests {
             allow_repositories: vec![],
             exclude_repositories: vec![],
             telemetry_oss_disabled: false,
-            disable_version_checks: false,
-            disable_auto_updates: false,
-            update_channel: UpdateChannel::Latest,
             feature_flags: FeatureFlags::default(),
             api_base_url: DEFAULT_API_BASE_URL.to_string(),
             prompt_storage: "default".to_string(),
@@ -1283,9 +1186,6 @@ mod tests {
             allow_repositories: vec![],
             exclude_repositories: vec![],
             telemetry_oss_disabled: false,
-            disable_version_checks: false,
-            disable_auto_updates: false,
-            update_channel: UpdateChannel::Latest,
             feature_flags: FeatureFlags::default(),
             api_base_url: DEFAULT_API_BASE_URL.to_string(),
             prompt_storage: prompt_storage.to_string(),
@@ -1440,41 +1340,6 @@ mod tests {
         assert_eq!(PromptStorageMode::Default.as_str(), "default");
         assert_eq!(PromptStorageMode::Notes.as_str(), "notes");
         assert_eq!(PromptStorageMode::Local.as_str(), "local");
-    }
-
-    #[test]
-    fn test_update_channel_default_is_latest() {
-        let channel = UpdateChannel::default();
-        assert_eq!(channel, UpdateChannel::Latest);
-        assert_eq!(channel.as_str(), "latest");
-    }
-
-    #[test]
-    fn test_update_channel_enterprise_latest_maps_to_enterprise_latest() {
-        let channel = UpdateChannel::from_str("enterprise-latest").unwrap();
-        assert_eq!(channel, UpdateChannel::EnterpriseLatest);
-        assert_eq!(channel.as_str(), "enterprise-latest");
-    }
-
-    #[test]
-    fn test_update_channel_enterprise_next_maps_to_enterprise_next() {
-        let channel = UpdateChannel::from_str("enterprise-next").unwrap();
-        assert_eq!(channel, UpdateChannel::EnterpriseNext);
-        assert_eq!(channel.as_str(), "enterprise-next");
-    }
-
-    #[test]
-    fn test_update_channel_enterprise_latest_parses() {
-        let channel = UpdateChannel::from_str("enterprise-latest").unwrap();
-        assert_eq!(channel, UpdateChannel::EnterpriseLatest);
-        assert_eq!(channel.as_str(), "enterprise-latest");
-    }
-
-    #[test]
-    fn test_update_channel_enterprise_next_parses() {
-        let channel = UpdateChannel::from_str("enterprise-next").unwrap();
-        assert_eq!(channel, UpdateChannel::EnterpriseNext);
-        assert_eq!(channel.as_str(), "enterprise-next");
     }
 
     #[test]

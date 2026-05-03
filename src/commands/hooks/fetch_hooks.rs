@@ -2,7 +2,6 @@ use crate::authorship::virtual_attribution::{VirtualAttributions, restore_stashe
 use crate::commands::git_handlers::CommandHooksContext;
 use crate::commands::hooks::commit_hooks::get_commit_default_author;
 use crate::commands::hooks::rebase_hooks::build_rebase_commit_mappings;
-use crate::commands::upgrade;
 use crate::git::cli_parser::{ParsedGitInvocation, is_dry_run};
 use crate::git::repository::{Repository, exec_git, find_repository};
 use crate::git::rewrite_log::RewriteLogEvent;
@@ -12,8 +11,6 @@ pub fn fetch_pull_pre_command_hook(
     parsed_args: &ParsedGitInvocation,
     repository: &Repository,
 ) -> Option<std::thread::JoinHandle<()>> {
-    upgrade::maybe_schedule_background_update_check();
-
     // Early return for dry-run
     if is_dry_run(&parsed_args.command_args) {
         return None;

@@ -23,13 +23,8 @@ fn internal_background_subcommands_must_use_spawn_helper() {
     let mut files = Vec::new();
     collect_rs_files(&src_root, &mut files);
 
-    let disallowed_patterns = [
-        Regex::new(r#"Command::new\([^\)]*\)(?s:.*?)\.arg\("flush-cas"\)"#).unwrap(),
-        Regex::new(
-            r#"Command::new\([^\)]*\)(?s:.*?)\.arg\("upgrade"\)(?s:.*?)\.arg\("--background"\)"#,
-        )
-        .unwrap(),
-    ];
+    let disallowed_patterns =
+        [Regex::new(r#"Command::new\([^\)]*\)(?s:.*?)\.arg\("flush-cas"\)"#).unwrap()];
 
     for file in files {
         // Utility layer is allowed to own the centralized spawn implementation.
@@ -47,21 +42,6 @@ fn internal_background_subcommands_must_use_spawn_helper() {
                 file.display()
             );
         }
-    }
-}
-
-#[test]
-fn critical_background_spawners_call_spawn_helper() {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let files = [root.join("src/commands/upgrade.rs")];
-
-    for file in files {
-        let content = fs::read_to_string(&file).unwrap();
-        assert!(
-            content.contains("spawn_internal_git_ai_subcommand("),
-            "{} must call spawn_internal_git_ai_subcommand()",
-            file.display()
-        );
     }
 }
 
