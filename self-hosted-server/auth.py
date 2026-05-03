@@ -9,6 +9,8 @@ Flow:
      and POSTs its JWT to /device/approve, which binds it to the user_code.
   4. The CLI's polling hits /worker/oauth/token and receives the Supabase JWT.
 """
+import base64
+import json
 import os
 import secrets
 from datetime import datetime, timedelta, timezone
@@ -20,6 +22,20 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
 from db import supabase
+
+
+def _jwt_exp(token: str) -> int:
+    """Read the `exp` claim from a JWT. Caller must validate the signature separately."""
+    try:
+        _, payload_b64, _ = token.split(".")
+    except ValueError:
+        raise HTTPException(status_code=401, detail="Malformed JWT")
+    padding = "=" * (-len(payload_b64) % 4)
+    try:
+        payload = json.loads(base64.urlsafe_b64decode(payload_b64 + padding))
+        return int(payload["exp"])
+    except (ValueError, KeyError, json.JSONDecodeError):
+        raise HTTPException(status_code=401, detail="JWT missing or invalid `exp` claim")
 
 router = APIRouter()
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
@@ -185,7 +201,6 @@ class ApproveRequest(BaseModel):
     user_code: str
     access_token: str
     refresh_token: str
-    expires_at: int  # unix seconds
 
 
 @router.post("/device/approve")
@@ -199,8 +214,9 @@ async def device_approve(req: ApproveRequest):
     if not user:
         raise HTTPException(status_code=401, detail="Invalid token")
 
-    access_expires_at = datetime.fromtimestamp(req.expires_at, tz=timezone.utc)
-    refresh_expires_at = datetime.now(timezone.utc) + timedelta(seconds=REFRESH_TOKEN_TTL_SECONDS)
+    access_expires_at = datetime.fromtimestamp(_jwt_exp(req.access_token), tz=timezone.utc)
+    now = datetime.now(timezone.utc)
+    refresh_expires_at = now + timedelta(seconds=REFRESH_TOKEN_TTL_SECONDS)
 
     supabase.postgrest.auth(req.access_token)
     result = (
@@ -215,6 +231,7 @@ async def device_approve(req: ApproveRequest):
         })
         .eq("user_code", req.user_code)
         .eq("status", "pending")
+        .gt("expires_at", now.isoformat())
         .execute()
     )
     if not result.data:
