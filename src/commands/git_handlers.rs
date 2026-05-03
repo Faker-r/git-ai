@@ -676,6 +676,12 @@ fn maybe_show_async_post_commit_stats(parsed: &ParsedGitInvocation, repo: &Repos
     use crate::git::refs::show_authorship_note;
     use std::io::IsTerminal;
 
+    // No authorship note will ever be produced for a disabled repo, so polling
+    // for one and printing "still processing" only confuses the user.
+    if crate::commands::git_hook_handlers::repo_writes_disabled(repo) {
+        return;
+    }
+
     // Respect the same suppression flags as the synchronous wrapper path.
     if is_dry_run(&parsed.command_args) {
         return;
@@ -780,6 +786,12 @@ pub fn warn_if_cas_upload_deferred(repo: &Repository) {
     use std::io::IsTerminal;
 
     if !std::io::stderr().is_terminal() {
+        return;
+    }
+
+    // Nothing will be enqueued for a disabled repo, so there's no deferred
+    // upload to warn about.
+    if crate::commands::git_hook_handlers::repo_writes_disabled(repo) {
         return;
     }
 

@@ -174,6 +174,18 @@ pub fn notes_add_batch(repo: &Repository, entries: &[(String, String)]) -> Resul
         return Ok(());
     }
 
+    // Hard gate: never write authorship notes for a repo that has been disabled
+    // (per-repo marker or global allow/exclude lists). `notes_add` routes
+    // through this function, so this single check covers every note-write path
+    // — fresh post_commit, rebase, amend, squash, merge.
+    if crate::commands::git_hook_handlers::repo_writes_disabled(repo) {
+        tracing::debug!(
+            count = entries.len(),
+            "notes_add_batch skipped: git-ai disabled for this repository"
+        );
+        return Ok(());
+    }
+
     let mut args = repo.global_args_for_exec();
     args.push("rev-parse".to_string());
     args.push("--verify".to_string());

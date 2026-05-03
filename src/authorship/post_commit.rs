@@ -81,6 +81,18 @@ pub fn post_commit_with_final_state(
     supress_output: bool,
     final_state_override: Option<&HashMap<String, String>>,
 ) -> Result<(String, AuthorshipLog), GitAiError> {
+    // Hard gate: if git-ai is disabled for this repo (per-repo marker or global
+    // allow/exclude lists), skip the entire post-commit pipeline. This sits
+    // below every caller — sync wrapper, async daemon, rebase backfill — so
+    // it doesn't matter that the wrapper's own check is bypassed in async mode.
+    if crate::commands::git_hook_handlers::repo_writes_disabled(repo) {
+        tracing::debug!(
+            commit = %commit_sha,
+            "post_commit skipped: git-ai disabled for this repository"
+        );
+        return Ok((commit_sha, AuthorshipLog::new()));
+    }
+
     // Use base_commit parameter if provided, otherwise use "initial" for empty repos
     // This matches the convention in checkpoint.rs
     let parent_sha = base_commit.unwrap_or_else(|| "initial".to_string());
@@ -927,6 +939,14 @@ fn enqueue_authorship_metadata_to_cas(
     authorship_metadata: &mut crate::authorship::authorship_log_serialization::AuthorshipMetadata,
     strip_after_upload: bool,
 ) -> Result<(), GitAiError> {
+    // Defense in depth: even if a future caller reaches this function outside
+    // of `post_commit_with_final_state`, never enqueue prompts / change_history
+    // for a repo that has been disabled.
+    if crate::commands::git_hook_handlers::repo_writes_disabled(repo) {
+        tracing::debug!("CAS enqueue skipped: git-ai disabled for this repository");
+        return Ok(());
+    }
+
     use crate::authorship::internal_db::InternalDatabase;
 
     let db = InternalDatabase::global()?;

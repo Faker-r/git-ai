@@ -649,6 +649,18 @@ pub fn is_repo_explicitly_disabled(repo: &Repository) -> bool {
     repo_disabled_path(repo).exists()
 }
 
+/// Returns true when git-ai must not write notes or enqueue prompts /
+/// change_history for this repo. Combines the per-repo `disabled` marker with
+/// the global allow / exclude lists in config.toml. Cheap (file-existence +
+/// in-memory pattern match) so it's safe to call from hot paths like
+/// `notes_add_batch` and `post_commit_with_final_state`.
+pub fn repo_writes_disabled(repo: &Repository) -> bool {
+    if is_repo_explicitly_disabled(repo) {
+        return true;
+    }
+    !crate::config::Config::get().is_allowed_repository(&Some(repo.clone()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
