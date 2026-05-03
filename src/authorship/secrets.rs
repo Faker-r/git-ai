@@ -500,10 +500,9 @@ pub fn strip_prompt_messages(prompts: &mut BTreeMap<String, PromptRecord>) {
 }
 
 use crate::authorship::authorship_log_serialization::ChangeHistoryEntry;
-use crate::authorship::working_log::CheckpointLineStats;
 
 /// Returns true when an entry has been stripped down to its CAS pointer
-/// (timestamp + kind + url retained, body cleared).
+/// (timestamp + kind + line_stats + url retained, body cleared).
 pub fn entry_is_stripped(e: &ChangeHistoryEntry) -> bool {
     e.conversation_id.is_none()
         && e.agent_type.is_none()
@@ -511,11 +510,10 @@ pub fn entry_is_stripped(e: &ChangeHistoryEntry) -> bool {
         && e.model.is_none()
         && e.prompt_text.is_none()
         && e.files.is_empty()
-        && e.line_stats == CheckpointLineStats::default()
 }
 
-/// Reduce an entry to `{timestamp, kind, url}` after a successful CAS upload.
-/// Preserves identity-only fields so readers can re-fetch the body.
+/// Reduce an entry to `{timestamp, kind, line_stats, url}` after a successful CAS upload.
+/// Preserves identity-only fields so readers can re-fetch the body, and keeps
 pub fn strip_entry_to_url(e: &mut ChangeHistoryEntry) {
     e.conversation_id = None;
     e.agent_type = None;
@@ -523,7 +521,6 @@ pub fn strip_entry_to_url(e: &mut ChangeHistoryEntry) {
     e.model = None;
     e.prompt_text = None;
     e.files.clear();
-    e.line_stats = CheckpointLineStats::default();
 }
 
 /// Redact secrets from change_history entries.
