@@ -22,7 +22,7 @@ from fastapi.responses import JSONResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
-from db import supabase
+from db import supabase, get_authenticated_client
 
 
 def _hash_device_code(code: str) -> str:
@@ -72,12 +72,15 @@ async def device_code():
     user_code = "".join(secrets.choice(USER_CODE_ALPHABET) for _ in range(8))
     expires_at = datetime.now(timezone.utc) + timedelta(seconds=DEVICE_CODE_TTL_SECONDS)
 
-    supabase.table("device_codes").insert({
-        "device_code_hash": _hash_device_code(device_code_val),
-        "user_code": user_code,
-        "status": "pending",
-        "expires_at": expires_at.isoformat(),
-    }).execute()
+    try:
+        supabase.table("device_codes").insert({
+            "device_code_hash": _hash_device_code(device_code_val),
+            "user_code": user_code,
+            "status": "pending",
+            "expires_at": expires_at.isoformat(),
+        }).execute()
+    except Exception as e:
+        return _oauth_error("server_error", f"Failed to create device code: {e}", status=500)
 
     verification_uri = f"{BASE_URL}/device"
     return {
@@ -113,20 +116,27 @@ def _exchange_device_code(device_code_val: str | None):
         return _oauth_error("invalid_request", "Missing device_code")
 
     device_code_hash = _hash_device_code(device_code_val)
-    resp = (
-        supabase.table("device_codes")
-        .select("*")
-        .eq("device_code_hash", device_code_hash)
-        .limit(1)
-        .execute()
-    )
+    try:
+        resp = (
+            supabase.table("device_codes")
+            .select("*")
+            .eq("device_code_hash", device_code_hash)
+            .limit(1)
+            .execute()
+        )
+    except Exception as e:
+        return _oauth_error("server_error", f"Database error: {e}", status=500)
+
     if not resp.data:
         return _oauth_error("invalid_grant", "Unknown device_code")
     row = resp.data[0]
 
     expires_at = datetime.fromisoformat(row["expires_at"])
     if datetime.now(timezone.utc) > expires_at:
-        supabase.table("device_codes").delete().eq("device_code_hash", device_code_hash).execute()
+        try:
+            supabase.table("device_codes").delete().eq("device_code_hash", device_code_hash).execute()
+        except Exception:
+            pass  # best-effort cleanup
         return _oauth_error("expired_token", "Device code expired")
 
     status = row["status"]
@@ -142,7 +152,10 @@ def _exchange_device_code(device_code_val: str | None):
     now = datetime.now(timezone.utc)
 
     # One-time use: delete row after handing out the tokens.
-    supabase.table("device_codes").delete().eq("device_code_hash", device_code_hash).execute()
+    try:
+        supabase.table("device_codes").delete().eq("device_code_hash", device_code_hash).execute()
+    except Exception:
+        pass  # best-effort cleanup; tokens are still valid
 
     return {
         "access_token": row["supabase_access_token"],
@@ -224,22 +237,26 @@ async def device_approve(req: ApproveRequest):
     now = datetime.now(timezone.utc)
     refresh_expires_at = now + timedelta(seconds=REFRESH_TOKEN_TTL_SECONDS)
 
-    supabase.postgrest.auth(req.access_token)
-    result = (
-        supabase.table("device_codes")
-        .update({
-            "status": "approved",
-            "supabase_access_token": req.access_token,
-            "supabase_refresh_token": req.refresh_token,
-            "access_token_expires_at": access_expires_at.isoformat(),
-            "refresh_token_expires_at": refresh_expires_at.isoformat(),
-            "user_id": user.id,
-        })
-        .eq("user_code", req.user_code)
-        .eq("status", "pending")
-        .gt("expires_at", now.isoformat())
-        .execute()
-    )
+    try:
+        authed_client = get_authenticated_client(req.access_token)
+        result = (
+            authed_client.table("device_codes")
+            .update({
+                "status": "approved",
+                "supabase_access_token": req.access_token,
+                "supabase_refresh_token": req.refresh_token,
+                "access_token_expires_at": access_expires_at.isoformat(),
+                "refresh_token_expires_at": refresh_expires_at.isoformat(),
+                "user_id": user.id,
+            })
+            .eq("user_code", req.user_code)
+            .eq("status", "pending")
+            .gt("expires_at", now.isoformat())
+            .execute()
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {e}")
+
     if not result.data:
         raise HTTPException(status_code=400, detail="Invalid or expired user_code")
 
@@ -257,10 +274,11 @@ def _extract_token(request: Request) -> str:
 
 
 async def require_auth(request: Request):
-    """Validate the bearer token, set it on the PostgREST client for RLS, and return the user.
+    """Validate the bearer token and return the user.
 
-    Sets supabase.postgrest.auth(token) so all subsequent table operations
-    in the request run under the authenticated user's RLS context.
+    Creates a per-request Supabase client with the user's JWT for RLS
+    and stores it on request.state.supabase so endpoint handlers can use
+    it without mutating the global client.
     """
     token = _extract_token(request)
     try:
@@ -270,5 +288,5 @@ async def require_auth(request: Request):
     user = getattr(user_resp, "user", None)
     if not user:
         raise HTTPException(status_code=401, detail="Invalid token")
-    supabase.postgrest.auth(token)
+    request.state.supabase = get_authenticated_client(token)
     return user

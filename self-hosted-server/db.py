@@ -7,7 +7,18 @@ load_dotenv()
 SUPABASE_URL = os.environ["SUPABASE_URL"]
 SUPABASE_ANON_KEY = os.environ["SUPABASE_ANON_KEY"]
 
-# Global client — initialized with anon key for unauthenticated operations (device flow).
-# For authenticated operations, use postgrest.auth(token) to set the user's JWT
-# so RLS evaluates against their identity.
+# Global client — used ONLY for unauthenticated operations (device flow).
+# NEVER call .postgrest.auth() on this client; use get_authenticated_client() instead.
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
+
+
+def get_authenticated_client(token: str) -> Client:
+    """Create a per-request Supabase client with the user's JWT set for RLS.
+
+    This avoids mutating the global client's auth state, which caused
+    concurrent requests to clobber each other and anon operations to
+    fail with stale/expired JWTs.
+    """
+    client = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
+    client.postgrest.auth(token)
+    return client

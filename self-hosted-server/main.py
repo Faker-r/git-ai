@@ -1,3 +1,4 @@
+import logging
 import os
 from datetime import datetime, timezone
 
@@ -21,10 +22,21 @@ from hash_utils import verify_hash
 
 load_dotenv()
 
+logger = logging.getLogger(__name__)
+
 BASE_URL = os.environ.get("BASE_URL", "http://localhost:8000")
 
 app = FastAPI(title="git-ai self-hosted server", version="1.0.0")
 app.include_router(auth_router)
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.exception("Unhandled error on %s %s", request.method, request.url.path)
+    return JSONResponse(
+        status_code=500,
+        content={"error": "internal_server_error", "error_description": str(exc)},
+    )
 
 
 # --- Health Check ---
@@ -32,7 +44,19 @@ app.include_router(auth_router)
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "version": "1.0.0"}
+    db_ok = True
+    try:
+        supabase.table("cas_objects").select("hash", count="exact").limit(0).execute()
+    except Exception as e:
+        logger.warning("Health check DB probe failed: %s", e)
+        db_ok = False
+
+    status = "ok" if db_ok else "degraded"
+    code = 200 if db_ok else 503
+    return JSONResponse(
+        status_code=code,
+        content={"status": status, "version": "1.0.0", "database": "ok" if db_ok else "unreachable"},
+    )
 
 
 # --- CAS Upload ---
@@ -40,6 +64,7 @@ async def health():
 
 @app.post("/worker/cas/upload", response_model=CasUploadResponse, response_model_exclude_none=True)
 async def cas_upload(req: CasUploadRequest, request: Request, user=Depends(require_auth)):
+    db = request.state.supabase
     results = []
     success_count = 0
     failure_count = 0
@@ -51,7 +76,7 @@ async def cas_upload(req: CasUploadRequest, request: Request, user=Depends(requi
             continue
 
         try:
-            supabase.table("cas_objects").upsert(
+            db.table("cas_objects").upsert(
                 {
                     "hash": obj.hash,
                     "content": obj.content,
@@ -76,14 +101,15 @@ async def cas_upload(req: CasUploadRequest, request: Request, user=Depends(requi
 
 
 @app.get("/worker/cas/", response_model=CasReadResponse, response_model_exclude_none=True)
-async def cas_read(hashes: str = Query(...), user=Depends(require_auth)):
+async def cas_read(request: Request, hashes: str = Query(...), user=Depends(require_auth)):
+    db = request.state.supabase
     hash_list = [h.strip() for h in hashes.split(",") if h.strip()]
 
     if not hash_list or len(hash_list) > 100:
         return JSONResponse(status_code=400, content={"error": "Provide 1-100 comma-separated hashes"})
 
     try:
-        resp = supabase.table("cas_objects").select("hash, content").in_("hash", hash_list).execute()
+        resp = db.table("cas_objects").select("hash, content").in_("hash", hash_list).execute()
         found = {row["hash"]: row["content"] for row in resp.data}
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
@@ -108,6 +134,7 @@ async def cas_read(hashes: str = Query(...), user=Depends(require_auth)):
 
 @app.post("/worker/metrics/upload", response_model=MetricsUploadResponse)
 async def metrics_upload(req: MetricsBatch, request: Request, user=Depends(require_auth)):
+    db = request.state.supabase
     errors = []
 
     if req.v != 1:
@@ -139,12 +166,12 @@ async def metrics_upload(req: MetricsBatch, request: Request, user=Depends(requi
 
     if rows:
         try:
-            supabase.table("metrics_events").insert(rows).execute()
+            db.table("metrics_events").insert(rows).execute()
         except Exception as e:
             # Batch failed — try one-by-one to isolate which events failed
             for j, row in enumerate(rows):
                 try:
-                    supabase.table("metrics_events").insert(row).execute()
+                    db.table("metrics_events").insert(row).execute()
                 except Exception as inner_e:
                     errors.append(MetricsError(index=j, error=str(inner_e)))
 
