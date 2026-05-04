@@ -188,7 +188,23 @@ impl CiContext {
                     let new_commits =
                         self.get_rebased_commits(merge_commit_sha, original_commits.len());
 
-                    if new_commits.len() == original_commits.len() {
+                    // A real rebase chains the new commits directly onto the merge_base, so
+                    // the parent of the oldest walked commit equals merge_base. For a squash
+                    // merge, walking first-parent from merge_commit_sha wanders into base_ref's
+                    // prior history past the merge_base. Require both length AND parentage to
+                    // match before treating this as a rebase — otherwise length-only matches
+                    // misclassify squash merges and the per-commit change_history mapping in
+                    // _v2 drops entries from all but the last source commit.
+                    let parent_of_oldest_new = new_commits
+                        .first()
+                        .and_then(|sha| self.repo.find_commit(sha.clone()).ok())
+                        .and_then(|c| c.parents().next())
+                        .map(|p| p.id().to_string());
+
+                    let is_rebase = new_commits.len() == original_commits.len()
+                        && parent_of_oldest_new.as_deref() == merge_base.as_deref();
+
+                    if is_rebase {
                         println!(
                             "Detected rebase merge: {} original -> {} new commits",
                             original_commits.len(),
