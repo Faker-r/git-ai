@@ -654,7 +654,7 @@ impl CursorPreset {
         #[cfg(target_os = "windows")]
         {
             // Windows: %APPDATA%\Cursor\User
-            let appdata = env::var("APPDATA")
+            let appdata = std::env::var("APPDATA")
                 .map_err(|e| GitAiError::Generic(format!("APPDATA not set: {}", e)))?;
             Ok(Path::new(&appdata).join("Cursor").join("User"))
         }
