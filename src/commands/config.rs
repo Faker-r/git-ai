@@ -453,24 +453,13 @@ fn set_config_value(key: &str, value: &str, add_mode: bool) -> Result<(), String
                 eprintln!("[prompt_storage]: {}", value);
             }
             "include_prompts_in_repositories" => {
-                let resolved = resolve_repository_value(value)?;
-                if add_mode {
-                    let mut list = file_config
-                        .include_prompts_in_repositories
-                        .unwrap_or_default();
-                    for pattern in &resolved {
-                        if !list.contains(pattern) {
-                            list.push(pattern.clone());
-                        }
-                    }
-                    file_config.include_prompts_in_repositories = Some(list);
-                } else {
-                    file_config.include_prompts_in_repositories = Some(resolved.clone());
-                }
+                let added = set_repository_array_field(
+                    &mut file_config.include_prompts_in_repositories,
+                    value,
+                    add_mode,
+                )?;
                 crate::config::save_file_config(&file_config)?;
-                for pattern in resolved {
-                    eprintln!("[include_prompts_in_repositories]: {}", pattern);
-                }
+                log_array_changes(&added, add_mode);
             }
             "default_prompt_storage" => {
                 validate_prompt_storage_value(value)?;
@@ -780,10 +769,17 @@ fn set_repository_array_field(
     let values_to_add = resolve_repository_value(value)?;
 
     if add_mode {
-        // Add mode: append to existing array
+        // Add mode: append to existing array, skipping duplicates so repeated
+        // --add of the same pattern is a no-op rather than silently growing
+        // the file config.
         let mut arr = field.take().unwrap_or_default();
-        let added = values_to_add.clone();
-        arr.extend(values_to_add);
+        let mut added = Vec::new();
+        for pattern in values_to_add {
+            if !arr.contains(&pattern) {
+                arr.push(pattern.clone());
+                added.push(pattern);
+            }
+        }
         *field = Some(arr);
         Ok(added)
     } else {
