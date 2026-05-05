@@ -96,16 +96,18 @@ fn print_config_help() {
     eprintln!("  git-ai config unset <key>    Remove config value (reverts to default)");
     eprintln!();
     eprintln!("Configuration Keys:");
-    eprintln!("  git_path                     Path to git binary");
-    eprintln!("  exclude_prompts_in_repositories  Repos to exclude prompts from (array)");
     eprintln!("  allow_repositories           Allowed repos (array)");
     eprintln!("  exclude_repositories         Excluded repos (array)");
+    eprintln!("  quiet                        Suppress chart output after commits (bool)");
     eprintln!("  telemetry_oss                OSS telemetry setting (on/off)");
     eprintln!("  feature_flags                Feature flags (object)");
     eprintln!("  prompt_storage               Prompt storage mode (default/notes/local)");
     eprintln!("  include_prompts_in_repositories  Repos to include for prompt storage (array)");
+    eprintln!("  exclude_prompts_in_repositories  Repos to exclude prompts from (array)");
     eprintln!("  default_prompt_storage       Fallback storage mode for non-included repos");
-    eprintln!("  quiet                        Suppress chart output after commits (bool)");
+    eprintln!("  git_path                     Path to git binary");
+    eprintln!("  api_base_url                 API base URL for git-ai backend");
+    eprintln!("  custom_attributes            Custom string attributes (object)");
     eprintln!("  git_ai_hooks                 Hook name -> shell commands map (object)");
     eprintln!();
     eprintln!("Repository Patterns:");
@@ -287,6 +289,17 @@ fn show_all_config() -> Result<(), String> {
     effective_config.insert("quiet".to_string(), Value::Bool(runtime_config.is_quiet()));
 
     effective_config.insert(
+        "api_base_url".to_string(),
+        Value::String(runtime_config.api_base_url().to_string()),
+    );
+
+    effective_config.insert(
+        "custom_attributes".to_string(),
+        serde_json::to_value(runtime_config.custom_attributes())
+            .unwrap_or_else(|_| Value::Object(serde_json::Map::new())),
+    );
+
+    effective_config.insert(
         "git_ai_hooks".to_string(),
         serde_json::to_value(runtime_config.git_ai_hooks())
             .unwrap_or_else(|_| Value::Object(serde_json::Map::new())),
@@ -364,6 +377,9 @@ fn get_config_value(key: &str) -> Result<(), String> {
                 }
             }
             "quiet" => Value::Bool(runtime_config.is_quiet()),
+            "api_base_url" => Value::String(runtime_config.api_base_url().to_string()),
+            "custom_attributes" => serde_json::to_value(runtime_config.custom_attributes())
+                .unwrap_or_else(|_| Value::Object(serde_json::Map::new())),
             "git_ai_hooks" => serde_json::to_value(runtime_config.git_ai_hooks())
                 .unwrap_or_else(|_| Value::Object(serde_json::Map::new())),
             _ => return Err(format!("Unknown config key: {}", key)),
@@ -376,13 +392,17 @@ fn get_config_value(key: &str) -> Result<(), String> {
     }
 
     // Handle nested keys (dot notation)
-    if key_path[0] == "feature_flags" || key_path[0] == "git_ai_hooks" {
-        let root = if key_path[0] == "feature_flags" {
-            serde_json::to_value(runtime_config.get_feature_flags())
-                .unwrap_or_else(|_| Value::Object(serde_json::Map::new()))
-        } else {
-            serde_json::to_value(runtime_config.git_ai_hooks())
-                .unwrap_or_else(|_| Value::Object(serde_json::Map::new()))
+    if matches!(
+        key_path[0].as_str(),
+        "feature_flags" | "git_ai_hooks" | "custom_attributes"
+    ) {
+        let root = match key_path[0].as_str() {
+            "feature_flags" => serde_json::to_value(runtime_config.get_feature_flags())
+                .unwrap_or_else(|_| Value::Object(serde_json::Map::new())),
+            "git_ai_hooks" => serde_json::to_value(runtime_config.git_ai_hooks())
+                .unwrap_or_else(|_| Value::Object(serde_json::Map::new())),
+            _ => serde_json::to_value(runtime_config.custom_attributes())
+                .unwrap_or_else(|_| Value::Object(serde_json::Map::new())),
         };
 
         let mut current = &root;
@@ -398,7 +418,8 @@ fn get_config_value(key: &str) -> Result<(), String> {
         return Ok(());
     }
 
-    Err("Nested keys are only supported for feature_flags and git_ai_hooks".to_string())
+    Err("Nested keys are only supported for feature_flags, git_ai_hooks, and custom_attributes"
+        .to_string())
 }
 
 fn set_config_value(key: &str, value: &str, add_mode: bool) -> Result<(), String> {
@@ -494,6 +515,42 @@ fn set_config_value(key: &str, value: &str, add_mode: bool) -> Result<(), String
                 crate::config::save_file_config(&file_config)?;
                 eprintln!("[git_ai_hooks]: {}", value);
             }
+            "api_base_url" => {
+                if add_mode {
+                    return Err("Cannot use --add with api_base_url (scalar value)".to_string());
+                }
+                file_config.api_base_url = Some(value.to_string());
+                crate::config::save_file_config(&file_config)?;
+                eprintln!("[api_base_url]: {}", value);
+            }
+            "custom_attributes" => {
+                if add_mode {
+                    return Err("Cannot use --add with custom_attributes at top level. Use dot notation: custom_attributes.key".to_string());
+                }
+                let parsed: Value = serde_json::from_str(value)
+                    .map_err(|e| format!("Invalid JSON for custom_attributes: {}", e))?;
+                let obj = parsed
+                    .as_object()
+                    .ok_or_else(|| "custom_attributes must be a JSON object".to_string())?;
+                let mut attrs = HashMap::new();
+                for (k, v) in obj {
+                    match v {
+                        Value::String(s) => {
+                            attrs.insert(k.clone(), s.clone());
+                        }
+                        Value::Number(n) => {
+                            attrs.insert(k.clone(), n.to_string());
+                        }
+                        Value::Bool(b) => {
+                            attrs.insert(k.clone(), b.to_string());
+                        }
+                        _ => {} // silently drop arrays, objects, null (matches env var behavior)
+                    }
+                }
+                file_config.custom_attributes = Some(attrs);
+                crate::config::save_file_config(&file_config)?;
+                eprintln!("[custom_attributes]: {}", value);
+            }
             _ => return Err(format!("Unknown config key: {}", key)),
         }
 
@@ -584,7 +641,25 @@ fn set_config_value(key: &str, value: &str, add_mode: bool) -> Result<(), String
         return Ok(());
     }
 
-    Err("Nested keys are only supported for feature_flags and git_ai_hooks".to_string())
+    if key_path[0] == "custom_attributes" {
+        if key_path.len() != 2 {
+            return Err(
+                "custom_attributes requires a single key (e.g., custom_attributes.team)".to_string(),
+            );
+        }
+        let attr_key = key_path[1].clone();
+        let mut attrs = file_config.custom_attributes.unwrap_or_default();
+        attrs.insert(attr_key.clone(), value.to_string());
+        file_config.custom_attributes = Some(attrs);
+        crate::config::save_file_config(&file_config)?;
+        eprintln!("+ [{}.{}]: {}", key_path[0], attr_key, value);
+        return Ok(());
+    }
+
+    Err(
+        "Nested keys are only supported for feature_flags, git_ai_hooks, and custom_attributes"
+            .to_string(),
+    )
 }
 
 fn unset_config_value(key: &str) -> Result<(), String> {
@@ -669,6 +744,20 @@ fn unset_config_value(key: &str) -> Result<(), String> {
                 crate::config::save_file_config(&file_config)?;
                 if let Some(v) = old_value {
                     eprintln!("- [git_ai_hooks]: {:?}", v);
+                }
+            }
+            "api_base_url" => {
+                let old_value = file_config.api_base_url.take();
+                crate::config::save_file_config(&file_config)?;
+                if let Some(v) = old_value {
+                    eprintln!("- [api_base_url]: {}", v);
+                }
+            }
+            "custom_attributes" => {
+                let old_value = file_config.custom_attributes.take();
+                crate::config::save_file_config(&file_config)?;
+                if let Some(v) = old_value {
+                    eprintln!("- [custom_attributes]: {:?}", v);
                 }
             }
             _ => return Err(format!("Unknown config key: {}", key)),
@@ -759,7 +848,32 @@ fn unset_config_value(key: &str) -> Result<(), String> {
         return Ok(());
     }
 
-    Err("Nested keys are only supported for feature_flags and git_ai_hooks".to_string())
+    if key_path[0] == "custom_attributes" {
+        if key_path.len() != 2 {
+            return Err(
+                "custom_attributes requires a single key (e.g., custom_attributes.team)".to_string(),
+            );
+        }
+        let attr_key = &key_path[1];
+        let mut attrs = file_config
+            .custom_attributes
+            .ok_or_else(|| format!("Config key not found: {}", key))?;
+        let old_value = attrs.remove(attr_key);
+        if old_value.is_none() {
+            return Err(format!("Config key not found: {}", key));
+        }
+        file_config.custom_attributes = if attrs.is_empty() { None } else { Some(attrs) };
+        crate::config::save_file_config(&file_config)?;
+        if let Some(v) = old_value {
+            eprintln!("- [{}]: {}", key, v);
+        }
+        return Ok(());
+    }
+
+    Err(
+        "Nested keys are only supported for feature_flags, git_ai_hooks, and custom_attributes"
+            .to_string(),
+    )
 }
 
 fn parse_key_path(key: &str) -> Vec<String> {
