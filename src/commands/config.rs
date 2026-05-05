@@ -251,10 +251,16 @@ fn show_all_config() -> Result<(), String> {
         effective_config.insert("exclude_repositories".to_string(), Value::Array(vec![]));
     }
 
-    // Booleans with runtime values
     effective_config.insert(
-        "telemetry_oss_disabled".to_string(),
-        Value::Bool(runtime_config.is_telemetry_oss_disabled()),
+        "telemetry_oss".to_string(),
+        Value::String(
+            if runtime_config.is_telemetry_oss_disabled() {
+                "off"
+            } else {
+                "on"
+            }
+            .to_string(),
+        ),
     );
 
     effective_config.insert(
@@ -329,7 +335,14 @@ fn get_config_value(key: &str) -> Result<(), String> {
                     Value::Array(vec![])
                 }
             }
-            "telemetry_oss_disabled" => Value::Bool(runtime_config.is_telemetry_oss_disabled()),
+            "telemetry_oss" => Value::String(
+                if runtime_config.is_telemetry_oss_disabled() {
+                    "off"
+                } else {
+                    "on"
+                }
+                .to_string(),
+            ),
             "feature_flags" => {
                 // Show effective flags with defaults applied
                 serde_json::to_value(runtime_config.get_feature_flags())
