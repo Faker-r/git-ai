@@ -218,9 +218,9 @@ pub fn handle_git_ai(args: &[String]) {
         "exchange-nonce" => {
             commands::exchange_nonce::handle_exchange_nonce(&args[1..]);
         }
-        "dash" | "dashboard" => {
-            commands::personal_dashboard::handle_personal_dashboard(&args[1..]);
-        }
+        // "dash" | "dashboard" => {
+        //     commands::personal_dashboard::handle_personal_dashboard(&args[1..]);
+        // }
         "show-prompt" => {
             commands::show_prompt::handle_show_prompt(&args[1..]);
         }
