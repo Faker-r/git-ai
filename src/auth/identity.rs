@@ -25,6 +25,14 @@ struct AccessTokenClaims {
     #[serde(default)]
     pub orgs: Vec<TokenOrg>,
     pub personal_org_id: Option<String>,
+    #[serde(default)]
+    pub user_metadata: UserMetadata,
+}
+
+#[derive(Default, Debug, Clone, Deserialize)]
+struct UserMetadata {
+    pub full_name: Option<String>,
+    pub name: Option<String>,
 }
 
 pub fn extract_identity_from_access_token(access_token: &str) -> TokenIdentity {
@@ -46,10 +54,15 @@ pub fn extract_identity_from_access_token(access_token: &str) -> TokenIdentity {
         Err(_) => return TokenIdentity::default(),
     };
 
+    let name = claims
+        .name
+        .or(claims.user_metadata.full_name)
+        .or(claims.user_metadata.name);
+
     TokenIdentity {
         user_id: claims.sub,
         email: claims.email,
-        name: claims.name,
+        name,
         personal_org_id: claims.personal_org_id,
         orgs: claims.orgs,
     }
