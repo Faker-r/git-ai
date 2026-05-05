@@ -270,20 +270,22 @@ fn show_all_config() -> Result<(), String> {
         Value::String(runtime_config.prompt_storage().to_string()),
     );
 
-    // include_prompts_in_repositories
     if let Some(ref repos) = file_config.include_prompts_in_repositories {
         effective_config.insert(
             "include_prompts_in_repositories".to_string(),
-            serde_json::to_value(repos).unwrap_or(Value::Array(vec![])),
+            serde_json::to_value(repos).unwrap(),
         );
+    } else {
+        effective_config.insert("include_prompts_in_repositories".to_string(), Value::Array(vec![]));
     }
 
-    // default_prompt_storage
     if let Some(ref storage) = file_config.default_prompt_storage {
         effective_config.insert(
             "default_prompt_storage".to_string(),
             Value::String(storage.clone()),
         );
+    } else {
+        effective_config.insert("default_prompt_storage".to_string(), Value::Null);
     }
 
     effective_config.insert("quiet".to_string(), Value::Bool(runtime_config.is_quiet()));
@@ -434,6 +436,15 @@ fn set_config_value(key: &str, value: &str, add_mode: bool) -> Result<(), String
                 crate::config::save_file_config(&file_config)?;
                 eprintln!("[git_path]: {}", value);
             }
+            "include_prompts_in_repositories" => {
+                let added = set_repository_array_field(
+                    &mut file_config.include_prompts_in_repositories,
+                    value,
+                    add_mode,
+                )?;
+                crate::config::save_file_config(&file_config)?;
+                log_array_changes(&added, add_mode);
+            }
             "exclude_prompts_in_repositories" => {
                 let added = set_repository_array_field(
                     &mut file_config.exclude_prompts_in_repositories,
@@ -485,15 +496,6 @@ fn set_config_value(key: &str, value: &str, add_mode: bool) -> Result<(), String
                 file_config.prompt_storage = Some(value.to_string());
                 crate::config::save_file_config(&file_config)?;
                 eprintln!("[prompt_storage]: {}", value);
-            }
-            "include_prompts_in_repositories" => {
-                let added = set_repository_array_field(
-                    &mut file_config.include_prompts_in_repositories,
-                    value,
-                    add_mode,
-                )?;
-                crate::config::save_file_config(&file_config)?;
-                log_array_changes(&added, add_mode);
             }
             "default_prompt_storage" => {
                 validate_prompt_storage_value(value)?;
