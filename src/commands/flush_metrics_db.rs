@@ -18,7 +18,9 @@ pub fn handle_flush_metrics_db(_args: &[String]) {
 
     let using_default_api = api_base_url == crate::config::DEFAULT_API_BASE_URL;
     if using_default_api && !client.is_logged_in() {
-        eprintln!("flush-metrics-db: skipping (not logged in and using default API)");
+        eprintln!("Skipping flush-metrics-db. You have to sign in to upload. 
+            Run `git-ai login` to authenticate then run `git-ai flush-cas` again."
+        );
         return;
     }
 

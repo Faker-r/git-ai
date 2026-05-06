@@ -13,7 +13,9 @@ pub fn handle_flush_cas(_args: &[String]) {
     // Skip if using default API and not logged in
     let using_default_api = api_base_url == crate::config::DEFAULT_API_BASE_URL;
     if using_default_api && !client.is_logged_in() {
-        eprintln!("Skipping CAS sync: not logged in and using default API");
+        eprintln!("Skipping flush-cas. You have to sign in to upload. 
+        Run `git-ai login` to authenticate then run `git-ai flush-cas` again."
+    );
         return;
     }
 
@@ -23,7 +25,7 @@ pub fn handle_flush_cas(_args: &[String]) {
     let db = match InternalDatabase::global() {
         Ok(db) => db,
         Err(e) => {
-            eprintln!("Failed to access database: {}", e);
+            eprintln!("flush-cas: failed to access database: {}", e);
             std::process::exit(1);
         }
     };
@@ -37,7 +39,7 @@ pub fn handle_flush_cas(_args: &[String]) {
             match db_lock.dequeue_cas_batch(50) {
                 Ok(batch) => batch,
                 Err(e) => {
-                    eprintln!("Error dequeuing batch: {}", e);
+                    eprintln!("flush-cas: error dequeuing batch: {}", e);
                     break;
                 }
             }
