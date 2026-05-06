@@ -237,9 +237,9 @@ pub fn handle_git_ai(args: &[String]) {
         "search" => {
             commands::search::handle_search(&args[1..]);
         }
-        "continue" => {
-            commands::continue_session::handle_continue(&args[1..]);
-        }
+        // "continue" => {
+        //     commands::continue_session::handle_continue(&args[1..]);
+        // }
         "fetch-notes" => {
             commands::fetch_notes::handle_fetch_notes(&args[1..]);
         }
