@@ -85,7 +85,26 @@ function Install-Binary {
     Move-Item -Path $tmpPath -Destination $DstPath
 }
 
-# Run production installer if ~/.git-ai isn't set up or ~/.git-ai/bin isn't on PATH
+# Build the binary first, so we can bootstrap the environment using *our* binary
+# rather than the upstream release. This matters because install.ps1 runs
+# `install-hooks` from whichever binary it places — if we let it download a
+# release, the released binary's hook-installer logic runs and writes agent
+# hooks to disk before we ever overwrite the binary, defeating any local
+# changes that disable specific agent installers.
+Write-Host "Building $BuildType binary..."
+if ($BuildType -eq 'release') {
+    cargo build --release
+} else {
+    cargo build
+}
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+$LocalBin = Join-Path $PSScriptRoot "..\target\$BuildType\git-ai.exe"
+
+# Bootstrap environment if ~/.git-ai isn't set up or PATH isn't wired.
+# Use the in-repo install.ps1 with GIT_AI_LOCAL_BINARY so it seats *our*
+# freshly built binary instead of downloading a release, and runs our
+# install-hooks.
 $needsInstall = $false
 if (-not (Test-Path -LiteralPath $InstallDir) -or
     -not (Test-Path -LiteralPath $ConfigPath)) {
@@ -110,22 +129,21 @@ if (-not $needsInstall) {
 }
 
 if ($needsInstall) {
-    Write-Host 'Running git-ai installer...'
-    & (Join-Path $PSScriptRoot '..\install.ps1')
+    Write-Host 'Bootstrapping git-ai environment with local binary...'
+    $env:GIT_AI_LOCAL_BINARY = (Resolve-Path -LiteralPath $LocalBin).Path
+    try {
+        & (Join-Path $PSScriptRoot '..\install.ps1')
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    } finally {
+        Remove-Item Env:GIT_AI_LOCAL_BINARY -ErrorAction SilentlyContinue
+    }
+    Write-Host 'Done!'
+    exit 0
 }
 
-# Build the binary
-Write-Host "Building $BuildType binary..."
-if ($BuildType -eq 'release') {
-    cargo build --release
-} else {
-    cargo build
-}
-if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-# Replace git-ai.exe, stopping the daemon first if it is running
+# Already bootstrapped: just swap the binary and re-run install-hooks.
 Write-Host "Installing binary to $GitAiExe..."
-Install-Binary -SrcPath "target\$BuildType\git-ai.exe" -DstPath $GitAiExe -GitAiExe $GitAiExe
+Install-Binary -SrcPath $LocalBin -DstPath $GitAiExe -GitAiExe $GitAiExe
 
 # Keep the git.exe shim in sync with the updated binary
 if (Test-Path -LiteralPath $GitShim) {
