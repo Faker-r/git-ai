@@ -224,9 +224,10 @@ pub fn handle_git_ai(args: &[String]) {
         "show-prompt" => {
             commands::show_prompt::handle_show_prompt(&args[1..]);
         }
-        "share" => {
-            commands::share::handle_share(&args[1..]);
-        }
+        // requires /api/bundles endpoint on the server side
+        // "share" => {
+        //     commands::share::handle_share(&args[1..]);
+        // }
         "sync-prompts" => {
             commands::sync_prompts::handle_sync_prompts(&args[1..]);
         }
