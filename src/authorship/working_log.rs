@@ -20,6 +20,15 @@ pub struct WorkingLogEntry {
     pub attributions: Vec<Attribution>,
     #[serde(default)]
     pub line_attributions: Vec<LineAttribution>,
+    /// Char-level attributions keyed by user message id (parallel to `attributions`).
+    /// `author_id` here stores `user_prompt_id` (UUID) for AI-edited regions or
+    /// the `"human"` sentinel for human-edited regions. Used to derive the
+    /// message-level attestation.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub message_attributions: Vec<Attribution>,
+    /// Line-level mirror of `message_attributions`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub message_line_attributions: Vec<LineAttribution>,
     /// Line ranges added in new-content coordinates (start, end) inclusive
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub added_line_ranges: Option<Vec<(u32, u32)>>,
@@ -49,6 +58,8 @@ impl WorkingLogEntry {
             blob_sha,
             attributions,
             line_attributions,
+            message_attributions: Vec::new(),
+            message_line_attributions: Vec::new(),
             added_line_ranges: None,
             deleted_line_ranges: None,
             added_line_entries: None,

@@ -759,6 +759,9 @@ fn try_reconstruct_attributions_from_notes_cached(
     HashMap<String, String>,
     BTreeMap<String, BTreeMap<String, crate::authorship::authorship_log::PromptRecord>>,
     BTreeMap<String, crate::authorship::authorship_log::HumanRecord>,
+    // Per-file message-stream line attributions reconstructed from prior notes'
+    // `message_attestations` blocks, with hunks applied to shift line numbers.
+    HashMap<String, Vec<crate::authorship::attribution_tracker::LineAttribution>>,
 )> {
     use crate::authorship::attribution_tracker::LineAttribution;
     use crate::authorship::authorship_log::HumanRecord;
@@ -792,6 +795,9 @@ fn try_reconstruct_attributions_from_notes_cached(
     // attributions by applying each commit's hunks (to shift line numbers)
     // then overlaying that commit's note (to stamp new AI-authored lines).
     let mut file_attrs: HashMap<String, Vec<LineAttribution>> = HashMap::new();
+    // Parallel message-stream attributions, reconstructed from each commit's
+    // note `message_attestations` block.
+    let mut file_msg_attrs: HashMap<String, Vec<LineAttribution>> = HashMap::new();
 
     // Process commits in chronological order (original_commits already ordered
     // oldest-first, with original_head as the tip).
@@ -818,6 +824,11 @@ fn try_reconstruct_attributions_from_notes_cached(
                     let shifted = apply_hunks_to_line_attributions(attrs, hunks);
                     file_attrs.insert(file_path.clone(), shifted);
                 }
+                // Mirror for the message stream — same hunk-shift primitive works.
+                if let Some(msg_attrs) = file_msg_attrs.get(file_path) {
+                    let shifted = apply_hunks_to_line_attributions(msg_attrs, hunks);
+                    file_msg_attrs.insert(file_path.clone(), shifted);
+                }
             }
         }
 
@@ -842,6 +853,26 @@ fn try_reconstruct_attributions_from_notes_cached(
                 }
             }
 
+            // Same overlay for the message stream. Hashes here are already-resolved
+            // user_prompt_ids (resolution happened at the original commit's post_commit time),
+            // so we can overlay them directly without consulting any resolver.
+            for file_msg_att in &log.message_attestations {
+                let file_path = &file_msg_att.file_path;
+                if !pathspec_set.contains(file_path.as_str()) {
+                    continue;
+                }
+                let msg_attrs = file_msg_attrs.entry(file_path.clone()).or_default();
+                for entry in &file_msg_att.entries {
+                    for range in &entry.line_ranges {
+                        let (start, end) = match range {
+                            crate::authorship::authorship_log::LineRange::Single(l) => (*l, *l),
+                            crate::authorship::authorship_log::LineRange::Range(s, e) => (*s, *e),
+                        };
+                        overlay_attribution(msg_attrs, start, end, entry.hash.clone());
+                    }
+                }
+            }
+
             // Collect prompts.
             for (prompt_id, prompt_record) in &log.metadata.prompts {
                 prompts
@@ -856,7 +887,9 @@ fn try_reconstruct_attributions_from_notes_cached(
         }
     }
 
-    if file_attrs.values().all(|v| v.is_empty()) {
+    if file_attrs.values().all(|v| v.is_empty())
+        && file_msg_attrs.values().all(|v| v.is_empty())
+    {
         return None;
     }
 
@@ -871,8 +904,15 @@ fn try_reconstruct_attributions_from_notes_cached(
             attributions.insert(file_path, (Vec::new(), line_attrs));
         }
     }
+    let mut message_attributions = HashMap::new();
+    for (file_path, mut msg_line_attrs) in file_msg_attrs {
+        if !msg_line_attrs.is_empty() {
+            msg_line_attrs.sort_by_key(|a| a.start_line);
+            message_attributions.insert(file_path, msg_line_attrs);
+        }
+    }
 
-    Some((attributions, file_contents, prompts, humans))
+    Some((attributions, file_contents, prompts, humans, message_attributions))
 }
 
 /// Overlay a new attribution range onto an existing sorted attribution list.
@@ -1300,7 +1340,8 @@ pub fn rewrite_authorship_after_rebase_v2(
         initial_prompts,
         initial_humans,
         _rebase_ts,
-    ) = if let Some((attrs, contents, prompts, humans)) =
+        mut current_message_attributions,
+    ) = if let Some((attrs, contents, prompts, humans, msg_attrs)) =
         try_reconstruct_attributions_from_notes_cached(
             repo,
             original_head,
@@ -1315,7 +1356,7 @@ pub fn rewrite_authorship_after_rebase_v2(
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_millis();
-        (attrs, contents, prompts, humans, ts)
+        (attrs, contents, prompts, humans, ts, msg_attrs)
     } else {
         tracing::debug!("Falling back to VirtualAttributions (blame-based reconstruction)");
         let new_head = new_commits.last().unwrap();
@@ -1360,7 +1401,8 @@ pub fn rewrite_authorship_after_rebase_v2(
 
         let humans = current_va.humans.clone();
         let ts = current_va.timestamp();
-        (attrs, contents, prompts, humans, ts)
+        let msg_attrs = current_va.message_attributions.clone();
+        (attrs, contents, prompts, humans, ts, msg_attrs)
     };
 
     timing_phases.push((
@@ -1467,6 +1509,10 @@ pub fn rewrite_authorship_after_rebase_v2(
     // Bug fix: start EMPTY rather than pre-seeding from current_authorship_log.attestations.
     // The per-commit loop populates this map as each file is first processed via content-diff.
     let mut cached_file_attestation_text: HashMap<String, String> = HashMap::new();
+    // Parallel cache for the message-attestation block, keyed by file path.
+    // Updated alongside `cached_file_attestation_text` whenever a file's attribution
+    // state changes during the per-commit loop.
+    let mut cached_file_message_attestation_text: HashMap<String, String> = HashMap::new();
 
     // Pre-split metadata JSON template at a placeholder so we only swap the commit SHA per commit.
     // This is rebuilt per-commit when metrics change (attributions updated by hunk/diff transfer).
@@ -1562,10 +1608,12 @@ pub fn rewrite_authorship_after_rebase_v2(
                     // File deleted — clear all cached state so recreation uses a clean
                     // content-diff instead of stale attributions/content from before deletion.
                     cached_file_attestation_text.remove(file_path);
+                    cached_file_message_attestation_text.remove(file_path);
                     existing_files.remove(file_path);
                     files_with_synced_state.remove(file_path.as_str());
                     current_file_contents.remove(file_path);
                     current_attributions.remove(file_path);
+                    current_message_attributions.remove(file_path);
                     continue;
                 }
 
@@ -1645,6 +1693,40 @@ pub fn rewrite_authorship_after_rebase_v2(
                 } else {
                     cached_file_attestation_text.remove(file_path);
                 }
+
+                // Parallel: shift this file's message-stream attributions through the
+                // same hunks (the hunk-shift primitive is identifier-agnostic), and
+                // re-serialize. The resolved user_prompt_ids inside the line attributions
+                // pass through unchanged. Lines that get inserted by this commit and have
+                // no prior message stamp simply don't appear in the message attestation —
+                // that's correct (they were created during the rebase, not by an AI msg).
+                if let Some(old_msg_attrs) = current_message_attributions.get(file_path) {
+                    let shifted_msg = if use_hunk_based {
+                        commit_hunks
+                            .and_then(|ch| ch.get(file_path.as_str()))
+                            .map(|hunks| apply_hunks_to_line_attributions(old_msg_attrs, hunks))
+                            .unwrap_or_else(|| old_msg_attrs.clone())
+                    } else {
+                        // Slow content-diff path: we don't run a full imara projection
+                        // for the message stream here (would require char-level data).
+                        // Instead apply hunks if available, else keep as-is. This is a
+                        // best-effort approximation; the synchronous post_commit path
+                        // remains the source of truth for message stamping.
+                        commit_hunks
+                            .and_then(|ch| ch.get(file_path.as_str()))
+                            .map(|hunks| apply_hunks_to_line_attributions(old_msg_attrs, hunks))
+                            .unwrap_or_else(|| old_msg_attrs.clone())
+                    };
+                    if let Some(text) =
+                        serialize_attestation_from_line_attrs(file_path, &shifted_msg)
+                    {
+                        cached_file_message_attestation_text.insert(file_path.clone(), text);
+                    } else {
+                        cached_file_message_attestation_text.remove(file_path);
+                    }
+                    current_message_attributions.insert(file_path.clone(), shifted_msg);
+                }
+
                 loop_attestation_ms += tatt.elapsed().as_micros();
                 let tclone = std::time::Instant::now();
                 current_attributions.insert(file_path.clone(), (Vec::new(), line_attrs));
@@ -1754,6 +1836,7 @@ pub fn rewrite_authorship_after_rebase_v2(
         // no note when the original commit had none (human-only commits).
         let authorship_json = if commit_has_attestations {
             // Assemble note from cached per-file text for THIS commit's changed files only.
+            // Layout: <conv attestation> --- <msg attestation if any> --- <json metadata>
             let mut output = String::with_capacity(512);
             for file_path in &changed_files_in_commit {
                 if let Some(text) = cached_file_attestation_text.get(file_path.as_str())
@@ -1763,6 +1846,24 @@ pub fn rewrite_authorship_after_rebase_v2(
                 }
             }
             output.push_str("---\n");
+            // Optional message attestation block — only emitted when at least one of this
+            // commit's changed files has a non-empty cached message-attestation text.
+            let has_msg_block = changed_files_in_commit.iter().any(|f| {
+                cached_file_message_attestation_text
+                    .get(f.as_str())
+                    .is_some_and(|t| !t.is_empty())
+            });
+            if has_msg_block {
+                for file_path in &changed_files_in_commit {
+                    if let Some(text) =
+                        cached_file_message_attestation_text.get(file_path.as_str())
+                        && !text.is_empty()
+                    {
+                        output.push_str(text);
+                    }
+                }
+                output.push_str("---\n");
+            }
             if let Some((ref prefix, ref suffix)) = metadata_json_template_parts {
                 output.push_str(prefix);
                 output.push_str(new_commit);
@@ -4516,6 +4617,7 @@ fn transform_attributions_to_final_state(
     // and changes again later in the rewritten sequence.
     let mut attributions = HashMap::new();
     let mut file_contents = HashMap::new();
+    let mut message_attributions: HashMap<String, Vec<crate::authorship::attribution_tracker::LineAttribution>> = HashMap::new();
     for file in source_va.files() {
         if let Some(content) = source_va.get_file_content(&file) {
             file_contents.insert(file.clone(), content.clone());
@@ -4523,7 +4625,10 @@ fn transform_attributions_to_final_state(
         if let Some(char_attrs) = source_va.get_char_attributions(&file)
             && let Some(line_attrs) = source_va.get_line_attributions(&file)
         {
-            attributions.insert(file, (char_attrs.clone(), line_attrs.clone()));
+            attributions.insert(file.clone(), (char_attrs.clone(), line_attrs.clone()));
+        }
+        if let Some(msg_line_attrs) = source_va.message_attributions.get(&file) {
+            message_attributions.insert(file, msg_line_attrs.clone());
         }
     }
 
@@ -4669,7 +4774,52 @@ fn transform_attributions_to_final_state(
             &final_content,
         );
 
+        // ---- Project the message stream alongside ----
+        // Take source's line-level message attributions, convert to char-level, run the
+        // same imara-diff projection (with dummy author for new insertions, then filter),
+        // convert back to line-level. New lines in final_content end up unattributed in
+        // the message stream — that's fine; they may be claimed by a later commit's stamp.
+        let projected_msg_line_attrs = if let Some(src_msg_line_attrs) =
+            source_va.message_attributions.get(&file_path)
+        {
+            let src_content = source_va.get_file_content(&file_path);
+            if let Some(src_content) = src_content
+                && !src_msg_line_attrs.is_empty()
+            {
+                let src_msg_char_attrs =
+                    crate::authorship::attribution_tracker::line_attributions_to_attributions(
+                        src_msg_line_attrs,
+                        src_content,
+                        ts,
+                    );
+                let projected_msg_char = tracker.update_attributions(
+                    src_content,
+                    &final_content,
+                    &src_msg_char_attrs,
+                    dummy_author,
+                    ts,
+                )?;
+                let filtered_msg_char: Vec<_> = projected_msg_char
+                    .into_iter()
+                    .filter(|attr| attr.author_id != dummy_author)
+                    .collect();
+                crate::authorship::attribution_tracker::attributions_to_line_attributions(
+                    &filtered_msg_char,
+                    &final_content,
+                )
+            } else {
+                Vec::new()
+            }
+        } else {
+            Vec::new()
+        };
+
         attributions.insert(file_path.clone(), (transformed_attrs, line_attrs));
+        if !projected_msg_line_attrs.is_empty() {
+            message_attributions.insert(file_path.clone(), projected_msg_line_attrs);
+        } else {
+            message_attributions.remove(&file_path);
+        }
         file_contents.insert(file_path, final_content);
     }
 
@@ -4711,14 +4861,20 @@ fn transform_attributions_to_final_state(
         }
     }
 
-    Ok(VirtualAttributions::new_with_prompts(
+    let mut va = VirtualAttributions::new_with_prompts(
         repo,
         base_commit,
         attributions,
         file_contents,
         prompts,
         ts,
-    ))
+    );
+    // Carry the message stream + synthetic-id resolver through the transform.
+    // The projection above already handled the line-number reprojection per file;
+    // the resolver itself is independent of file content (maps cp.diff -> user_prompt_id).
+    va.message_attributions = message_attributions;
+    va.synthetic_msg_resolver = source_va.synthetic_msg_resolver.clone();
+    Ok(va)
 }
 
 #[cfg(test)]

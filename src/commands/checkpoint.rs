@@ -2,7 +2,7 @@ use crate::authorship::attribution_tracker::{
     Attribution, AttributionTracker, INITIAL_ATTRIBUTION_TS, LineAttribution,
 };
 use crate::authorship::authorship_log::PromptRecord;
-use crate::authorship::authorship_log_serialization::generate_short_hash;
+use crate::authorship::authorship_log_serialization::{generate_short_hash, SYNTHETIC_MSG_PREFIX};
 use crate::authorship::ignore::{
     IgnoreMatcher, build_ignore_matcher, effective_ignore_patterns, should_ignore_file_with_matcher,
 };
@@ -44,6 +44,10 @@ struct FileLineStats {
 struct PreviousFileState {
     blob_sha: String,
     attributions: Vec<Attribution>,
+    /// Char-level message-stream attributions, where each `author_id` field
+    /// stores `user_prompt_id` (UUID) for AI-edited regions or `"human"`
+    /// for human-edited regions.
+    message_attributions: Vec<Attribution>,
 }
 
 use crate::authorship::working_log::AgentId;
@@ -872,6 +876,7 @@ fn execute_resolved_checkpoint(
         resolved.ts,
         is_pre_commit,
         Some(resolved.base_commit.as_str()),
+        &combined_hash,
     ))?;
     tracing::debug!(
         "[BENCHMARK] get_checkpoint_entries generated {} entries, took {:?}",
@@ -1661,6 +1666,7 @@ fn build_previous_file_state_maps(
                 PreviousFileState {
                     blob_sha: entry.blob_sha.clone(),
                     attributions: entry.attributions.clone(),
+                    message_attributions: entry.message_attributions.clone(),
                 },
             );
 
@@ -1684,6 +1690,7 @@ fn get_checkpoint_entry_for_file(
     ai_touched_files: Arc<HashSet<String>>,
     file_content_hash: String,
     author_id: Arc<String>,
+    message_author: Arc<String>,
     head_commit_sha: Arc<Option<String>>,
     head_tree_id: Arc<Option<String>>,
     initial_attributions: Arc<HashMap<String, Vec<LineAttribution>>>,
@@ -1752,13 +1759,14 @@ fn get_checkpoint_entry_for_file(
                 .get_file_version(&state.blob_sha)
                 .unwrap_or_default(),
             state.attributions.clone(),
+            state.message_attributions.clone(),
         )
     });
 
     let is_from_checkpoint = from_checkpoint.is_some();
-    let (previous_content, prev_attributions) = if let Some((content, attrs)) = from_checkpoint {
+    let (previous_content, prev_attributions, prev_message_attributions) = if let Some((content, attrs, msg_attrs)) = from_checkpoint {
         // File exists in a previous checkpoint - use that
-        (content, attrs)
+        (content, attrs, msg_attrs)
     } else {
         // File doesn't exist in any previous checkpoint - need to initialize from git + INITIAL
         let previous_content =
@@ -1880,7 +1888,7 @@ fn get_checkpoint_entry_for_file(
             previous_content
         };
 
-        (adjusted_previous, prev_attributions)
+        (adjusted_previous, prev_attributions, Vec::new())
     };
 
     // Skip if no changes (but we already checked this earlier, accounting for INITIAL attributions)
@@ -1907,16 +1915,31 @@ fn get_checkpoint_entry_for_file(
                 &current_content,
                 ts,
             );
-        
+        // Mirror the remap for the parallel message stream.
+        let message_line_attributions =
+            crate::authorship::attribution_tracker::attributions_to_line_attributions_for_checkpoint(
+                &prev_message_attributions,
+                &previous_content,
+                kind.is_ai(),
+            );
+        let remapped_message_attributions =
+            crate::authorship::attribution_tracker::line_attributions_to_attributions(
+                &message_line_attributions,
+                &current_content,
+                ts,
+            );
+
         let (added_ranges, deleted_ranges, added_entries, deleted_entries) =
             compute_line_change_ranges(&previous_content, &current_content);
-    
+
         let mut entry = WorkingLogEntry::new(
             file_path,
             file_content_hash,
             remapped_attributions,
             line_attributions,
         );
+        entry.message_attributions = remapped_message_attributions;
+        entry.message_line_attributions = message_line_attributions;
         if !added_ranges.is_empty() {
             entry.added_line_ranges = Some(added_ranges);
         }
@@ -1936,9 +1959,11 @@ fn get_checkpoint_entry_for_file(
         file_path: &file_path,
         blob_sha: &file_content_hash,
         author_id: author_id.as_ref(),
+        message_author: message_author.as_ref(),
         is_ai_checkpoint: kind.is_ai(),
         previous_content: &previous_content,
         previous_attributions: &prev_attributions,
+        previous_message_attributions: &prev_message_attributions,
         content: &current_content,
         ts,
     })?;
@@ -1971,6 +1996,10 @@ async fn get_checkpoint_entries(
     ts: u128,
     is_pre_commit: bool,
     head_commit_override: Option<&str>,
+    // `combined_hash` will become `Checkpoint.diff`. Used as a synthetic per-checkpoint
+    // id stamped on the message-attestation stream; resolved to `cp.user_prompt_id`
+    // at post-commit time after the user_prompt_id is backfilled.
+    combined_hash: &str,
 ) -> Result<(Vec<WorkingLogEntry>, Vec<FileLineStats>), GitAiError> {
     let entries_fn_start = Instant::now();
 
@@ -2019,6 +2048,20 @@ async fn get_checkpoint_entries(
         }
     };
 
+    // Determine message_author for the parallel message-attestation stream.
+    //
+    // We deliberately do NOT call `latest_user_prompt_id(agent_run_result)` here.
+    // At checkpoint creation time, the user-message id often isn't yet visible in
+    // the agent's transcript (e.g. Cursor's SQLite hasn't persisted the message
+    // yet), so it would stamp the wrong id. Instead we stamp a synthetic per-
+    // checkpoint id derived from the diff hash (`combined_hash`) and resolve it
+    // to `cp.user_prompt_id` at post-commit time, AFTER `update_prompts_to_latest`
+    // has refreshed and backfilled `user_prompt_id` on each checkpoint.
+    let message_author = match kind {
+        CheckpointKind::Human | CheckpointKind::KnownHuman => CheckpointKind::Human.to_str(),
+        _ => format!("{}{}", SYNTHETIC_MSG_PREFIX, combined_hash),
+    };
+
     // Get HEAD commit info for git operations
     let head_commit = head_commit_override
         .map(str::trim)
@@ -2045,6 +2088,7 @@ async fn get_checkpoint_entries(
     let previous_file_state_by_file = Arc::new(previous_file_state_by_file);
     let ai_touched_files = Arc::new(ai_touched_files);
     let author_id = Arc::new(author_id);
+    let message_author = Arc::new(message_author);
     let head_commit_sha = Arc::new(head_commit_sha);
     let head_tree_id = Arc::new(head_tree_id);
     let initial_attributions = Arc::new(initial_attributions);
@@ -2061,6 +2105,7 @@ async fn get_checkpoint_entries(
         let previous_file_state_by_file = Arc::clone(&previous_file_state_by_file);
         let ai_touched_files = Arc::clone(&ai_touched_files);
         let author_id = Arc::clone(&author_id);
+        let message_author = Arc::clone(&message_author);
         let head_commit_sha = Arc::clone(&head_commit_sha);
         let head_tree_id = Arc::clone(&head_tree_id);
         let blob_sha = file_content_hashes
@@ -2087,6 +2132,7 @@ async fn get_checkpoint_entries(
                     ai_touched_files,
                     blob_sha,
                     author_id.clone(),
+                    message_author.clone(),
                     head_commit_sha.clone(),
                     head_tree_id.clone(),
                     initial_attributions.clone(),
@@ -2146,9 +2192,14 @@ struct FileEntryInput<'a> {
     file_path: &'a str,
     blob_sha: &'a str,
     author_id: &'a str,
+    /// Identifier stamped on newly-edited regions in the parallel message stream:
+    /// either `user_prompt_id` (UUID) for AI checkpoints, or the `"human"` sentinel.
+    message_author: &'a str,
     is_ai_checkpoint: bool,
     previous_content: &'a str,
     previous_attributions: &'a [Attribution],
+    /// Char-level message-stream attributions from the previous checkpoint.
+    previous_message_attributions: &'a [Attribution],
     content: &'a str,
     ts: u128,
 }
@@ -2160,9 +2211,11 @@ fn make_entry_for_file(
         file_path,
         blob_sha,
         author_id,
+        message_author,
         is_ai_checkpoint,
         previous_content,
         previous_attributions,
+        previous_message_attributions,
         content,
         ts,
     } = input;
@@ -2225,12 +2278,39 @@ fn make_entry_for_file(
     let (added_ranges, deleted_ranges, added_entries, deleted_entries) =
         compute_line_change_ranges(previous_content, content);
 
+    // Parallel message-stream pass: same imara-diff projection, but stamping
+    // `message_author` (user message UUID or "human" sentinel) on newly-edited regions.
+    // Gaps in prev message attributions are filled with "human" so unattributed
+    // regions don't leak the previous message's id.
+    let filled_in_prev_message_attributions = tracker.attribute_unattributed_ranges(
+        previous_content,
+        previous_message_attributions,
+        &CheckpointKind::Human.to_str(),
+        ts - 1,
+    );
+    let new_message_attributions = tracker.update_attributions_for_checkpoint(
+        previous_content,
+        content,
+        &filled_in_prev_message_attributions,
+        message_author,
+        ts,
+        is_ai_checkpoint,
+    )?;
+    let message_line_attributions =
+        crate::authorship::attribution_tracker::attributions_to_line_attributions_for_checkpoint(
+            &new_message_attributions,
+            content,
+            is_ai_checkpoint,
+        );
+
     let mut entry = WorkingLogEntry::new(
         file_path.to_string(),
         blob_sha.to_string(),
         new_attributions,
         line_attributions,
     );
+    entry.message_attributions = new_message_attributions;
+    entry.message_line_attributions = message_line_attributions;
     if !added_ranges.is_empty() {
         entry.added_line_ranges = Some(added_ranges);
     }

@@ -172,6 +172,10 @@ impl FileAttestation {
 #[derive(Clone, PartialEq)]
 pub struct AuthorshipLog {
     pub attestations: Vec<FileAttestation>,
+    /// Parallel attestations keyed by user message id (UUID) instead of conversation hash.
+    /// Same `FileAttestation` shape; the `hash` field on each entry stores a message UUID.
+    /// Serialized as a duplicate text block after the JSON metadata.
+    pub message_attestations: Vec<FileAttestation>,
     pub metadata: AuthorshipMetadata,
 }
 
@@ -179,6 +183,7 @@ impl fmt::Debug for AuthorshipLog {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("AuthorshipLogV3")
             .field("attestations", &self.attestations)
+            .field("message_attestations", &self.message_attestations)
             .field("metadata", &self.metadata)
             .finish()
     }
@@ -188,6 +193,7 @@ impl AuthorshipLog {
     pub fn new() -> Self {
         Self {
             attestations: Vec::new(),
+            message_attestations: Vec::new(),
             metadata: AuthorshipMetadata::new(),
         }
     }
@@ -209,10 +215,17 @@ impl AuthorshipLog {
     }
 
     /// Serialize to the new text format
+    ///
+    /// Layout:
+    ///   <conversation attestation>
+    ///   ---
+    ///   [<message attestation>]   (only when message_attestations is non-empty)
+    ///   [---]                     (only when message_attestations is non-empty)
+    ///   {json metadata}
     pub fn serialize_to_string(&self) -> Result<String, fmt::Error> {
         let mut output = String::new();
 
-        // Write attestation section
+        // Write conversation-level attestation section.
         for file_attestation in &self.attestations {
             // Quote file names that contain spaces or whitespace
             let file_path = if needs_quoting(&file_attestation.file_path) {
@@ -232,10 +245,35 @@ impl AuthorshipLog {
             }
         }
 
-        // Write divider
+        // First divider — separates conversation attestation from what follows.
         output.push_str("---\n");
 
-        // Write JSON metadata section
+        // Optional message attestation block, sandwiched between the two dividers.
+        // When empty, omit the second divider entirely so old notes (no
+        // message_attestations) and new notes without messages round-trip unchanged.
+        if !self.message_attestations.is_empty() {
+            for file_attestation in &self.message_attestations {
+                let file_path = if needs_quoting(&file_attestation.file_path) {
+                    format!("\"{}\"", &file_attestation.file_path)
+                } else {
+                    file_attestation.file_path.clone()
+                };
+                output.push_str(&file_path);
+                output.push('\n');
+
+                for entry in &file_attestation.entries {
+                    output.push_str("  ");
+                    output.push_str(&entry.hash);
+                    output.push(' ');
+                    output.push_str(&format_line_ranges(&entry.line_ranges));
+                    output.push('\n');
+                }
+            }
+            // Second divider — separates message attestation from JSON metadata.
+            output.push_str("---\n");
+        }
+
+        // JSON metadata always last.
         let json_str = serde_json::to_string_pretty(&self.metadata).map_err(|_| fmt::Error)?;
         output.push_str(&json_str);
 
@@ -251,27 +289,50 @@ impl AuthorshipLog {
         Ok(())
     }
 
-    /// Deserialize from the new text format
+    /// Deserialize from the new text format.
+    ///
+    /// Two layouts are supported:
+    /// 1. Single-divider (no message attestation):
+    ///       <attestation>\n---\n{json}
+    /// 2. Two-divider (with message attestation):
+    ///       <attestation>\n---\n<message attestation>\n---\n{json}
     pub fn deserialize_from_string(content: &str) -> Result<Self, Box<dyn std::error::Error>> {
         let lines: Vec<&str> = content.lines().collect();
 
-        // Find the divider
-        let divider_pos = lines
+        // Find the first divider — always separates conversation attestation from
+        // whatever follows (either message attestation or JSON metadata directly).
+        let first_divider = lines
             .iter()
             .position(|&line| line == "---")
             .ok_or("Missing divider '---' in authorship log")?;
 
-        // Parse attestation section (before divider)
-        let attestation_lines = &lines[..divider_pos];
-        let attestations = parse_attestation_section(attestation_lines)?;
+        // Parse conversation attestation section (before first divider).
+        let attestations = parse_attestation_section(&lines[..first_divider])?;
 
-        // Parse JSON metadata section (after divider)
-        let json_lines = &lines[divider_pos + 1..];
-        let json_content = json_lines.join("\n");
+        // Look for an optional second divider after the first. Its presence indicates
+        // a message attestation block sits between the two dividers; its absence means
+        // JSON metadata follows the first divider directly (legacy / no-messages case).
+        let second_divider = lines
+            .iter()
+            .enumerate()
+            .skip(first_divider + 1)
+            .find_map(|(i, &line)| (line == "---").then_some(i));
+
+        let (message_attestations, json_start) = match second_divider {
+            Some(idx) => {
+                let parsed = parse_attestation_section(&lines[first_divider + 1..idx])?;
+                (parsed, idx + 1)
+            }
+            None => (Vec::new(), first_divider + 1),
+        };
+
+        // JSON metadata is everything after the last divider.
+        let json_content = lines[json_start..].join("\n");
         let metadata: AuthorshipMetadata = serde_json::from_str(&json_content)?;
 
         Ok(Self {
             attestations,
+            message_attestations,
             metadata,
         })
     }
@@ -702,6 +763,13 @@ fn parse_attestation_section(
 fn needs_quoting(path: &str) -> bool {
     path.contains(' ') || path.contains('\t') || path.contains('\n')
 }
+
+/// Prefix used to mark a synthetic per-checkpoint id stored on the message-attestation
+/// stream during checkpoint creation. At post-commit time these ids are resolved to
+/// the checkpoint's (now-backfilled) `user_prompt_id`. Lines whose synthetic id
+/// can't be resolved (because the cp's `user_prompt_id` is still None even after
+/// backfill) are dropped from the message_attestations.
+pub const SYNTHETIC_MSG_PREFIX: &str = "__cpdiff_";
 
 /// Generate a short hash (16 characters) from agent_id and tool
 pub fn generate_short_hash(agent_id: &str, tool: &str) -> String {

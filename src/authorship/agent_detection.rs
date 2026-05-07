@@ -150,6 +150,7 @@ pub fn simulate_agent_authorship(
 
     let log = AuthorshipLog {
         attestations: vec![file_attestation],
+        message_attestations: Vec::new(),
         metadata,
     };
 
