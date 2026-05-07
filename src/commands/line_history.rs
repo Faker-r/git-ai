@@ -232,7 +232,7 @@ fn build_commit_entry(
 ///
 /// Cache hits run inline. Cache misses are batched into a single
 /// `read_ca_prompt_store` call to avoid N round-trips per commit.
-fn hydrate_stripped_entries(entries: &mut [ChangeHistoryEntry]) {
+pub(crate) fn hydrate_stripped_entries(entries: &mut [ChangeHistoryEntry]) {
     use crate::authorship::secrets::entry_is_stripped;
 
     // Indices and hashes for entries that need a CAS fetch.

@@ -1,4 +1,5 @@
 pub mod blame;
+pub mod change_history;
 pub mod checkpoint;
 pub mod checkpoint_agent;
 pub mod ci_handlers;
