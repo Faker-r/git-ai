@@ -1,0 +1,951 @@
+src/commands/line_history.rs
+  d1b2c2233beb847c 235
+src/commands/git_ai_handlers.rs
+  d1b2c2233beb847c 209-211,335
+src/commands/mod.rs
+  d1b2c2233beb847c 2
+src/commands/change_history.rs
+  d1b2c2233beb847c 1-148
+---
+{
+  "schema_version": "authorship/4.0.0",
+  "git_ai_version": "development:1.3.1",
+  "base_commit_sha": "6254272b12b73435d8acec24567885aa8d9c16a1",
+  "prompts": {
+    "d1b2c2233beb847c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "227d176f-f5c0-430a-8705-476f6a4b98cd",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Andrew Wang",
+      "messages": [
+        {
+          "type": "user",
+          "text": "see if my understanding of line histpory is correct:\n\nit takes a line, file, and commit head. \n\nIt uses git log from that head with the file and line, to see all commits that file and line. git log automatically identifies changes in that line too, so it can track previous versions of it. \n\nWhen a commit is found, its added to a list, where the authorship log and change history entries are fetched. From there, it walks back through all the entries to identify entries that edited that line, and include them. While walking, it updates the line number.",
+          "timestamp": "2026-05-06T03:01:45.112Z",
+          "id": "97b36ba9-77cb-4217-b8b8-24cc14796118"
+        },
+        {
+          "type": "thinking",
+          "text": "",
+          "timestamp": "2026-05-06T03:01:48.439Z",
+          "id": "7e598ea3-92a1-4cca-9a6f-0873e6654b92"
+        },
+        {
+          "type": "tool_use",
+          "name": "Read",
+          "input": {
+            "file_path": "/Users/Andrew/School/ReSeSS_Research/tool_testing/git-ai/src/commands/line_history.rs"
+          },
+          "timestamp": "2026-05-06T03:01:48.854Z",
+          "id": "toolu_01NJvTnuAYwio39QtRD62gpw"
+        },
+        {
+          "type": "thinking",
+          "text": "",
+          "timestamp": "2026-05-06T03:02:07.871Z",
+          "id": "abd86910-a868-4a74-9761-6a171ea5410b"
+        },
+        {
+          "type": "assistant",
+          "text": "Your understanding is mostly correct. A few clarifications based on the code:\n\n**Correct:**\n- Inputs: `file`, `line`, optional `--commit` (defaults to `HEAD`) — `handle_line_history` at `line_history.rs:58`.\n- It runs `git log -L<line>,<line>:<file> <commit>` (`git_log_line_history` at `line_history.rs:143`), which uses git's built-in line-tracing to follow that line back through renames/edits.\n- For each commit, it loads the authorship log (`get_reference_as_authorship_log_v3`) and pulls out `change_history`, hydrating any \"stripped\" entries via the CAS cache/API (`build_commit_entry` at `line_history.rs:203`).\n- It walks the change_history entries **in reverse** (newest → oldest) and tracks the line number as it goes (`find_checkpoints_that_touched_line` at `line_history.rs:380`).\n\n**Two nuances worth adding:**\n\n1. **Line-number updating happens at two levels, not one:**\n   - *Across commits:* `git_log_line_history` parses `@@ ... +N,M @@` hunk headers and sets `target_line_in_commit = N` for each commit (`line_history.rs:179-188`). So each commit gets the line number as it exists *in that commit's tree*, not the original input line.\n   - *Within a commit's checkpoints:* `find_checkpoints_that_touched_line` starts from that per-commit line and walks backwards through each checkpoint's diff ops, adjusting the line number via `map_new_to_old`.\n\n2. **Only checkpoints that *introduced* the line are recorded as matches.** In the inner walk, `map_new_to_old` returns `Some(old_line)` if the line existed before that checkpoint (just shifted around) — those are skipped. It returns `None` only if the line was inside an `Insert` range, meaning the checkpoint actually added it. Then `reverse_through_insert` jumps the cursor back to the pre-replacement old position so prior checkpoints that wrote the *replaced* content can also be found.\n\nSo it's not \"any checkpoint that touched the file region\" — it's specifically \"checkpoints whose insertion produced this line (or its predecessor content at that slot).\"\n\nWant me to add this understanding to `documentation/git_ai_understanding.md`?",
+          "timestamp": "2026-05-06T03:02:19.686Z",
+          "id": "87ca68b8-4384-4677-a563-7e0dbec9204f"
+        },
+        {
+          "type": "user",
+          "text": "what exactly does git log -L<line>,<line>:<file> <commit> do?",
+          "timestamp": "2026-05-06T03:06:18.142Z",
+          "id": "a59c297a-7244-486d-9fd7-f4098d68266e"
+        },
+        {
+          "type": "thinking",
+          "text": "",
+          "timestamp": "2026-05-06T03:06:20.763Z",
+          "id": "516a9f50-4d12-46b0-afd7-80a58536d999"
+        },
+        {
+          "type": "assistant",
+          "text": "`git log -L<start>,<end>:<file>` is git's **line-range log**. It traces the history of a specific range of lines in a file, walking backwards through commits.\n\nFor `-L<line>,<line>:<file> <commit>` (same start and end = single line):\n\n**What it does:**\n1. Starts at `<commit>` and looks at what's on `<line>` of `<file>` there.\n2. Walks backwards through history. For each parent commit, it computes the diff for `<file>` and asks: *\"did any hunk overlap the line range I'm currently tracking?\"*\n3. If yes → emits that commit, along with the hunk(s) that touched the range.\n4. **Critically, it adjusts the tracked range as it walks.** If a commit added 10 lines above your line, then in the parent commit your line was 10 numbers earlier. Git follows that shift automatically, so on the parent side it's tracking the *correct* old line number.\n5. It also follows the line through renames and large refactors (using a similarity heuristic, like blame).\n\n**Output format** (what `git_log_line_history` parses):\n```\nCOMMIT <sha> <date> <subject>            ← from --format\ndiff --git a/file b/file\n--- a/file\n+++ b/file\n@@ -OLD,n +NEW,m @@                      ← hunk header\n- old version of the line\n+ new version of the line\n```\n\nThe `+NEW` in the `@@` header is what `current_target_line` gets updated to at `line_history.rs:179-188` — that's the line number *as it existed in that commit's new-file side*, which becomes the starting point for walking that commit's authorship-log checkpoints.\n\n**Key behaviors:**\n- It only emits commits where the tracked range *actually changed* (not commits that touched the file elsewhere).\n- It implies `-p` (always shows the patch) — that's how you get the `@@` hunks.\n- It cannot be combined with arbitrary pathspecs; the file is baked into the `-L` argument.\n- You can pass multiple `-L` ranges; each is tracked independently.\n\nSo for git-ai's purposes: it's a cheap way to get *the exact set of commits where this specific line was added, modified, or had its predecessor content replaced*, plus the line number that line had inside each of those commits — without git-ai having to reimplement diff-tracing across history.",
+          "timestamp": "2026-05-06T03:06:37.081Z",
+          "id": "ead26218-60bd-4fc6-928b-0771ed287336"
+        },
+        {
+          "type": "user",
+          "text": "I want to create a new command, change_history, which takes a start and end commit, and returns a history of all change history entries between those two commits, end inclusive. \n\nMake it similar to style of line_history, with a list of commits, and inside each commit, a list of change history entries. \n\nAsk for any clarifications",
+          "timestamp": "2026-05-07T02:21:21.252Z",
+          "id": "7a5e666a-29e7-4a70-8682-93dc659895eb"
+        },
+        {
+          "type": "thinking",
+          "text": "",
+          "timestamp": "2026-05-07T02:21:31.972Z",
+          "id": "af29a4f0-5518-444f-92b6-4c2be42a84e5"
+        },
+        {
+          "type": "assistant",
+          "text": "Before I implement, a few things to nail down:\n\n1. **Range semantics.** \"Between start and end, end-inclusive\" is ambiguous about the start side. Three common interpretations:\n   - `start..end` — git revision range: commits reachable from `end` but not from `start`. End inclusive, start exclusive. (Matches `git log start..end`.)\n   - `start^..end` — start inclusive too.\n   - `start...end` — symmetric difference (probably not what you want).\n   \n   My guess is `start..end` (so `start` is the \"baseline you've already seen\"). Confirm?\n\n2. **Merge commits / topology.** `git log start..end` by default walks all commits reachable on that range, including merges from side branches. Do you want:\n   - All commits (default), or\n   - First-parent only (`--first-parent`, gives you the \"main line\" between the two)?\n\n3. **Output ordering.** Newest-first (git log default) or oldest-first (chronological, easier to read as a timeline)? `line_history` is implicitly newest-first because that's what `git log` emits.\n\n4. **File scoping.** `line_history` is per-file. Should `change_history`:\n   - Cover all files in the commit (one entry per change_history record, listing all its files), or\n   - Take an optional `--file <path>` to filter entries to those that touched a path?\n\n5. **Commits without authorship logs.** Include them with an empty `change_history` array, or skip them entirely from the output? (I'd lean *include* — keeps the commit list aligned with git history — but want to confirm.)\n\n6. **Entry payload.** Each change_history entry has lots of fields (timestamp, kind, agent_type, model, prompt_id, prompt_text, line_stats, files map with added/deleted ranges + contents, url, etc.). For the per-entry output, do you want:\n   - A `MatchedCheckpoint`-style flat summary (timestamp, kind, agent, model, prompt, additions/deletions), or\n   - The full `ChangeHistoryEntry` including the per-file `added_lines` / `deleted_lines` / contents?\n   \n   Since there's no \"target line\" to filter by here, the full entry seems more useful — but it's a lot more output.\n\n7. **Argument shape.** `git-ai change-history <start> <end>` positional, matching `line-history`'s style? Or flags like `--from <start> --to <end>`?\n\nMy defaults if you don't specify: `start..end` semantics, all commits (no first-parent), newest-first, no file filter, include empty commits, full entry payload, positional args.",
+          "timestamp": "2026-05-07T02:21:44.811Z",
+          "id": "e77a0323-8a2f-4cc1-8457-6d64d719e06f"
+        },
+        {
+          "type": "user",
+          "text": "for most things, just do what git log does. So inclusive for both start and end, newest first. \n\nInclude commits without logs. Keep full change history entry ciontents. positional args.",
+          "timestamp": "2026-05-07T02:27:16.800Z",
+          "id": "87ba6146-fb63-447f-9c12-476262f4adb7"
+        },
+        {
+          "type": "thinking",
+          "text": "",
+          "timestamp": "2026-05-07T02:27:29.348Z",
+          "id": "9e3e39de-f143-4109-8cbc-ed5bf210eeff"
+        },
+        {
+          "type": "tool_use",
+          "name": "Bash",
+          "input": {
+            "command": "ls /Users/Andrew/School/ReSeSS_Research/tool_testing/git-ai/src/commands/",
+            "description": "List commands directory"
+          },
+          "timestamp": "2026-05-07T02:27:29.828Z",
+          "id": "toolu_013qYdxrT8cV2t4DdwTYkmSh"
+        },
+        {
+          "type": "tool_use",
+          "name": "Read",
+          "input": {
+            "file_path": "/Users/Andrew/School/ReSeSS_Research/tool_testing/git-ai/src/commands/mod.rs"
+          },
+          "timestamp": "2026-05-07T02:27:35.416Z",
+          "id": "toolu_01Lw7459F29PKvSh3bnbWwt7"
+        },
+        {
+          "type": "tool_use",
+          "name": "Bash",
+          "input": {
+            "command": "grep -rn \"line_history\\|line-history\" /Users/Andrew/School/ReSeSS_Research/tool_testing/git-ai/src/ --include=\"*.rs\" | head -50",
+            "description": "Find where line_history is dispatched"
+          },
+          "timestamp": "2026-05-07T02:27:38.198Z",
+          "id": "toolu_01UChEMetJcafPzWFqiuyBrg"
+        },
+        {
+          "type": "tool_use",
+          "name": "Read",
+          "input": {
+            "file_path": "/Users/Andrew/School/ReSeSS_Research/tool_testing/git-ai/src/commands/git_ai_handlers.rs",
+            "limit": 160,
+            "offset": 180
+          },
+          "timestamp": "2026-05-07T02:27:41.054Z",
+          "id": "toolu_01KoG2PoGB1pPxgUQvsv1H9j"
+        },
+        {
+          "type": "thinking",
+          "text": "",
+          "timestamp": "2026-05-07T02:27:43.964Z",
+          "id": "6dcede0c-b6f9-473d-96ec-adbf0051218c"
+        },
+        {
+          "type": "tool_use",
+          "name": "Bash",
+          "input": {
+            "command": "grep -rn \"struct ChangeHistoryEntry\\|pub struct ChangeHistoryEntry\" /Users/Andrew/School/ReSeSS_Research/tool_testing/git-ai/src/ --include=\"*.rs\" | head -5",
+            "description": "Find ChangeHistoryEntry definition"
+          },
+          "timestamp": "2026-05-07T02:27:45.627Z",
+          "id": "toolu_015Yoo77t2qCM417oMmBzg5V"
+        },
+        {
+          "type": "tool_use",
+          "name": "Read",
+          "input": {
+            "file_path": "/Users/Andrew/School/ReSeSS_Research/tool_testing/git-ai/src/authorship/authorship_log_serialization.rs",
+            "limit": 120,
+            "offset": 1
+          },
+          "timestamp": "2026-05-07T02:27:49.438Z",
+          "id": "toolu_01RhtbQTReTcPVpaQA9w8hiq"
+        },
+        {
+          "type": "thinking",
+          "text": "",
+          "timestamp": "2026-05-07T02:29:12.689Z",
+          "id": "76c3343c-2dcf-4feb-a9c0-94dad0289673"
+        },
+        {
+          "type": "assistant",
+          "text": "Got it. I'll reuse `line_history`'s `hydrate_stripped_entries` to keep the CAS logic in one place. For the range, I'll use `git log <end> --not <start>^@` — that gives both ends inclusive and works correctly when `<start>` is a root commit.\n\nLet me make `hydrate_stripped_entries` callable from another command file first.",
+          "timestamp": "2026-05-07T02:29:14.206Z",
+          "id": "466e7261-1cab-4682-8432-10d81ccc93e1"
+        },
+        {
+          "type": "tool_use",
+          "name": "Edit",
+          "input": {
+            "file_path": "/Users/Andrew/School/ReSeSS_Research/tool_testing/git-ai/src/commands/line_history.rs",
+            "new_string": "/// Replace stripped entries (Default mode: only `timestamp + kind + url` populated)\n/// with full bodies fetched from CAS. Order is preserved; entries that fail to resolve\n/// are left untouched so callers see the same behavior as today's bulk-resolver miss.\n///\n/// Cache hits run inline. Cache misses are batched into a single\n/// `read_ca_prompt_store` call to avoid N round-trips per commit.\npub(crate) fn hydrate_stripped_entries(entries: &mut [ChangeHistoryEntry]) {",
+            "old_string": "/// Replace stripped entries (Default mode: only `timestamp + kind + url` populated)\n/// with full bodies fetched from CAS. Order is preserved; entries that fail to resolve\n/// are left untouched so callers see the same behavior as today's bulk-resolver miss.\n///\n/// Cache hits run inline. Cache misses are batched into a single\n/// `read_ca_prompt_store` call to avoid N round-trips per commit.\nfn hydrate_stripped_entries(entries: &mut [ChangeHistoryEntry]) {",
+            "replace_all": false
+          },
+          "timestamp": "2026-05-07T02:29:20.498Z",
+          "id": "toolu_01LRSeVt9NjVE9myjUD22LrV"
+        },
+        {
+          "type": "assistant",
+          "text": "Now create the new command file.",
+          "timestamp": "2026-05-07T02:30:06.089Z",
+          "id": "a2a99525-a32e-4789-a073-ec432374dd01"
+        },
+        {
+          "type": "tool_use",
+          "name": "Write",
+          "input": {
+            "content": "use crate::authorship::authorship_log_serialization::ChangeHistoryEntry;\nuse crate::commands::line_history::hydrate_stripped_entries;\nuse crate::error::GitAiError;\nuse crate::git::find_repository_in_path;\nuse crate::git::refs::get_reference_as_authorship_log_v3;\nuse crate::git::repository::{Repository, exec_git};\nuse serde::Serialize;\n\n#[derive(Serialize)]\npub struct ChangeHistoryOutput {\n    pub start: String,\n    pub end: String,\n    pub commits: Vec<CommitChangeHistory>,\n}\n\n#[derive(Serialize)]\npub struct CommitChangeHistory {\n    pub commit_sha: String,\n    pub commit_date: String,\n    pub commit_message: String,\n    pub change_history: Vec<ChangeHistoryEntry>,\n}\n\nstruct CommitInfo {\n    sha: String,\n    date: String,\n    subject: String,\n}\n\npub fn handle_change_history(args: &[String]) {\n    if args.len() < 2 {\n        eprintln!(\"Usage: git-ai change-history <start> <end>\");\n        std::process::exit(1);\n    }\n\n    let start = &args[0];\n    let end = &args[1];\n\n    let current_dir = std::env::current_dir().unwrap();\n    let repo = match find_repository_in_path(current_dir.to_str().unwrap()) {\n        Ok(r) => r,\n        Err(e) => {\n            eprintln!(\"Error: not in a git repository: {}\", e);\n            std::process::exit(1);\n        }\n    };\n\n    if let Err(e) = run_change_history(&repo, start, end) {\n        eprintln!(\"Error: {}\", e);\n        std::process::exit(1);\n    }\n}\n\npub fn run_change_history(repo: &Repository, start: &str, end: &str) -> Result<(), GitAiError> {\n    let commits = git_log_commits(repo, start, end)?;\n\n    let mut output_commits = Vec::new();\n    for c in &commits {\n        output_commits.push(build_commit_change_history(repo, c)?);\n    }\n\n    let output = ChangeHistoryOutput {\n        start: start.to_string(),\n        end: end.to_string(),\n        commits: output_commits,\n    };\n    println!(\"{}\", serde_json::to_string_pretty(&output).unwrap());\n    Ok(())\n}\n\n/// Enumerate commits in `start..end`, inclusive on both ends, newest-first.\n///\n/// Uses `git log <end> --not <start>^@`: exclude everything reachable from any\n/// parent of `<start>` (so `<start>` itself is kept). For a root commit `<start>`,\n/// `^@` resolves to an empty parent set, leaving the full history of `<end>`.\nfn git_log_commits(\n    repo: &Repository,\n    start: &str,\n    end: &str,\n) -> Result<Vec<CommitInfo>, GitAiError> {\n    let mut args = repo.global_args_for_exec();\n    args.extend([\n        \"log\".to_string(),\n        \"--format=%H %aI %s\".to_string(),\n        end.to_string(),\n        \"--not\".to_string(),\n        format!(\"{}^@\", start),\n    ]);\n    let output = exec_git(&args)?;\n    let stdout = String::from_utf8_lossy(&output.stdout);\n\n    let mut commits = Vec::new();\n    for output_line in stdout.lines() {\n        let Some(sha) = output_line.get(..40) else { continue };\n        let Some(rest) = output_line.get(41..) else { continue };\n        let Some((date, subject)) = rest.split_once(' ') else { continue };\n        commits.push(CommitInfo {\n            sha: sha.to_string(),\n            date: date.to_string(),\n            subject: subject.to_string(),\n        });\n    }\n    Ok(commits)\n}\n\nfn build_commit_change_history(\n    repo: &Repository,\n    commit: &CommitInfo,\n) -> Result<CommitChangeHistory, GitAiError> {\n    let change_history = match get_reference_as_authorship_log_v3(repo, &commit.sha) {\n        Ok(log) => {\n            if let Some(mut ch) = log.metadata.change_history {\n                hydrate_stripped_entries(&mut ch);\n                ch\n            } else {\n                vec![]\n            }\n        }\n        Err(GitAiError::Generic(msg)) if msg.contains(\"No authorship note found\") => vec![],\n        Err(e) => return Err(e),\n    };\n    Ok(CommitChangeHistory {\n        commit_sha: commit.sha.clone(),\n        commit_date: commit.date.clone(),\n        commit_message: commit.subject.clone(),\n        change_history,\n    })\n}\n",
+            "file_path": "/Users/Andrew/School/ReSeSS_Research/tool_testing/git-ai/src/commands/change_history.rs"
+          },
+          "timestamp": "2026-05-07T02:30:22.713Z",
+          "id": "toolu_01KjutCN3zbzfykrFZ6ieHe5"
+        },
+        {
+          "type": "tool_use",
+          "name": "Edit",
+          "input": {
+            "file_path": "/Users/Andrew/School/ReSeSS_Research/tool_testing/git-ai/src/commands/mod.rs",
+            "new_string": "pub mod blame;\npub mod change_history;\npub mod checkpoint;\npub mod checkpoint_agent;\npub mod ci_handlers;\npub mod config;",
+            "old_string": "pub mod blame;\npub mod checkpoint;\npub mod checkpoint_agent;\npub mod ci_handlers;\npub mod config;",
+            "replace_all": false
+          },
+          "timestamp": "2026-05-07T02:30:26.872Z",
+          "id": "toolu_01GRkLQCGKyTkCRxNc1aJkrw"
+        },
+        {
+          "type": "tool_use",
+          "name": "Edit",
+          "input": {
+            "file_path": "/Users/Andrew/School/ReSeSS_Research/tool_testing/git-ai/src/commands/git_ai_handlers.rs",
+            "new_string": "        \"line-history\" => {\n            commands::line_history::handle_line_history(&args[1..]);\n        }\n        \"change-history\" => {\n            commands::change_history::handle_change_history(&args[1..]);\n        }",
+            "old_string": "        \"line-history\" => {\n            commands::line_history::handle_line_history(&args[1..]);\n        }",
+            "replace_all": false
+          },
+          "timestamp": "2026-05-07T02:30:31.522Z",
+          "id": "toolu_01So9qDXZMSuuyLFsGKCvnh3"
+        },
+        {
+          "type": "tool_use",
+          "name": "Edit",
+          "input": {
+            "file_path": "/Users/Andrew/School/ReSeSS_Research/tool_testing/git-ai/src/commands/git_ai_handlers.rs",
+            "new_string": "    eprintln!(\"  line-history       Show history of a line in a file\");\n    eprintln!(\"  change-history     Show change_history entries between two commits (inclusive)\");",
+            "old_string": "    eprintln!(\"  line-history       Show history of a line in a file\");",
+            "replace_all": false
+          },
+          "timestamp": "2026-05-07T02:30:37.025Z",
+          "id": "toolu_01Kz6yDrfyqUu9xEFUVHHELM"
+        },
+        {
+          "type": "assistant",
+          "text": "Now verify it compiles.",
+          "timestamp": "2026-05-07T02:30:39.744Z",
+          "id": "405b0ed5-cd38-4e9e-adc0-01042a100027"
+        },
+        {
+          "type": "tool_use",
+          "name": "Bash",
+          "input": {
+            "command": "cd /Users/Andrew/School/ReSeSS_Research/tool_testing/git-ai && cargo build 2>&1 | tail -40",
+            "description": "Build git-ai to verify the new command compiles",
+            "timeout": 300000
+          },
+          "timestamp": "2026-05-07T02:30:40.651Z",
+          "id": "toolu_01G94K5oK1SrkTB33d1jPpYm"
+        },
+        {
+          "type": "assistant",
+          "text": "Compiles cleanly (the warning is pre-existing, unrelated). Quick smoke test:",
+          "timestamp": "2026-05-07T02:30:54.891Z",
+          "id": "6009033c-6c3f-441a-af1d-a132a8d5c07e"
+        },
+        {
+          "type": "tool_use",
+          "name": "Bash",
+          "input": {
+            "command": "./target/debug/git-ai change-history 2>&1 | head -5",
+            "description": "Verify usage line prints correctly"
+          },
+          "timestamp": "2026-05-07T02:30:55.863Z",
+          "id": "toolu_01NnazYRc1RpcPhhiyMF2Vhw"
+        },
+        {
+          "type": "assistant",
+          "text": "Done. Summary of changes:\n\n- **`src/commands/change_history.rs`** (new): `git-ai change-history <start> <end>` — emits JSON with `start`, `end`, and a `commits` array (newest-first). Each commit has `commit_sha`/`commit_date`/`commit_message` and a `change_history` array of full `ChangeHistoryEntry` records (timestamp, kind, agent_type, model, prompt_id, prompt_text, files map with added/deleted line ranges and contents, line_stats, url). Commits without authorship notes get an empty `change_history: []`.\n- **`src/commands/line_history.rs`**: bumped `hydrate_stripped_entries` to `pub(crate)` so the new command shares the CAS hydration path (cache-then-batched-API) instead of duplicating it.\n- **`src/commands/mod.rs`**: registered the module.\n- **`src/commands/git_ai_handlers.rs`**: added the dispatch case and a help line.\n\nRange semantics: `git log <end> --not <start>^@`. Inclusive on both ends, and the `^@` form (parents-of-start) cleanly degenerates to the empty set when `<start>` is a root commit, so the command works for the very first commit in a repo too.\n\nPer `CLAUDE.md`, do you want me to add this change to `documentation/git-ai-research-branch-changes.md`?",
+          "timestamp": "2026-05-07T02:36:47.135Z",
+          "id": "8eab741b-f80a-43f9-a411-ddda0c44ef53"
+        },
+        {
+          "type": "user",
+          "text": " output_line.get(..40) else { continue };\n        let Some(rest) = output_line.get(41..) else { continue }; why .get(..40)? \n\nExplain what the --not does exactly",
+          "timestamp": "2026-05-07T02:40:13.772Z",
+          "id": "73249ca9-eb3c-4bec-b78f-9a0edce6be3f"
+        },
+        {
+          "type": "thinking",
+          "text": "",
+          "timestamp": "2026-05-07T02:40:16.334Z",
+          "id": "692e09fa-8688-479a-9c5e-cc3cb4f0b0ca"
+        },
+        {
+          "type": "assistant",
+          "text": "## Why `.get(..40)` and `.get(41..)`\n\nThe `--format=%H %aI %s` template produces one line per commit shaped like:\n\n```\ne3b0********41e4 2026-05-04T10:23:11+00:00 fix: cache miss handler\n└──── 40 chars ───────────────────────┘ ↑                          ↑\n                                        └ space at index 40        └ subject (rest)\n```\n\n- `%H` is the **full commit SHA**, which is always exactly **40 hex characters** (SHA-1; SHA-256 repos use 64, but git-ai assumes SHA-1 here, same as `line_history.rs` does at lines 174-176).\n- Then a literal space, then `%aI` (author date, ISO 8601 strict — no spaces inside), space, then `%s` (subject).\n\nSo:\n- `output_line.get(..40)` → the SHA. Returns `None` if the line is shorter than 40 chars (defensive bail-out for empty/garbage lines).\n- `output_line.get(41..)` → everything **after** the space at index 40, i.e. `<date> <subject>`. Index 40 is the space itself; index 41 is the first byte of the date.\n\nThen `rest.split_once(' ')` splits that into `(date, subject)` at the next space. The subject can contain spaces freely because `split_once` only splits on the first one.\n\nUsing `.get(..)` instead of slicing (`output_line[..40]`) avoids panics on short/empty lines — it returns `Option`, which the `let Some(...) else { continue }` lines handle by just skipping the line.\n\nThis is the same parsing pattern used in `line_history.rs:174-178`, just without the `\"COMMIT \"` prefix (since here we don't need to interleave with hunk lines).\n\n## What `--not <start>^@` does exactly\n\n`git log` takes a set of \"positive\" revisions (include) and \"negative\" revisions (exclude). The output is:\n\n> *all commits reachable from any positive rev, **minus** all commits reachable from any negative rev.*\n\nTwo pieces of syntax matter here:\n\n### `--not`\n\n`--not` **flips the polarity** of every revision argument that follows it on the command line. So in our invocation:\n\n```\ngit log <end> --not <start>^@\n```\n\n- `<end>` is **positive** (include its history).\n- `<start>^@` is **negative** (exclude its history).\n\nYou could equivalently write `git log <end> ^<start>^@` (the `^` prefix on a single rev means \"negate this one\") — `--not` is just the multi-rev version.\n\n### `<start>^@`\n\nThe `^@` suffix is a git revision modifier meaning **\"all parents of this commit, as a set\"**.\n\n- If `<start>` is a regular commit with one parent `P`, then `<start>^@` resolves to `P`.\n- If `<start>` is a merge with parents `P1, P2`, then `<start>^@` resolves to `{P1, P2}` — both of them.\n- If `<start>` is a **root commit** (no parents), then `<start>^@` resolves to the **empty set**.\n\n### Putting it together\n\n```\ngit log <end> --not <start>^@\n```\n\n= \"commits reachable from `<end>`, except commits reachable from any parent of `<start>`.\"\n\nWhich means: we keep `<start>` itself (it's not a parent of itself), we keep everything between `<start>` and `<end>`, we keep `<end>`, but we drop everything that came **before** `<start>`. That's exactly \"both endpoints inclusive.\"\n\n### Why not just `<start>^..<end>`?\n\nThat's the conventional form and means the same thing in the regular case — but `<start>^` literally means \"the (single) parent of `<start>`.\" For a root commit, that parent **does not exist**, and git errors out with `unknown revision`. The `^@` form sidesteps this because \"the set of parents\" of a root is just `{}`, an empty exclusion that git handles fine.\n\n### Merge commits\n\nOne subtlety worth knowing: because `<start>^@` excludes **all** parents of `<start>`, if `<start>` is itself a merge, this excludes both branches' history below the merge — which is what you want (everything before `<start>` is gone). Inside the range, merges in `<end>`'s history are still walked normally; `git log` will traverse both sides of any merge unless you pass `--first-parent`.",
+          "timestamp": "2026-05-07T02:40:39.971Z",
+          "id": "e016f638-50eb-454d-937d-b7261448242f"
+        },
+        {
+          "type": "user",
+          "text": "Use the most basic git log format. Unless there are other LARGE issues. \n\nadd everything to the documentation doc.",
+          "timestamp": "2026-05-07T02:44:20.171Z",
+          "id": "ab27061c-894b-481d-a574-1895f9d06467"
+        },
+        {
+          "type": "thinking",
+          "text": "",
+          "timestamp": "2026-05-07T02:46:00.619Z",
+          "id": "9fce3a8b-ab23-4224-a315-fd419c4964fb"
+        },
+        {
+          "type": "assistant",
+          "text": "Let me first check the doc file and see what's there.",
+          "timestamp": "2026-05-07T02:46:00.980Z",
+          "id": "87724ff9-1c5f-47b0-bbeb-3f99b7877e83"
+        },
+        {
+          "type": "tool_use",
+          "name": "Bash",
+          "input": {
+            "command": "ls /Users/Andrew/School/ReSeSS_Research/tool_testing/documentation/ 2>&1",
+            "description": "List documentation directory"
+          },
+          "timestamp": "2026-05-07T02:46:02.000Z",
+          "id": "toolu_01XcgTMVgqe5MkfeeMmPbUvV"
+        },
+        {
+          "type": "tool_use",
+          "name": "Bash",
+          "input": {
+            "command": "wc -l /Users/Andrew/School/ReSeSS_Research/tool_testing/documentation/git-ai-research-branch-changes.md",
+            "description": "Count lines in doc file"
+          },
+          "timestamp": "2026-05-07T02:46:05.300Z",
+          "id": "toolu_013k9eeQa1ax2aNdaTFVWaMR"
+        },
+        {
+          "type": "tool_use",
+          "name": "Read",
+          "input": {
+            "file_path": "/Users/Andrew/School/ReSeSS_Research/tool_testing/documentation/git-ai-research-branch-changes.md",
+            "limit": 80,
+            "offset": 1
+          },
+          "timestamp": "2026-05-07T02:46:08.510Z",
+          "id": "toolu_01R7TGf47nYYPiXjhgfLtmeK"
+        },
+        {
+          "type": "tool_use",
+          "name": "Read",
+          "input": {
+            "file_path": "/Users/Andrew/School/ReSeSS_Research/tool_testing/documentation/git-ai-research-branch-changes.md",
+            "limit": 66,
+            "offset": 450
+          },
+          "timestamp": "2026-05-07T02:46:11.292Z",
+          "id": "toolu_0146vAif6QYtzgWTHVEeJ1ZD"
+        },
+        {
+          "type": "thinking",
+          "text": "",
+          "timestamp": "2026-05-07T02:46:28.099Z",
+          "id": "ce6bdef4-26e3-4604-9d2a-9146ef1d7ad1"
+        },
+        {
+          "type": "tool_use",
+          "name": "Bash",
+          "input": {
+            "command": "grep -n \"^## \" /Users/Andrew/School/ReSeSS_Research/tool_testing/documentation/git-ai-research-branch-changes.md",
+            "description": "List section headers"
+          },
+          "timestamp": "2026-05-07T02:46:28.722Z",
+          "id": "toolu_01HZ1gYjMBij8TewhnQa969p"
+        },
+        {
+          "type": "tool_use",
+          "name": "Read",
+          "input": {
+            "file_path": "/Users/Andrew/School/ReSeSS_Research/tool_testing/documentation/git-ai-research-branch-changes.md",
+            "limit": 30,
+            "offset": 180
+          },
+          "timestamp": "2026-05-07T02:46:33.412Z",
+          "id": "toolu_01WGQJr8RMiVuorf6RCTq89F"
+        },
+        {
+          "type": "thinking",
+          "text": "",
+          "timestamp": "2026-05-07T02:46:37.593Z",
+          "id": "7cd2dc21-a345-4040-9dad-308d6ad69aa0"
+        },
+        {
+          "type": "assistant",
+          "text": "Now let me simplify `git_log_commits` to use default git log output, and switch to the conventional `<start>^..<end>` range form.",
+          "timestamp": "2026-05-07T02:46:38.422Z",
+          "id": "4bbca4ea-bb2a-464c-91f6-c5179dbc7e77"
+        },
+        {
+          "type": "tool_use",
+          "name": "Edit",
+          "input": {
+            "file_path": "/Users/Andrew/School/ReSeSS_Research/tool_testing/git-ai/src/commands/change_history.rs",
+            "new_string": "/// Enumerate commits in `<start>^..<end>`, newest-first.\n///\n/// `<start>^..<end>` is git's conventional \"both endpoints inclusive\" range\n/// syntax. It will fail if `<start>` is a root commit (since `<start>^` doesn't\n/// resolve); callers passing a root commit should pass `<start>` as `<end>` of\n/// a separate single-commit query instead.\n///\n/// Uses git log's default output format and parses it directly.\nfn git_log_commits(\n    repo: &Repository,\n    start: &str,\n    end: &str,\n) -> Result<Vec<CommitInfo>, GitAiError> {\n    let mut args = repo.global_args_for_exec();\n    args.extend([\n        \"log\".to_string(),\n        format!(\"{}^..{}\", start, end),\n    ]);\n    let output = exec_git(&args)?;\n    let stdout = String::from_utf8_lossy(&output.stdout);\n\n    let mut commits = Vec::new();\n    let mut current: Option<CommitInfo> = None;\n    let mut subject_captured = false;\n\n    for output_line in stdout.lines() {\n        if let Some(rest) = output_line.strip_prefix(\"commit \") {\n            if let Some(c) = current.take() {\n                commits.push(c);\n            }\n            let sha = rest.split_whitespace().next().unwrap_or(\"\").to_string();\n            current = Some(CommitInfo {\n                sha,\n                date: String::new(),\n                subject: String::new(),\n            });\n            subject_captured = false;\n        } else if let Some(c) = current.as_mut() {\n            if let Some(d) = output_line.strip_prefix(\"Date:\") {\n                c.date = d.trim().to_string();\n            } else if !subject_captured\n                && let Some(sub) = output_line.strip_prefix(\"    \")\n                && !sub.is_empty()\n            {\n                c.subject = sub.to_string();\n                subject_captured = true;\n            }\n        }\n    }\n    if let Some(c) = current.take() {\n        commits.push(c);\n    }\n    Ok(commits)\n}",
+            "old_string": "/// Enumerate commits in `start..end`, inclusive on both ends, newest-first.\n///\n/// Uses `git log <end> --not <start>^@`: exclude everything reachable from any\n/// parent of `<start>` (so `<start>` itself is kept). For a root commit `<start>`,\n/// `^@` resolves to an empty parent set, leaving the full history of `<end>`.\nfn git_log_commits(\n    repo: &Repository,\n    start: &str,\n    end: &str,\n) -> Result<Vec<CommitInfo>, GitAiError> {\n    let mut args = repo.global_args_for_exec();\n    args.extend([\n        \"log\".to_string(),\n        \"--format=%H %aI %s\".to_string(),\n        end.to_string(),\n        \"--not\".to_string(),\n        format!(\"{}^@\", start),\n    ]);\n    let output = exec_git(&args)?;\n    let stdout = String::from_utf8_lossy(&output.stdout);\n\n    let mut commits = Vec::new();\n    for output_line in stdout.lines() {\n        let Some(sha) = output_line.get(..40) else { continue };\n        let Some(rest) = output_line.get(41..) else { continue };\n        let Some((date, subject)) = rest.split_once(' ') else { continue };\n        commits.push(CommitInfo {\n            sha: sha.to_string(),\n            date: date.to_string(),\n            subject: subject.to_string(),\n        });\n    }\n    Ok(commits)\n}",
+            "replace_all": false
+          },
+          "timestamp": "2026-05-07T02:46:51.962Z",
+          "id": "toolu_01HDwMcPEjoXyvEjwN5mKajk"
+        },
+        {
+          "type": "tool_use",
+          "name": "Bash",
+          "input": {
+            "command": "cargo build 2>&1 | tail -20",
+            "description": "Verify build after simplification",
+            "timeout": 300000
+          },
+          "timestamp": "2026-05-07T02:46:55.180Z",
+          "id": "toolu_012x3xDqch9ck41WwQKtAmMo"
+        },
+        {
+          "type": "assistant",
+          "text": "Wait — I'm in `/git-ai` from the previous build call but didn't `cd` again. Let me confirm and run a smoke test from the correct directory.",
+          "timestamp": "2026-05-07T02:47:04.772Z",
+          "id": "b6d35ea0-dd83-4bab-914f-4e99fce44054"
+        },
+        {
+          "type": "tool_use",
+          "name": "Bash",
+          "input": {
+            "command": "pwd && ls /Users/Andrew/School/ReSeSS_Research/tool_testing/git-ai/target/debug/git-ai 2>&1 | tail -2",
+            "description": "Confirm build artifact location"
+          },
+          "timestamp": "2026-05-07T02:47:06.028Z",
+          "id": "toolu_01T4VeoWs9HfD5Gv9dyVfNGx"
+        },
+        {
+          "type": "assistant",
+          "text": "Build is good. Now add the documentation section.",
+          "timestamp": "2026-05-07T02:47:09.176Z",
+          "id": "da8f27c5-5064-4efc-b27c-0e2e7410a995"
+        },
+        {
+          "type": "tool_use",
+          "name": "Edit",
+          "input": {
+            "file_path": "/Users/Andrew/School/ReSeSS_Research/tool_testing/documentation/git-ai-research-branch-changes.md",
+            "new_string": "---\n\n## 14. New `change-history` Command\n\n**File:** `src/commands/change_history.rs` (new)\n\nA new CLI command `git-ai change-history <start> <end>` that returns the full `change_history` (every checkpoint) for every commit in a revision range. It complements `line-history` (per-line view) with a per-range view.\n\n### Invocation\n\n```\ngit-ai change-history <start> <end>\n```\n\nBoth arguments are positional. `<start>` and `<end>` are inclusive on both ends (i.e. the commit object identified by `<start>` *and* the one identified by `<end>` both appear in the output).\n\n### How it works\n\n1. Runs `git log <start>^..<end>` with default output format. `<start>^..<end>` is git's conventional \"both endpoints inclusive\" range syntax — it walks every commit reachable from `<end>` minus those reachable from `<start>`'s parent, which leaves `<start>` itself in the set. Newest-first ordering follows from `git log` default.\n2. Parses the default `git log` output directly (no `--format` template). The parser is a small state machine: lines starting with `commit ` open a new commit record, lines starting with `Date:` populate `commit_date`, and the first 4-space-indented non-empty line after the headers becomes `commit_message` (the subject). Body lines beyond the subject are ignored.\n3. For each commit it calls `get_reference_as_authorship_log_v3` and pulls `metadata.change_history`. If the note is missing or has no `change_history`, the commit is still included with an empty `change_history: []` array — output stays aligned with git's commit list.\n4. Stripped entries (Default storage mode, where each entry has only `{timestamp, kind, url}` populated) are hydrated via the same `hydrate_stripped_entries` helper used by `line-history`. Cache hits resolve inline from the local CAS cache; misses are batched into a single `read_ca_prompt_store` API call per commit. On any failure (no auth, network error, deserialization error), the placeholder is left in place — same degradation behavior as `line-history`.\n5. Emits pretty-printed JSON.\n\n### Range semantics: root commits\n\nThe `<start>^..<end>` form fails when `<start>` is a root commit, because `<start>^` does not resolve. This is the conventional limitation of git's range syntax and is accepted as a known constraint of the basic form. Querying a single-commit range against a root commit can be expressed as `<root> <root>` (which still uses `<root>^..<root>` and therefore also fails); for the root case, callers should query the immediate child instead, or use `git log <root>` directly.\n\n### Output structure\n\n```json\n{\n  \"start\": \"<sha-or-ref>\",\n  \"end\":   \"<sha-or-ref>\",\n  \"commits\": [\n    {\n      \"commit_sha\":     \"<full-sha>\",\n      \"commit_date\":    \"<git-default-date-string>\",\n      \"commit_message\": \"<subject-line>\",\n      \"change_history\": [ <ChangeHistoryEntry>, ... ]\n    },\n    ...\n  ]\n}\n```\n\n`commit_date` is the human-readable date emitted by `git log`'s default formatter (e.g. `\"Mon May 4 10:23:11 2026 -0400\"`), not ISO 8601. This is a deliberate consequence of using the most basic `git log` invocation; downstream consumers that need machine-readable dates should parse this string or fall back to `commit_sha` + a separate `git show -s --format=%aI` lookup.\n\n`change_history` is the **full** `ChangeHistoryEntry` array as stored in the authorship metadata — including `timestamp`, `kind`, `conversation_id`, `agent_type`, `prompt_id`, `model`, `prompt_text`, the per-file `files` map (with `added_lines` / `deleted_lines` ranges and `added_line_contents` / `deleted_line_contents` strings), `line_stats`, and the per-entry CAS `url`. There is no per-line filtering — this command is the bulk view, where `line-history` is the targeted view.\n\n### Code reuse with `line-history`\n\nTo keep CAS hydration in one place, `hydrate_stripped_entries` in `src/commands/line_history.rs` was bumped from private (`fn`) to crate-visible (`pub(crate) fn`). `change-history` calls it via `use crate::commands::line_history::hydrate_stripped_entries;`. This avoids duplicating the cache-then-batched-API path and keeps both commands aligned on degradation behavior.\n\n### Wiring\n\n- Registered in `src/commands/mod.rs` (`pub mod change_history;`)\n- Dispatched in `src/commands/git_ai_handlers.rs` under the `\"change-history\"` arm\n- Help text added to `print_help()` alongside `line-history`\n\n---\n\n## Summary of Logical Implications",
+            "old_string": "---\n\n## Summary of Logical Implications",
+            "replace_all": false
+          },
+          "timestamp": "2026-05-07T02:47:36.246Z",
+          "id": "toolu_013o5MfCrbCg23UrU4mshTEV"
+        },
+        {
+          "type": "assistant",
+          "text": "Also append a final bullet to the \"Summary of Logical Implications\" section so the high-level summary reflects the new command.",
+          "timestamp": "2026-05-07T02:47:40.366Z",
+          "id": "747bdccd-bf54-41a4-ba13-995e35650682"
+        },
+        {
+          "type": "tool_use",
+          "name": "Read",
+          "input": {
+            "file_path": "/Users/Andrew/School/ReSeSS_Research/tool_testing/documentation/git-ai-research-branch-changes.md",
+            "limit": 30,
+            "offset": 575
+          },
+          "timestamp": "2026-05-07T02:47:40.894Z",
+          "id": "toolu_01TuT5sqPFLBt4uEvTd4Vk6T"
+        },
+        {
+          "type": "tool_use",
+          "name": "Edit",
+          "input": {
+            "file_path": "/Users/Andrew/School/ReSeSS_Research/tool_testing/documentation/git-ai-research-branch-changes.md",
+            "new_string": "5. **Schema compatibility**: v4 notes are not readable by old git-ai versions, but the new code can read v3 notes. This is a one-way upgrade.\n\n6. **Two complementary read views over change_history**: `line-history` gives a per-line trace through history (filtered to checkpoints that introduced or replaced the tracked line), while `change-history` gives a per-range bulk view (every checkpoint in every commit between two revisions, full payload, no filtering). Both share a single CAS hydration path so Default-mode storage degrades identically across both.",
+            "old_string": "5. **Schema compatibility**: v4 notes are not readable by old git-ai versions, but the new code can read v3 notes. This is a one-way upgrade.",
+            "replace_all": false
+          },
+          "timestamp": "2026-05-07T02:47:47.072Z",
+          "id": "toolu_0167Ne8bgcBjVUwEnnwFMKUj"
+        },
+        {
+          "type": "assistant",
+          "text": "Done. Summary of this turn:\n\n**Code simplification (`src/commands/change_history.rs`):**\n- Dropped `--format=%H %aI %s`; uses default `git log` output.\n- Switched range from `--not <start>^@` to the conventional `<start>^..<end>`.\n- Added a small state-machine parser for the default `git log` output (commit/Date/indented-subject lines).\n- Trade-off accepted: `<start>^..<end>` fails when `<start>` is a root commit, and `commit_date` is now the human-readable git-default string instead of ISO 8601. Per your \"unless LARGE issues\" carve-out, neither rises to that bar.\n\n**Build:** clean (only the pre-existing unrelated `dead_code` warning).\n\n**Documentation (`documentation/git-ai-research-branch-changes.md`):**\n- Added §14 covering the new command: invocation, how it works (range parsing, default-format parsing, CAS hydration reuse), root-commit limitation, output JSON shape, the `pub(crate)` visibility bump on `hydrate_stripped_entries`, and the wiring points (`mod.rs`, dispatch arm, help text).\n- Appended a 6th bullet to the \"Summary of Logical Implications\" framing `line-history` and `change-history` as the per-line and per-range views over the same `change_history` data.",
+          "timestamp": "2026-05-07T02:47:56.692Z",
+          "id": "8999fc34-9f7b-41b0-ae5c-08dced9ebd6a"
+        },
+        {
+          "type": "user",
+          "text": "^.. vs .. for git log",
+          "timestamp": "2026-05-07T02:48:47.432Z",
+          "id": "5866b2d9-1a54-4485-bc8c-849cce848432"
+        },
+        {
+          "type": "thinking",
+          "text": "",
+          "timestamp": "2026-05-07T02:48:49.956Z",
+          "id": "b6c54120-b38d-47a4-a309-ef89fae0ead5"
+        },
+        {
+          "type": "assistant",
+          "text": "## `<A>..<B>` vs `<A>^..<B>`\n\nBoth are git \"range\" syntaxes for `git log`. They differ only by what's included on the `<A>` side.\n\n### `<A>..<B>`\n\nMeans: **commits reachable from `<B>`, but not from `<A>`.**\n\n- `<A>` itself is *excluded* (it's reachable from `<A>`).\n- `<B>` itself is *included*.\n- Everything between them (exclusive of A, inclusive of B) is included.\n\nEquivalent to: `git log <B> --not <A>` or `git log <B> ^<A>`.\n\nThis is the form people use most often, e.g.:\n- `git log main..feature` → \"what's on `feature` that isn't on `main` yet\"\n- `git log @{u}..` → \"my unpushed commits\"\n\nThe \"exclude A\" semantics is what you usually want for diff-like workflows: \"show me what's *new* relative to A.\"\n\n### `<A>^..<B>`\n\nMeans: **commits reachable from `<B>`, but not from `<A>'s parent`.**\n\n- `<A>` itself is now *included*, because `<A>` is *not* reachable from `<A>^` (its parent).\n- `<B>` itself is *included*.\n- This is the conventional way to write \"both endpoints inclusive.\"\n\nMechanically, `<A>^` is just \"the (first) parent of `<A>`.\" The `..` operator hasn't changed — you've just shifted the left endpoint one commit earlier, so the original `<A>` falls inside the range.\n\n### Side-by-side on a linear history\n\nSuppose history is `... → C1 → C2 → C3 → C4 → C5` (newest right):\n\n| Range          | Output (newest-first) |\n|----------------|-----------------------|\n| `C2..C5`       | `C5, C4, C3`          |\n| `C2^..C5`      | `C5, C4, C3, C2`      |\n| `C1^..C5`      | `C5, C4, C3, C2, C1`  |\n\n### When `<A>^` doesn't resolve\n\n`<A>^` means \"the parent of A.\" A **root commit** has no parent, so:\n\n- `git log <root>..<B>` → works fine, just excludes the root.\n- `git log <root>^..<B>` → **errors**: `fatal: ambiguous argument '<root>^': unknown revision`.\n\nThat's why `--not <start>^@` (which I used in the first draft) was attractive: `^@` is \"the *set* of parents,\" and an empty set is a legal exclusion. But `^@` is much less idiomatic, and the user explicitly asked for the basic form — so the current code uses `<A>^..<B>` and accepts the root-commit limitation.\n\n### Two other variants worth knowing\n\n- `<A>...<B>` (three dots): symmetric difference — commits reachable from either, but not both. Almost never what you want for \"give me commits between A and B.\" Don't confuse with `..`.\n- `<B> --not <A>` and `<B> ^<A>`: equivalent to `<A>..<B>`, just spelled differently. Useful when you have multiple includes/excludes.\n\n### So why `<A>^..<B>` for `change-history`?\n\nYou asked for both endpoints inclusive. `..` alone is exclusive on the left. `^..` shifts the left exclusion back one commit, which is the standard idiom for \"include A through B.\" It costs nothing in normal use, fails only on root commits, and reads naturally to anyone familiar with git.",
+          "timestamp": "2026-05-07T02:49:08.703Z",
+          "id": "98898447-c926-46be-9de9-6801a494b3be"
+        }
+      ],
+      "total_additions": 170,
+      "total_deletions": 17,
+      "accepted_lines": 154,
+      "overriden_lines": 0,
+      "messages_url": "https://git-ai-production.up.railway.app/cas/2255f3c130357f8a40ce5e07862adaf94ea99e858e83945ffd53daefe3fd0d8a"
+    }
+  },
+  "change_history": [
+    {
+      "timestamp": 1778121003,
+      "kind": "ai_agent",
+      "conversation_id": "d1b2c2233beb847c",
+      "agent_type": "claude",
+      "prompt_id": "87ba6146-fb63-447f-9c12-476262f4adb7",
+      "model": "claude-opus-4-7",
+      "prompt_text": "for most things, just do what git log does. So inclusive for both start and end, newest first. \n\nInclude commits without logs. Keep full change history entry ciontents. positional args.",
+      "files": {
+        "src/commands/line_history.rs": {
+          "added_lines": [
+            "235"
+          ],
+          "deleted_lines": [
+            "235"
+          ],
+          "added_line_contents": [
+            "235: pub(crate) fn hydrate_stripped_entries(entries: &mut [ChangeHistoryEntry]) {"
+          ],
+          "deleted_line_contents": [
+            "235: fn hydrate_stripped_entries(entries: &mut [ChangeHistoryEntry]) {"
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 1,
+        "deletions": 1,
+        "additions_sloc": 1,
+        "deletions_sloc": 1
+      },
+      "url": "https://git-ai-production.up.railway.app/cas/15c90e05bb894a44510586811664395925906842c191bb49f6bf61a16c27a3be"
+    },
+    {
+      "timestamp": 1778121023,
+      "kind": "ai_agent",
+      "conversation_id": "d1b2c2233beb847c",
+      "agent_type": "claude",
+      "prompt_id": "87ba6146-fb63-447f-9c12-476262f4adb7",
+      "model": "claude-opus-4-7",
+      "prompt_text": "for most things, just do what git log does. So inclusive for both start and end, newest first. \n\nInclude commits without logs. Keep full change history entry ciontents. positional args.",
+      "files": {
+        "src/commands/change_history.rs": {
+          "added_lines": [
+            "1-128"
+          ],
+          "deleted_lines": [],
+          "added_line_contents": [
+            "1: use crate::authorship::authorship_log_serialization::ChangeHistoryEntry;",
+            "2: use crate::commands::line_history::hydrate_stripped_entries;",
+            "3: use crate::error::GitAiError;",
+            "4: use crate::git::find_repository_in_path;",
+            "5: use crate::git::refs::get_reference_as_authorship_log_v3;",
+            "6: use crate::git::repository::{Repository, exec_git};",
+            "7: use serde::Serialize;",
+            "8: ",
+            "9: #[derive(Serialize)]",
+            "10: pub struct ChangeHistoryOutput {",
+            "11:     pub start: String,",
+            "12:     pub end: String,",
+            "13:     pub commits: Vec<CommitChangeHistory>,",
+            "14: }",
+            "15: ",
+            "16: #[derive(Serialize)]",
+            "17: pub struct CommitChangeHistory {",
+            "18:     pub commit_sha: String,",
+            "19:     pub commit_date: String,",
+            "20:     pub commit_message: String,",
+            "21:     pub change_history: Vec<ChangeHistoryEntry>,",
+            "22: }",
+            "23: ",
+            "24: struct CommitInfo {",
+            "25:     sha: String,",
+            "26:     date: String,",
+            "27:     subject: String,",
+            "28: }",
+            "29: ",
+            "30: pub fn handle_change_history(args: &[String]) {",
+            "31:     if args.len() < 2 {",
+            "32:         eprintln!(\"Usage: git-ai change-history <start> <end>\");",
+            "33:         std::process::exit(1);",
+            "34:     }",
+            "35: ",
+            "36:     let start = &args[0];",
+            "37:     let end = &args[1];",
+            "38: ",
+            "39:     let current_dir = std::env::current_dir().unwrap();",
+            "40:     let repo = match find_repository_in_path(current_dir.to_str().unwrap()) {",
+            "41:         Ok(r) => r,",
+            "42:         Err(e) => {",
+            "43:             eprintln!(\"Error: not in a git repository: {}\", e);",
+            "44:             std::process::exit(1);",
+            "45:         }",
+            "46:     };",
+            "47: ",
+            "48:     if let Err(e) = run_change_history(&repo, start, end) {",
+            "49:         eprintln!(\"Error: {}\", e);",
+            "50:         std::process::exit(1);",
+            "51:     }",
+            "52: }",
+            "53: ",
+            "54: pub fn run_change_history(repo: &Repository, start: &str, end: &str) -> Result<(), GitAiError> {",
+            "55:     let commits = git_log_commits(repo, start, end)?;",
+            "56: ",
+            "57:     let mut output_commits = Vec::new();",
+            "58:     for c in &commits {",
+            "59:         output_commits.push(build_commit_change_history(repo, c)?);",
+            "60:     }",
+            "61: ",
+            "62:     let output = ChangeHistoryOutput {",
+            "63:         start: start.to_string(),",
+            "64:         end: end.to_string(),",
+            "65:         commits: output_commits,",
+            "66:     };",
+            "67:     println!(\"{}\", serde_json::to_string_pretty(&output).unwrap());",
+            "68:     Ok(())",
+            "69: }",
+            "70: ",
+            "71: /// Enumerate commits in `start..end`, inclusive on both ends, newest-first.",
+            "72: ///",
+            "73: /// Uses `git log <end> --not <start>^@`: exclude everything reachable from any",
+            "74: /// parent of `<start>` (so `<start>` itself is kept). For a root commit `<start>`,",
+            "75: /// `^@` resolves to an empty parent set, leaving the full history of `<end>`.",
+            "76: fn git_log_commits(",
+            "77:     repo: &Repository,",
+            "78:     start: &str,",
+            "79:     end: &str,",
+            "80: ) -> Result<Vec<CommitInfo>, GitAiError> {",
+            "81:     let mut args = repo.global_args_for_exec();",
+            "82:     args.extend([",
+            "83:         \"log\".to_string(),",
+            "84:         \"--format=%H %aI %s\".to_string(),",
+            "85:         end.to_string(),",
+            "86:         \"--not\".to_string(),",
+            "87:         format!(\"{}^@\", start),",
+            "88:     ]);",
+            "89:     let output = exec_git(&args)?;",
+            "90:     let stdout = String::from_utf8_lossy(&output.stdout);",
+            "91: ",
+            "92:     let mut commits = Vec::new();",
+            "93:     for output_line in stdout.lines() {",
+            "94:         let Some(sha) = output_line.get(..40) else { continue };",
+            "95:         let Some(rest) = output_line.get(41..) else { continue };",
+            "96:         let Some((date, subject)) = rest.split_once(' ') else { continue };",
+            "97:         commits.push(CommitInfo {",
+            "98:             sha: sha.to_string(),",
+            "99:             date: date.to_string(),",
+            "100:             subject: subject.to_string(),",
+            "101:         });",
+            "102:     }",
+            "103:     Ok(commits)",
+            "104: }",
+            "105: ",
+            "106: fn build_commit_change_history(",
+            "107:     repo: &Repository,",
+            "108:     commit: &CommitInfo,",
+            "109: ) -> Result<CommitChangeHistory, GitAiError> {",
+            "110:     let change_history = match get_reference_as_authorship_log_v3(repo, &commit.sha) {",
+            "111:         Ok(log) => {",
+            "112:             if let Some(mut ch) = log.metadata.change_history {",
+            "113:                 hydrate_stripped_entries(&mut ch);",
+            "114:                 ch",
+            "115:             } else {",
+            "116:                 vec![]",
+            "117:             }",
+            "118:         }",
+            "119:         Err(GitAiError::Generic(msg)) if msg.contains(\"No authorship note found\") => vec![],",
+            "120:         Err(e) => return Err(e),",
+            "121:     };",
+            "122:     Ok(CommitChangeHistory {",
+            "123:         commit_sha: commit.sha.clone(),",
+            "124:         commit_date: commit.date.clone(),",
+            "125:         commit_message: commit.subject.clone(),",
+            "126:         change_history,",
+            "127:     })",
+            "128: }"
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 128,
+        "deletions": 0,
+        "additions_sloc": 115,
+        "deletions_sloc": 0
+      },
+      "url": "https://git-ai-production.up.railway.app/cas/2130f97de55b86a9854eb9cd4464953789657de609e5bf7a134e7c926f9cbd57"
+    },
+    {
+      "timestamp": 1778121027,
+      "kind": "ai_agent",
+      "conversation_id": "d1b2c2233beb847c",
+      "agent_type": "claude",
+      "prompt_id": "87ba6146-fb63-447f-9c12-476262f4adb7",
+      "model": "claude-opus-4-7",
+      "prompt_text": "for most things, just do what git log does. So inclusive for both start and end, newest first. \n\nInclude commits without logs. Keep full change history entry ciontents. positional args.",
+      "files": {
+        "src/commands/mod.rs": {
+          "added_lines": [
+            "2"
+          ],
+          "deleted_lines": [],
+          "added_line_contents": [
+            "2: pub mod change_history;"
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 1,
+        "deletions": 0,
+        "additions_sloc": 1,
+        "deletions_sloc": 0
+      },
+      "url": "https://git-ai-production.up.railway.app/cas/2380370ba4a072f507a6a7980f235a05e373abfd453cff5325cd1af9b2ad5ffb"
+    },
+    {
+      "timestamp": 1778121031,
+      "kind": "ai_agent",
+      "conversation_id": "d1b2c2233beb847c",
+      "agent_type": "claude",
+      "prompt_id": "87ba6146-fb63-447f-9c12-476262f4adb7",
+      "model": "claude-opus-4-7",
+      "prompt_text": "for most things, just do what git log does. So inclusive for both start and end, newest first. \n\nInclude commits without logs. Keep full change history entry ciontents. positional args.",
+      "files": {
+        "src/commands/git_ai_handlers.rs": {
+          "added_lines": [
+            "209-211"
+          ],
+          "deleted_lines": [],
+          "added_line_contents": [
+            "209:         \"change-history\" => {",
+            "210:             commands::change_history::handle_change_history(&args[1..]);",
+            "211:         }"
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 3,
+        "deletions": 0,
+        "additions_sloc": 3,
+        "deletions_sloc": 0
+      },
+      "url": "https://git-ai-production.up.railway.app/cas/c52d551912094c2b568c59d9e4b29e34839e3f751ae904522f8260c9a2e7df80"
+    },
+    {
+      "timestamp": 1778121037,
+      "kind": "ai_agent",
+      "conversation_id": "d1b2c2233beb847c",
+      "agent_type": "claude",
+      "prompt_id": "87ba6146-fb63-447f-9c12-476262f4adb7",
+      "model": "claude-opus-4-7",
+      "prompt_text": "for most things, just do what git log does. So inclusive for both start and end, newest first. \n\nInclude commits without logs. Keep full change history entry ciontents. positional args.",
+      "files": {
+        "src/commands/git_ai_handlers.rs": {
+          "added_lines": [
+            "334"
+          ],
+          "deleted_lines": [],
+          "added_line_contents": [
+            "334:     eprintln!(\"  change-history     Show change_history entries between two commits (inclusive)\");"
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 1,
+        "deletions": 0,
+        "additions_sloc": 1,
+        "deletions_sloc": 0
+      },
+      "url": "https://git-ai-production.up.railway.app/cas/e248a25200195b86c9b64cf89d7d1d82b51b241fab84e04d3f19ec28e63469d3"
+    },
+    {
+      "timestamp": 1778121052,
+      "kind": "ai_agent",
+      "conversation_id": "d1b2c2233beb847c",
+      "agent_type": "claude",
+      "prompt_id": "87ba6146-fb63-447f-9c12-476262f4adb7",
+      "model": "claude-opus-4-7",
+      "prompt_text": "for most things, just do what git log does. So inclusive for both start and end, newest first. \n\nInclude commits without logs. Keep full change history entry ciontents. positional args.",
+      "files": {
+        ".claude/settings.local.json": {
+          "added_lines": [],
+          "deleted_lines": []
+        }
+      },
+      "line_stats": {
+        "additions": 0,
+        "deletions": 0,
+        "additions_sloc": 0,
+        "deletions_sloc": 0
+      },
+      "url": "https://git-ai-production.up.railway.app/cas/2f926f3b6b74b41995b16924ae9fbfd01e64ac3c5420a24c3970be258124bc2e"
+    },
+    {
+      "timestamp": 1778122012,
+      "kind": "ai_agent",
+      "conversation_id": "d1b2c2233beb847c",
+      "agent_type": "claude",
+      "prompt_id": "ab27061c-894b-481d-a574-1895f9d06467",
+      "model": "claude-opus-4-7",
+      "prompt_text": "Use the most basic git log format. Unless there are other LARGE issues. \n\nadd everything to the documentation doc.",
+      "files": {
+        "src/commands/change_history.rs": {
+          "added_lines": [
+            "71",
+            "73-78",
+            "87",
+            "93-95",
+            "97-121"
+          ],
+          "deleted_lines": [
+            "71",
+            "73-75",
+            "84-87",
+            "94-101"
+          ],
+          "added_line_contents": [
+            "71: /// Enumerate commits in `<start>^..<end>`, newest-first.",
+            "73: /// `<start>^..<end>` is git's conventional \"both endpoints inclusive\" range",
+            "74: /// syntax. It will fail if `<start>` is a root commit (since `<start>^` doesn't",
+            "75: /// resolve); callers passing a root commit should pass `<start>` as `<end>` of",
+            "76: /// a separate single-commit query instead.",
+            "77: ///",
+            "78: /// Uses git log's default output format and parses it directly.",
+            "87:         format!(\"{}^..{}\", start, end),",
+            "93:     let mut current: Option<CommitInfo> = None;",
+            "94:     let mut subject_captured = false;",
+            "95: ",
+            "97:         if let Some(rest) = output_line.strip_prefix(\"commit \") {",
+            "98:             if let Some(c) = current.take() {",
+            "99:                 commits.push(c);",
+            "100:             }",
+            "101:             let sha = rest.split_whitespace().next().unwrap_or(\"\").to_string();",
+            "102:             current = Some(CommitInfo {",
+            "103:                 sha,",
+            "104:                 date: String::new(),",
+            "105:                 subject: String::new(),",
+            "106:             });",
+            "107:             subject_captured = false;",
+            "108:         } else if let Some(c) = current.as_mut() {",
+            "109:             if let Some(d) = output_line.strip_prefix(\"Date:\") {",
+            "110:                 c.date = d.trim().to_string();",
+            "111:             } else if !subject_captured",
+            "112:                 && let Some(sub) = output_line.strip_prefix(\"    \")",
+            "113:                 && !sub.is_empty()",
+            "114:             {",
+            "115:                 c.subject = sub.to_string();",
+            "116:                 subject_captured = true;",
+            "117:             }",
+            "118:         }",
+            "119:     }",
+            "120:     if let Some(c) = current.take() {",
+            "121:         commits.push(c);"
+          ],
+          "deleted_line_contents": [
+            "71: /// Enumerate commits in `start..end`, inclusive on both ends, newest-first.",
+            "73: /// Uses `git log <end> --not <start>^@`: exclude everything reachable from any",
+            "74: /// parent of `<start>` (so `<start>` itself is kept). For a root commit `<start>`,",
+            "75: /// `^@` resolves to an empty parent set, leaving the full history of `<end>`.",
+            "84:         \"--format=%H %aI %s\".to_string(),",
+            "85:         end.to_string(),",
+            "86:         \"--not\".to_string(),",
+            "87:         format!(\"{}^@\", start),",
+            "94:         let Some(sha) = output_line.get(..40) else { continue };",
+            "95:         let Some(rest) = output_line.get(41..) else { continue };",
+            "96:         let Some((date, subject)) = rest.split_once(' ') else { continue };",
+            "97:         commits.push(CommitInfo {",
+            "98:             sha: sha.to_string(),",
+            "99:             date: date.to_string(),",
+            "100:             subject: subject.to_string(),",
+            "101:         });"
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 36,
+        "deletions": 16,
+        "additions_sloc": 35,
+        "deletions_sloc": 16
+      },
+      "url": "https://git-ai-production.up.railway.app/cas/65fd3267c005d15282a28481bff927ffa4d09d09e87191db3772d21d0117fed8"
+    },
+    {
+      "timestamp": 1778122537,
+      "kind": "human",
+      "files": {
+        "src/commands/git_ai_handlers.rs": {
+          "added_lines": [
+            "224-226",
+            "230-233",
+            "243-245"
+          ],
+          "deleted_lines": [
+            "224-226",
+            "230-232",
+            "242-244"
+          ],
+          "added_line_contents": [
+            "224:         // \"dash\" | \"dashboard\" => {",
+            "225:         //     commands::personal_dashboard::handle_personal_dashboard(&args[1..]);",
+            "226:         // }",
+            "230:         // requires /api/bundles endpoint on the server side",
+            "231:         // \"share\" => {",
+            "232:         //     commands::share::handle_share(&args[1..]);",
+            "233:         // }",
+            "243:         // \"continue\" => {",
+            "244:         //     commands::continue_session::handle_continue(&args[1..]);",
+            "245:         // }"
+          ],
+          "deleted_line_contents": [
+            "224:         \"dash\" | \"dashboard\" => {",
+            "225:             commands::personal_dashboard::handle_personal_dashboard(&args[1..]);",
+            "226:         }",
+            "230:         \"share\" => {",
+            "231:             commands::share::handle_share(&args[1..]);",
+            "232:         }",
+            "242:         \"continue\" => {",
+            "243:             commands::continue_session::handle_continue(&args[1..]);",
+            "244:         }"
+          ]
+        }
+      },
+      "line_stats": {
+        "additions": 10,
+        "deletions": 9,
+        "additions_sloc": 10,
+        "deletions_sloc": 9
+      },
+      "url": "https://git-ai-production.up.railway.app/cas/8542f612aeb2ff0abcfc48ad5d09410dee539df269e16a302d93f418895194a6"
+    }
+  ]
+}
