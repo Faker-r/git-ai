@@ -205,6 +205,7 @@ fn create_authorship_log_for_range(
         return Ok(
             crate::authorship::authorship_log_serialization::AuthorshipLog {
                 attestations: Vec::new(),
+                message_attestations: Vec::new(),
                 metadata: crate::authorship::authorship_log_serialization::AuthorshipMetadata {
                     base_commit_sha: end_sha.to_string(),
                     ..crate::authorship::authorship_log_serialization::AuthorshipMetadata::new()

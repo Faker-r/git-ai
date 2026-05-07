@@ -209,6 +209,9 @@ pub fn handle_git_ai(args: &[String]) {
         "line-history" => {
             commands::line_history::handle_line_history(&args[1..]);
         }
+        "message-history" => {
+            commands::message_history::handle_message_history(&args[1..]);
+        }
         "change-history" => {
             commands::change_history::handle_change_history(&args[1..]);
         }
@@ -337,6 +340,7 @@ fn print_help() {
     eprintln!("    disable                Disable git-ai tracking in this repository");
     eprintln!("    status                 Show git-ai tracking status and reason");
     eprintln!("  line-history       Show history of a line in a file");
+    eprintln!("  message-history    Show the user message that owns a line at each commit");
     eprintln!("  change-history     Show change_history entries between two commits (inclusive)");
     eprintln!("  ci                 Continuous integration utilities");
     eprintln!("    github                 GitHub CI helpers");

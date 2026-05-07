@@ -16,6 +16,19 @@ pub struct VirtualAttributions {
     base_commit: String,
     // Maps file path -> (char attributions, line attributions)
     pub attributions: HashMap<String, (Vec<Attribution>, Vec<LineAttribution>)>,
+    // Parallel message-stream attributions. At checkpoint creation time the
+    // `LineAttribution.author_id` here stores either the `"human"` sentinel or a
+    // synthetic per-checkpoint id (prefixed by `SYNTHETIC_MSG_PREFIX`). At
+    // post-commit time the synthetic ids are resolved via `synthetic_msg_resolver`
+    // to the now-backfilled `user_prompt_id` of the producing checkpoint. Lines
+    // that resolve to `"human"` or to no message (cp had no prompt id even after
+    // backfill) are dropped from the final message_attestations.
+    pub message_attributions: HashMap<String, Vec<LineAttribution>>,
+    // Maps synthetic per-checkpoint id (e.g. `__cpdiff_<hash>`) to the producing
+    // checkpoint's `user_prompt_id`. Built when reading the working log; consulted
+    // at attestation time to translate stamps written before user_prompt_id
+    // backfill into the final message-id form.
+    pub synthetic_msg_resolver: HashMap<String, String>,
     // Maps file path -> file content
     file_contents: HashMap<String, String>,
     // Prompt records mapping prompt_id -> (commit_sha -> PromptRecord)
@@ -44,6 +57,8 @@ impl VirtualAttributions {
             repo,
             base_commit,
             attributions: HashMap::new(),
+            message_attributions: HashMap::new(),
+            synthetic_msg_resolver: HashMap::new(),
             file_contents: HashMap::new(),
             prompts: BTreeMap::new(),
             ts,
@@ -321,6 +336,8 @@ impl VirtualAttributions {
 
         let mut attributions: HashMap<String, (Vec<Attribution>, Vec<LineAttribution>)> =
             HashMap::new();
+        let mut message_attributions: HashMap<String, Vec<LineAttribution>> = HashMap::new();
+        let mut synthetic_msg_resolver: HashMap<String, String> = HashMap::new();
         let mut prompts = BTreeMap::new();
         let mut humans: BTreeMap<String, HumanRecord> = BTreeMap::new();
         let mut file_contents: HashMap<String, String> = HashMap::new();
@@ -402,6 +419,19 @@ impl VirtualAttributions {
                     checkpoint.line_stats.additions;
                 *session_deletions.entry(author_id.clone()).or_insert(0) +=
                     checkpoint.line_stats.deletions;
+
+                // If this checkpoint has a user_prompt_id (set at creation OR
+                // backfilled by `update_prompts_to_latest`), register the synthetic
+                // id we stamped on the message stream at checkpoint creation so
+                // the message attestation can resolve it back to a real message id.
+                if let Some(user_prompt_id) = &checkpoint.user_prompt_id {
+                    let synthetic = format!(
+                        "{}{}",
+                        crate::authorship::authorship_log_serialization::SYNTHETIC_MSG_PREFIX,
+                        checkpoint.diff
+                    );
+                    synthetic_msg_resolver.insert(synthetic, user_prompt_id.clone());
+                }
             }
 
             if checkpoint.kind == CheckpointKind::KnownHuman {
@@ -450,12 +480,22 @@ impl VirtualAttributions {
                     // filtering (e.g. human rewrote the entire file).  Clear any
                     // stale AI attributions from earlier checkpoints for this file.
                     attributions.remove(&entry.file);
+                    message_attributions.remove(&entry.file);
                     continue;
                 }
 
                 let char_attrs = line_attributions_to_attributions(&line_attrs, &file_content, 0);
 
                 attributions.insert(entry.file.clone(), (char_attrs, line_attrs));
+
+                // Mirror the conversation-stream insert for the parallel message stream.
+                // Entries from older checkpoints (pre-message-tracking) will have an empty
+                // message_line_attributions; in that case we leave the prior value in place
+                // so we don't lose attribution data when newer checkpoints don't write to it.
+                if !entry.message_line_attributions.is_empty() {
+                    message_attributions
+                        .insert(entry.file.clone(), entry.message_line_attributions.clone());
+                }
             }
         }
 
@@ -471,6 +511,8 @@ impl VirtualAttributions {
             repo,
             base_commit,
             attributions,
+            message_attributions,
+            synthetic_msg_resolver,
             file_contents,
             prompts,
             ts: 0,
@@ -493,6 +535,8 @@ impl VirtualAttributions {
 
         let mut attributions: HashMap<String, (Vec<Attribution>, Vec<LineAttribution>)> =
             HashMap::new();
+        let mut message_attributions: HashMap<String, Vec<LineAttribution>> = HashMap::new();
+        let mut synthetic_msg_resolver: HashMap<String, String> = HashMap::new();
         let mut prompts = BTreeMap::new();
         let mut humans: BTreeMap<String, HumanRecord> = BTreeMap::new();
         let mut file_contents: HashMap<String, String> = HashMap::new();
@@ -527,6 +571,8 @@ impl VirtualAttributions {
             let char_attrs = line_attributions_to_attributions(line_attrs, &file_content, 0);
             attributions.insert(file_path.clone(), (char_attrs, line_attrs.clone()));
         }
+        let _ = &mut message_attributions; // silence unused warning if no checkpoints touch it
+        let _ = &mut synthetic_msg_resolver;
 
         for checkpoint in &checkpoints {
             if let Some(agent_id) = &checkpoint.agent_id {
@@ -561,6 +607,17 @@ impl VirtualAttributions {
                     checkpoint.line_stats.additions;
                 *session_deletions.entry(author_id.clone()).or_insert(0) +=
                     checkpoint.line_stats.deletions;
+
+                // Register the synthetic per-cp id so the message attestation can
+                // resolve it back to user_prompt_id at attestation time.
+                if let Some(user_prompt_id) = &checkpoint.user_prompt_id {
+                    let synthetic = format!(
+                        "{}{}",
+                        crate::authorship::authorship_log_serialization::SYNTHETIC_MSG_PREFIX,
+                        checkpoint.diff
+                    );
+                    synthetic_msg_resolver.insert(synthetic, user_prompt_id.clone());
+                }
             }
 
             if checkpoint.kind == CheckpointKind::KnownHuman {
@@ -602,11 +659,17 @@ impl VirtualAttributions {
                     // filtering (e.g. human rewrote the entire file).  Clear any
                     // stale AI attributions from earlier checkpoints for this file.
                     attributions.remove(&entry.file);
+                    message_attributions.remove(&entry.file);
                     continue;
                 }
 
                 let char_attrs = line_attributions_to_attributions(&line_attrs, &file_content, 0);
                 attributions.insert(entry.file.clone(), (char_attrs, line_attrs));
+
+                if !entry.message_line_attributions.is_empty() {
+                    message_attributions
+                        .insert(entry.file.clone(), entry.message_line_attributions.clone());
+                }
             }
         }
 
@@ -621,6 +684,8 @@ impl VirtualAttributions {
             repo,
             base_commit,
             attributions,
+            message_attributions,
+            synthetic_msg_resolver,
             file_contents,
             prompts,
             ts: 0,
@@ -644,6 +709,8 @@ impl VirtualAttributions {
 
         let mut attributions: HashMap<String, (Vec<Attribution>, Vec<LineAttribution>)> =
             HashMap::new();
+        let mut message_attributions: HashMap<String, Vec<LineAttribution>> = HashMap::new();
+        let mut synthetic_msg_resolver: HashMap<String, String> = HashMap::new();
         let mut prompts = BTreeMap::new();
         let mut humans: BTreeMap<String, HumanRecord> = BTreeMap::new();
         let mut file_contents: HashMap<String, String> = HashMap::new();
@@ -678,6 +745,8 @@ impl VirtualAttributions {
             let char_attrs = line_attributions_to_attributions(line_attrs, &file_content, 0);
             attributions.insert(file_path.clone(), (char_attrs, line_attrs.clone()));
         }
+        let _ = &mut message_attributions;
+        let _ = &mut synthetic_msg_resolver;
 
         for checkpoint in &checkpoints {
             if let Some(agent_id) = &checkpoint.agent_id {
@@ -712,6 +781,15 @@ impl VirtualAttributions {
                     checkpoint.line_stats.additions;
                 *session_deletions.entry(author_id.clone()).or_insert(0) +=
                     checkpoint.line_stats.deletions;
+
+                if let Some(user_prompt_id) = &checkpoint.user_prompt_id {
+                    let synthetic = format!(
+                        "{}{}",
+                        crate::authorship::authorship_log_serialization::SYNTHETIC_MSG_PREFIX,
+                        checkpoint.diff
+                    );
+                    synthetic_msg_resolver.insert(synthetic, user_prompt_id.clone());
+                }
             }
 
             if checkpoint.kind == CheckpointKind::KnownHuman {
@@ -761,10 +839,16 @@ impl VirtualAttributions {
                     // filtering (e.g. human rewrote the entire file).  Clear any
                     // stale AI attributions from earlier checkpoints for this file.
                     attributions.remove(&entry.file);
+                    message_attributions.remove(&entry.file);
                     continue;
                 }
 
                 attributions.insert(entry.file.clone(), (char_attrs, line_attrs));
+
+                if !entry.message_line_attributions.is_empty() {
+                    message_attributions
+                        .insert(entry.file.clone(), entry.message_line_attributions.clone());
+                }
             }
         }
 
@@ -779,6 +863,8 @@ impl VirtualAttributions {
             repo,
             base_commit,
             attributions,
+            message_attributions,
+            synthetic_msg_resolver,
             file_contents,
             prompts,
             ts: 0,
@@ -957,6 +1043,8 @@ impl VirtualAttributions {
             repo,
             base_commit,
             attributions,
+            message_attributions: HashMap::new(),
+            synthetic_msg_resolver: HashMap::new(),
             file_contents,
             prompts: BTreeMap::new(),
             ts,
@@ -977,6 +1065,8 @@ impl VirtualAttributions {
             repo,
             base_commit,
             attributions,
+            message_attributions: HashMap::new(),
+            synthetic_msg_resolver: HashMap::new(),
             file_contents,
             prompts,
             ts,
@@ -1069,6 +1159,85 @@ impl VirtualAttributions {
                 let nfc_fp: String = file_path.nfc().collect();
                 let file_attestation = authorship_log.get_or_create_file(&nfc_fp);
                 file_attestation.add_entry(entry);
+            }
+        }
+
+        // Parallel grouping for the message stream (Q1=a, Q2=a from plan).
+        // Group line attributions by message_id (stored in author_id field), drop
+        // the "human" sentinel so human-edited lines never appear under any message.
+        for (file_path, msg_line_attrs) in &self.message_attributions {
+            if msg_line_attrs.is_empty() {
+                continue;
+            }
+
+            let mut msg_ranges: HashMap<String, Vec<(u32, u32)>> = HashMap::new();
+            for la in msg_line_attrs {
+                if la.author_id == CheckpointKind::Human.to_str() {
+                    continue;
+                }
+                // Resolve synthetic per-checkpoint id to user_prompt_id; drop if unresolvable.
+                let resolved_id = if la.author_id.starts_with(
+                    crate::authorship::authorship_log_serialization::SYNTHETIC_MSG_PREFIX,
+                ) {
+                    match self.synthetic_msg_resolver.get(&la.author_id) {
+                        Some(real) => real.clone(),
+                        None => continue,
+                    }
+                } else {
+                    la.author_id.clone()
+                };
+                msg_ranges
+                    .entry(resolved_id)
+                    .or_default()
+                    .push((la.start_line, la.end_line));
+            }
+
+            for (msg_id, mut ranges) in msg_ranges {
+                if ranges.is_empty() {
+                    continue;
+                }
+                ranges.sort_by_key(|(s, e)| (*s, *e));
+                let mut merged: Vec<(u32, u32)> = Vec::new();
+                for (s, e) in ranges {
+                    match merged.last_mut() {
+                        Some((_, last_end)) if s <= last_end.saturating_add(1) => {
+                            *last_end = (*last_end).max(e);
+                        }
+                        _ => merged.push((s, e)),
+                    }
+                }
+                let line_ranges = merged
+                    .into_iter()
+                    .map(|(s, e)| {
+                        if s == e {
+                            crate::authorship::authorship_log::LineRange::Single(s)
+                        } else {
+                            crate::authorship::authorship_log::LineRange::Range(s, e)
+                        }
+                    })
+                    .collect();
+
+                let entry = crate::authorship::authorship_log_serialization::AttestationEntry::new(
+                    msg_id,
+                    line_ranges,
+                );
+
+                let nfc_fp: String = file_path.nfc().collect();
+                let file_msg_att = authorship_log
+                    .message_attestations
+                    .iter_mut()
+                    .find(|f| f.file_path == nfc_fp);
+                let file_msg_att = if let Some(existing) = file_msg_att {
+                    existing
+                } else {
+                    authorship_log
+                        .message_attestations
+                        .push(crate::authorship::authorship_log_serialization::FileAttestation::new(
+                            nfc_fp.clone(),
+                        ));
+                    authorship_log.message_attestations.last_mut().unwrap()
+                };
+                file_msg_att.add_entry(entry);
             }
         }
 
@@ -1634,6 +1803,134 @@ impl VirtualAttributions {
             }
         }
 
+        // ---- Parallel block: build message_attestations alongside the conversation block. ----
+        // Same structural logic as the per-author block above, but keyed by the message id
+        // stored on the message-stream LineAttributions. Uncommitted message attributions
+        // are intentionally dropped (no INITIAL-equivalent for the message stream yet).
+        for (file_path, msg_line_attrs) in &self.message_attributions {
+            if msg_line_attrs.is_empty() {
+                continue;
+            }
+
+            let nfc_file_path: String = file_path.nfc().collect();
+
+            // Reuse the same unstaged_lines we already computed for this file (recompute here
+            // because this loop runs after the previous one consumed its locals).
+            let mut unstaged_lines: Vec<u32> = Vec::new();
+            if let Some(unstaged_ranges) = unstaged_hunks.get(&nfc_file_path) {
+                for range in unstaged_ranges {
+                    unstaged_lines.extend(range.expand());
+                }
+                unstaged_lines.sort_unstable();
+            }
+            let file_committed_hunks = committed_hunks.get(&nfc_file_path);
+
+            let mut committed_msg_lines: StdHashMap<String, Vec<u32>> = StdHashMap::new();
+            for la in msg_line_attrs {
+                for workdir_line_num in la.start_line..=la.end_line {
+                    let is_unstaged = unstaged_lines.binary_search(&workdir_line_num).is_ok();
+                    if is_unstaged {
+                        // Drop uncommitted message lines (Q1=a-scope: only commit-time output).
+                        continue;
+                    }
+                    let adjustment = unstaged_lines
+                        .iter()
+                        .filter(|&&l| l < workdir_line_num)
+                        .count() as u32;
+                    let commit_line_num = workdir_line_num - adjustment;
+                    let is_committed = file_committed_hunks
+                        .map(|hunks| hunks.iter().any(|h| h.contains(commit_line_num)))
+                        .unwrap_or(false);
+                    if is_committed {
+                        committed_msg_lines
+                            .entry(la.author_id.clone())
+                            .or_default()
+                            .push(commit_line_num);
+                    }
+                }
+            }
+
+            for (raw_msg_id, mut lines) in committed_msg_lines {
+                // Q2=a: drop the "human" sentinel — human-edited lines never appear in
+                // message_attestations.
+                if raw_msg_id == CheckpointKind::Human.to_str() {
+                    continue;
+                }
+                // Resolve a synthetic per-checkpoint id stamped at checkpoint creation
+                // (when user_prompt_id may not yet have been visible) to the now-
+                // backfilled `cp.user_prompt_id`. If the synthetic id can't be resolved
+                // (the cp had no prompt id even after backfill), drop the line.
+                let msg_id = if let Some(stripped) = raw_msg_id.strip_prefix(
+                    crate::authorship::authorship_log_serialization::SYNTHETIC_MSG_PREFIX,
+                ) {
+                    let synthetic_key = format!(
+                        "{}{}",
+                        crate::authorship::authorship_log_serialization::SYNTHETIC_MSG_PREFIX,
+                        stripped
+                    );
+                    match self.synthetic_msg_resolver.get(&synthetic_key) {
+                        Some(real) => real.clone(),
+                        None => continue,
+                    }
+                } else {
+                    raw_msg_id
+                };
+                lines.sort();
+                lines.dedup();
+                if lines.is_empty() {
+                    continue;
+                }
+
+                let mut ranges = Vec::new();
+                let mut range_start = lines[0];
+                let mut range_end = lines[0];
+                for &line in &lines[1..] {
+                    if line == range_end + 1 {
+                        range_end = line;
+                    } else {
+                        ranges.push(if range_start == range_end {
+                            crate::authorship::authorship_log::LineRange::Single(range_start)
+                        } else {
+                            crate::authorship::authorship_log::LineRange::Range(
+                                range_start,
+                                range_end,
+                            )
+                        });
+                        range_start = line;
+                        range_end = line;
+                    }
+                }
+                ranges.push(if range_start == range_end {
+                    crate::authorship::authorship_log::LineRange::Single(range_start)
+                } else {
+                    crate::authorship::authorship_log::LineRange::Range(range_start, range_end)
+                });
+
+                let entry =
+                    crate::authorship::authorship_log_serialization::AttestationEntry::new(
+                        msg_id, ranges,
+                    );
+
+                // Find or create the FileAttestation in message_attestations (separate from
+                // the conversation-level one).
+                let file_msg_att = if let Some(idx) = authorship_log
+                    .message_attestations
+                    .iter()
+                    .position(|fa| fa.file_path == nfc_file_path)
+                {
+                    &mut authorship_log.message_attestations[idx]
+                } else {
+                    authorship_log.message_attestations.push(
+                        crate::authorship::authorship_log_serialization::FileAttestation::new(
+                            nfc_file_path.clone(),
+                        ),
+                    );
+                    authorship_log.message_attestations.last_mut().unwrap()
+                };
+                file_msg_att.add_entry(entry);
+            }
+        }
+
         // Build prompts map for INITIAL (only prompts referenced by uncommitted lines)
         let mut initial_prompts = StdHashMap::new();
         for prompt_id in referenced_prompts {
@@ -2090,10 +2387,20 @@ pub fn merge_attributions_favoring_first(
     // Merge humans from both VAs
     let merged_humans = VirtualAttributions::merge_humans(&primary.humans, &secondary.humans);
 
+    // Merge the synthetic-id resolvers from both sides — at rebase/squash time we
+    // want any prior cp's mapping to remain available regardless of which side
+    // contributed it.
+    let mut merged_resolver = primary.synthetic_msg_resolver.clone();
+    for (k, v) in &secondary.synthetic_msg_resolver {
+        merged_resolver.entry(k.clone()).or_insert_with(|| v.clone());
+    }
+
     let mut merged = VirtualAttributions {
         repo,
         base_commit,
         attributions: HashMap::new(),
+        message_attributions: HashMap::new(),
+        synthetic_msg_resolver: merged_resolver,
         file_contents: HashMap::new(),
         prompts: merged_prompts,
         ts,
@@ -2105,6 +2412,8 @@ pub fn merge_attributions_favoring_first(
     let mut all_files: std::collections::HashSet<String> =
         primary.attributions.keys().cloned().collect();
     all_files.extend(secondary.attributions.keys().cloned());
+    all_files.extend(primary.message_attributions.keys().cloned());
+    all_files.extend(secondary.message_attributions.keys().cloned());
     all_files.extend(final_state.keys().cloned());
 
     for file_path in all_files {
@@ -2150,6 +2459,59 @@ pub fn merge_attributions_favoring_first(
         merged
             .attributions
             .insert(file_path.clone(), (merged_char_attrs, merged_line_attrs));
+
+        // ---- Parallel: do the same projection for the message-attestation stream. ----
+        // VA only stores line-level message attributions, so we convert to char-level
+        // first, project through the same imara-diff machinery as the conv stream, then
+        // convert back. Synthetic-id stamps and "human" sentinels both flow through
+        // unchanged (they're just opaque strings to the projection primitive).
+        let primary_msg_line = primary.message_attributions.get(&file_path);
+        let secondary_msg_line = secondary.message_attributions.get(&file_path);
+
+        let transformed_primary_msg = if let (Some(line_attrs), Some(content)) =
+            (primary_msg_line, primary_content)
+            && !line_attrs.is_empty()
+        {
+            let char_attrs =
+                crate::authorship::attribution_tracker::line_attributions_to_attributions(
+                    line_attrs, content, ts,
+                );
+            transform_attributions_to_final(&tracker, content, &char_attrs, final_content, ts)?
+        } else {
+            Vec::new()
+        };
+
+        let transformed_secondary_msg = if let (Some(line_attrs), Some(content)) =
+            (secondary_msg_line, secondary_content)
+            && !line_attrs.is_empty()
+        {
+            let char_attrs =
+                crate::authorship::attribution_tracker::line_attributions_to_attributions(
+                    line_attrs, content, ts,
+                );
+            transform_attributions_to_final(&tracker, content, &char_attrs, final_content, ts)?
+        } else {
+            Vec::new()
+        };
+
+        if !transformed_primary_msg.is_empty() || !transformed_secondary_msg.is_empty() {
+            let merged_msg_char_attrs = merge_char_attributions(
+                &transformed_primary_msg,
+                &transformed_secondary_msg,
+                final_content,
+            );
+            let merged_msg_line_attrs =
+                crate::authorship::attribution_tracker::attributions_to_line_attributions(
+                    &merged_msg_char_attrs,
+                    final_content,
+                );
+            if !merged_msg_line_attrs.is_empty() {
+                merged
+                    .message_attributions
+                    .insert(file_path.clone(), merged_msg_line_attrs);
+            }
+        }
+
         merged
             .file_contents
             .insert(file_path, final_content.clone());
@@ -2640,6 +3002,460 @@ mod tests {
 
     use super::*;
     use crate::git::test_utils::TmpRepo;
+
+    /// End-to-end test for the parallel message-id attestation stream.
+    /// Drives a real checkpoint with a synthetic transcript carrying a
+    /// `user_prompt_id`, commits, and asserts the produced AuthorshipLog has
+    /// `message_attestations` populated with that id mapped to the right lines.
+    #[test]
+    fn test_message_attestations_populated_with_user_prompt_id() {
+        use crate::authorship::transcript::{AiTranscript, Message};
+        use crate::commands::checkpoint_agent::agent_presets::AgentRunResult;
+        use crate::authorship::working_log::{AgentId, CheckpointKind};
+
+        let repo = TmpRepo::new().unwrap();
+
+        // Make an initial commit so we have a base.
+        let _ = repo.write_file("README.md", "init\n", true).unwrap();
+        repo.trigger_checkpoint_with_author("seed").unwrap();
+        repo.commit_with_message("init").unwrap();
+
+        // Write an AI-edited file.
+        let _ = repo
+            .write_file(
+                "test.ts",
+                "function hello() {\n  return \"world\";\n}\n",
+                true,
+            )
+            .unwrap();
+
+        // Build an AgentRunResult with a transcript containing a User message
+        // with a real id — this is what populates `user_prompt_id` and lets
+        // the message_attestations grouping have a real key to use.
+        let user_msg_id = "msg-abc-12345".to_string();
+        let agent_run_result = AgentRunResult {
+            agent_id: AgentId {
+                tool: "test_tool".to_string(),
+                id: "test_session_abc".to_string(),
+                model: "test_model".to_string(),
+            },
+            agent_metadata: None,
+            transcript: Some(AiTranscript {
+                messages: vec![Message::User {
+                    text: "write a hello function".to_string(),
+                    timestamp: None,
+                    id: Some(user_msg_id.clone()),
+                }],
+            }),
+            checkpoint_kind: CheckpointKind::AiAgent,
+            repo_working_dir: Some(repo.path().to_string_lossy().to_string()),
+            edited_filepaths: Some(vec!["test.ts".to_string()]),
+            will_edit_filepaths: None,
+            dirty_files: None,
+            captured_checkpoint_id: None,
+        };
+
+        repo.trigger_checkpoint_with_agent_result("test_user", Some(agent_run_result))
+            .unwrap();
+
+        let log = repo.commit_with_message("add test.ts").unwrap();
+
+        // Conversation-level attestation should be present (sanity).
+        assert!(
+            !log.attestations.is_empty(),
+            "conversation attestations should be populated"
+        );
+
+        // The new field — must contain test.ts with our user_msg_id.
+        assert!(
+            !log.message_attestations.is_empty(),
+            "message_attestations must be populated for an AI checkpoint with a user_prompt_id; full log:\n{}",
+            log.serialize_to_string().unwrap_or_default()
+        );
+
+        let test_ts_msg = log
+            .message_attestations
+            .iter()
+            .find(|fa| fa.file_path == "test.ts")
+            .unwrap_or_else(|| {
+                panic!(
+                    "expected test.ts in message_attestations, got files: {:?}",
+                    log.message_attestations
+                        .iter()
+                        .map(|fa| &fa.file_path)
+                        .collect::<Vec<_>>()
+                )
+            });
+
+        assert!(
+            test_ts_msg.entries.iter().any(|e| e.hash == user_msg_id),
+            "expected message id '{}' as an entry hash in test.ts message_attestations; got {:?}",
+            user_msg_id,
+            test_ts_msg.entries
+        );
+
+        // Round-trip serialization preserves the new field.
+        let serialized = log.serialize_to_string().unwrap();
+        let parsed = crate::authorship::authorship_log_serialization::AuthorshipLog::deserialize_from_string(&serialized)
+            .expect("deserialize");
+        assert_eq!(
+            parsed.message_attestations, log.message_attestations,
+            "message_attestations must round-trip through serialize/deserialize"
+        );
+
+        // The serialized note layout when message_attestations are populated:
+        //   <attestation>\n---\n<message attestation>\n---\n{json}
+        // The message id should appear between the two dividers.
+        let dividers: Vec<usize> = serialized
+            .lines()
+            .enumerate()
+            .filter(|(_, l)| *l == "---")
+            .map(|(i, _)| i)
+            .collect();
+        assert_eq!(
+            dividers.len(),
+            2,
+            "expected exactly two `---` dividers when message_attestations are present;\nfull note:\n{}",
+            serialized
+        );
+        let between_dividers: String = serialized
+            .lines()
+            .skip(dividers[0] + 1)
+            .take(dividers[1] - dividers[0] - 1)
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            between_dividers.contains(&user_msg_id),
+            "expected message id '{}' between the two dividers;\nblock was:\n{}",
+            user_msg_id,
+            between_dividers
+        );
+    }
+
+    /// Replicates the user-reported scenario: AI-then-human-then-AI-then-human edits
+    /// across distinct user prompts, exercising aggregation across several checkpoints
+    /// where the message stream and conversation stream diverge in their range shapes.
+    ///
+    /// Sequence on `f.txt` (initial: 8 lines "line N"):
+    ///   1. AI message M1 changes lines 1-4
+    ///   2. KnownHuman edits line 4
+    ///   3. KnownHuman edits line 3
+    ///   4. AI message M2 changes lines 2, 3, 6
+    ///   5. KnownHuman edits line 6
+    ///
+    /// Expected message_attestations after Q2=a (drop human-edited):
+    ///   - M1: line 1            (only line never re-touched by anyone after M1)
+    ///   - M2: lines 2, 3        (last AI editor; line 3's prior human edit preserved
+    ///                            in content but message attribution is now M2)
+    ///   - line 4: dropped       (last touch was human)
+    ///   - line 6: dropped       (last touch was human)
+    #[test]
+    fn test_message_attestations_multi_checkpoint_aggregation() {
+        use crate::authorship::transcript::{AiTranscript, Message};
+        use crate::authorship::working_log::{AgentId, CheckpointKind};
+        use crate::commands::checkpoint_agent::agent_presets::AgentRunResult;
+
+        let repo = TmpRepo::new().unwrap();
+
+        // Seed the file with a committed baseline so subsequent edits show up as diffs.
+        let _ = repo
+            .write_file(
+                "f.txt",
+                "line 1\nline 2\nline 3\nline 4\nline 5\nline 6\nline 7\nline 8\n",
+                true,
+            )
+            .unwrap();
+        repo.trigger_checkpoint_with_author("seed").unwrap();
+        repo.commit_with_message("seed").unwrap();
+
+        let m1_id = "msg-M1".to_string();
+        let m2_id = "msg-M2".to_string();
+        let conv_id = "conv-1".to_string();
+
+        let mk_agent_run = |msg_id: &str, msg_text: &str| AgentRunResult {
+            agent_id: AgentId {
+                tool: "test_tool".to_string(),
+                id: conv_id.clone(),
+                model: "test_model".to_string(),
+            },
+            agent_metadata: None,
+            transcript: Some(AiTranscript {
+                messages: vec![Message::User {
+                    text: msg_text.to_string(),
+                    timestamp: None,
+                    id: Some(msg_id.to_string()),
+                }],
+            }),
+            checkpoint_kind: CheckpointKind::AiAgent,
+            repo_working_dir: Some(repo.path().to_string_lossy().to_string()),
+            edited_filepaths: Some(vec!["f.txt".to_string()]),
+            will_edit_filepaths: None,
+            dirty_files: None,
+            captured_checkpoint_id: None,
+        };
+
+        // 1) AI M1 edits lines 1-4.
+        let _ = repo
+            .write_file(
+                "f.txt",
+                "line 1 - ai change\nline 2 - ai change\nline 3 - ai change\nline 4 - ai change\nline 5\nline 6\nline 7\nline 8\n",
+                true,
+            )
+            .unwrap();
+        repo.trigger_checkpoint_with_agent_result("test_user", Some(mk_agent_run(&m1_id, "edit 1-4")))
+            .unwrap();
+
+        // 2) Human edits line 4.
+        let _ = repo
+            .write_file(
+                "f.txt",
+                "line 1 - ai change\nline 2 - ai change\nline 3 - ai change\nline 4 - ai change - human change\nline 5\nline 6\nline 7\nline 8\n",
+                true,
+            )
+            .unwrap();
+        repo.trigger_checkpoint_with_author("human_author").unwrap();
+
+        // 3) Human edits line 3.
+        let _ = repo
+            .write_file(
+                "f.txt",
+                "line 1 - ai change\nline 2 - ai change\nline 3 - ai change - human change\nline 4 - ai change - human change\nline 5\nline 6\nline 7\nline 8\n",
+                true,
+            )
+            .unwrap();
+        repo.trigger_checkpoint_with_author("human_author").unwrap();
+
+        // 4) AI M2 edits lines 2, 3, 6 (preserving line 3's human content).
+        let _ = repo
+            .write_file(
+                "f.txt",
+                "line 1 - ai change\nline 2 - ai change - ai change 2\nline 3 - ai change - human change - ai change 2\nline 4 - ai change - human change\nline 5\nline 6 - ai change 2\nline 7\nline 8\n",
+                true,
+            )
+            .unwrap();
+        repo.trigger_checkpoint_with_agent_result("test_user", Some(mk_agent_run(&m2_id, "edit 2,3,6")))
+            .unwrap();
+
+        // 5) Human edits line 6.
+        let _ = repo
+            .write_file(
+                "f.txt",
+                "line 1 - ai change\nline 2 - ai change - ai change 2\nline 3 - ai change - human change - ai change 2\nline 4 - ai change - human change\nline 5\nline 6 - ai change 2 - human change\nline 7\nline 8\n",
+                true,
+            )
+            .unwrap();
+        repo.trigger_checkpoint_with_author("human_author").unwrap();
+
+        let log = repo.commit_with_message("multi-edit").unwrap();
+
+        let file_msg = log
+            .message_attestations
+            .iter()
+            .find(|fa| fa.file_path == "f.txt")
+            .unwrap_or_else(|| {
+                panic!(
+                    "f.txt missing from message_attestations; full note:\n{}",
+                    log.serialize_to_string().unwrap_or_default()
+                )
+            });
+
+        let lines_for = |msg: &str| -> std::collections::BTreeSet<u32> {
+            file_msg
+                .entries
+                .iter()
+                .filter(|e| e.hash == msg)
+                .flat_map(|e| {
+                    e.line_ranges.iter().flat_map(|r| match r {
+                        crate::authorship::authorship_log::LineRange::Single(n) => vec![*n],
+                        crate::authorship::authorship_log::LineRange::Range(s, e) => {
+                            (*s..=*e).collect()
+                        }
+                    })
+                })
+                .collect()
+        };
+
+        let m1_lines = lines_for(&m1_id);
+        let m2_lines = lines_for(&m2_id);
+
+        // Q2=a expectations: line 1 attests to M1; lines 2-3 attest to M2; lines 4 and 6
+        // were last touched by humans and must NOT appear under any message id.
+        assert!(
+            m1_lines.contains(&1),
+            "expected line 1 under {} (only line untouched after M1); got M1={:?}, M2={:?}, full note:\n{}",
+            m1_id,
+            m1_lines,
+            m2_lines,
+            log.serialize_to_string().unwrap_or_default()
+        );
+        for line in [2u32, 3] {
+            assert!(
+                m2_lines.contains(&line),
+                "expected line {} under {} (last-touched-by-AI); got M1={:?}, M2={:?}, full note:\n{}",
+                line,
+                m2_id,
+                m1_lines,
+                m2_lines,
+                log.serialize_to_string().unwrap_or_default()
+            );
+        }
+        for line in [4u32, 6] {
+            assert!(
+                !m1_lines.contains(&line) && !m2_lines.contains(&line),
+                "line {} should not appear under any message id (last touch was human); got M1={:?}, M2={:?}",
+                line, m1_lines, m2_lines
+            );
+        }
+    }
+
+    /// Reproduces the user-reported case where both AI checkpoints carry the same
+    /// `user_prompt_id` (e.g. because Cursor's SQLite hadn't persisted the second
+    /// user message yet, so `latest_user_prompt_id` returned the first message id
+    /// for both AI checkpoints). With one shared id, lines 1-3 should all attest
+    /// to that single id — line 1 because cp1 stamped it and nothing later edited
+    /// it, lines 2-3 because cp4 re-stamped them with the same id over the prior
+    /// human stamps.
+    #[test]
+    fn test_message_attestations_same_prompt_id_both_ai_checkpoints() {
+        use crate::authorship::transcript::{AiTranscript, Message};
+        use crate::authorship::working_log::{AgentId, CheckpointKind};
+        use crate::commands::checkpoint_agent::agent_presets::AgentRunResult;
+
+        let repo = TmpRepo::new().unwrap();
+
+        let _ = repo
+            .write_file(
+                "f.txt",
+                "line 1\nline 2\nline 3\nline 4\nline 5\nline 6\nline 7\nline 8\n",
+                true,
+            )
+            .unwrap();
+        repo.trigger_checkpoint_with_author("seed").unwrap();
+        repo.commit_with_message("seed").unwrap();
+
+        // Both AI checkpoints share this same message id — the bug case.
+        let m1_id = "msg-M1".to_string();
+
+        let mk_agent_run = || AgentRunResult {
+            agent_id: AgentId {
+                tool: "test_tool".to_string(),
+                id: "conv-1".to_string(),
+                model: "test_model".to_string(),
+            },
+            agent_metadata: None,
+            transcript: Some(AiTranscript {
+                messages: vec![Message::User {
+                    text: "edit".to_string(),
+                    timestamp: None,
+                    id: Some(m1_id.clone()),
+                }],
+            }),
+            checkpoint_kind: CheckpointKind::AiAgent,
+            repo_working_dir: Some(repo.path().to_string_lossy().to_string()),
+            edited_filepaths: Some(vec!["f.txt".to_string()]),
+            will_edit_filepaths: None,
+            dirty_files: None,
+            captured_checkpoint_id: None,
+        };
+
+        // 1) AI cp1: lines 1-4.
+        let _ = repo
+            .write_file(
+                "f.txt",
+                "line 1 - ai change\nline 2 - ai change\nline 3 - ai change\nline 4 - ai change\nline 5\nline 6\nline 7\nline 8\n",
+                true,
+            )
+            .unwrap();
+        repo.trigger_checkpoint_with_agent_result("test_user", Some(mk_agent_run()))
+            .unwrap();
+
+        // 2) Human edits line 4.
+        let _ = repo
+            .write_file(
+                "f.txt",
+                "line 1 - ai change\nline 2 - ai change\nline 3 - ai change\nline 4 - ai change - human change\nline 5\nline 6\nline 7\nline 8\n",
+                true,
+            )
+            .unwrap();
+        repo.trigger_checkpoint_with_author("Andrew Wang").unwrap();
+
+        // 3) Human edits line 3.
+        let _ = repo
+            .write_file(
+                "f.txt",
+                "line 1 - ai change\nline 2 - ai change\nline 3 - ai change - human change\nline 4 - ai change - human change\nline 5\nline 6\nline 7\nline 8\n",
+                true,
+            )
+            .unwrap();
+        repo.trigger_checkpoint_with_author("Andrew Wang").unwrap();
+
+        // 4) AI cp2 — SAME message id as cp1. Edits lines 2, 3, 6.
+        let _ = repo
+            .write_file(
+                "f.txt",
+                "line 1 - ai change\nline 2 - ai change - ai change 2\nline 3 - ai change - human change - ai change 2\nline 4 - ai change - human change\nline 5\nline 6 - ai change 2\nline 7\nline 8\n",
+                true,
+            )
+            .unwrap();
+        repo.trigger_checkpoint_with_agent_result("test_user", Some(mk_agent_run()))
+            .unwrap();
+
+        // 5) Human edits line 6.
+        let _ = repo
+            .write_file(
+                "f.txt",
+                "line 1 - ai change\nline 2 - ai change - ai change 2\nline 3 - ai change - human change - ai change 2\nline 4 - ai change - human change\nline 5\nline 6 - ai change 2 - human change\nline 7\nline 8\n",
+                true,
+            )
+            .unwrap();
+        repo.trigger_checkpoint_with_author("Andrew Wang").unwrap();
+
+        let log = repo.commit_with_message("multi-edit-same-msg").unwrap();
+
+        let file_msg = log
+            .message_attestations
+            .iter()
+            .find(|fa| fa.file_path == "f.txt")
+            .unwrap_or_else(|| {
+                panic!(
+                    "f.txt missing from message_attestations; full note:\n{}",
+                    log.serialize_to_string().unwrap_or_default()
+                )
+            });
+
+        let m1_lines: std::collections::BTreeSet<u32> = file_msg
+            .entries
+            .iter()
+            .filter(|e| e.hash == m1_id)
+            .flat_map(|e| {
+                e.line_ranges.iter().flat_map(|r| match r {
+                    crate::authorship::authorship_log::LineRange::Single(n) => vec![*n],
+                    crate::authorship::authorship_log::LineRange::Range(s, e) => {
+                        (*s..=*e).collect()
+                    }
+                })
+            })
+            .collect();
+
+        for line in [1u32, 2, 3] {
+            assert!(
+                m1_lines.contains(&line),
+                "expected line {} under {}; got M1={:?}\nfull note:\n{}",
+                line,
+                m1_id,
+                m1_lines,
+                log.serialize_to_string().unwrap_or_default()
+            );
+        }
+        for line in [4u32, 6] {
+            assert!(
+                !m1_lines.contains(&line),
+                "line {} should not appear under any message id (last touch was human); got M1={:?}",
+                line,
+                m1_lines
+            );
+        }
+    }
 
     #[test]
     fn test_virtual_attributions() {

@@ -719,19 +719,22 @@ fn update_prompts_to_latest(checkpoints: &mut [Checkpoint]) -> Result<(), GitAiE
                         })
                         .collect();
 
-                    // Backfill prompt_id for ALL checkpoints in this conversation that lack
-                    // one. At checkpoint creation time, Cursor's SQLite DB may not yet have
-                    // persisted the triggering user message, so earlier checkpoints in a
-                    // prompt batch frequently miss their prompt_id.
+                    // Reassign prompt_id for every checkpoint in this conversation from the
+                    // refreshed timeline. At checkpoint creation time, Cursor's SQLite DB
+                    // may not yet have persisted the triggering user bubble, so the value
+                    // captured then can be missing OR stale (regressed to the previous
+                    // turn's id). The latest transcript is authoritative — only keep the
+                    // existing value when the timeline yields no candidate.
                     // Strategy: assign the last user message whose timestamp <= checkpoint ts.
                     for &idx in &indices {
-                        if checkpoints[idx].user_prompt_id.is_none() {
-                            let cp_ts = checkpoints[idx].timestamp;
-                            checkpoints[idx].user_prompt_id = user_msg_timeline
-                                .iter()
-                                .filter(|(msg_ts, _)| *msg_ts == 0 || *msg_ts <= cp_ts)
-                                .last()
-                                .and_then(|(_, id)| id.clone());
+                        let cp_ts = checkpoints[idx].timestamp;
+                        if let Some(new_id) = user_msg_timeline
+                            .iter()
+                            .filter(|(msg_ts, _)| *msg_ts == 0 || *msg_ts <= cp_ts)
+                            .last()
+                            .and_then(|(_, id)| id.clone())
+                        {
+                            checkpoints[idx].user_prompt_id = Some(new_id);
                         }
                     }
                     let checkpoint = &mut checkpoints[last_idx];

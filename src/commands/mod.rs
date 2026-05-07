@@ -22,6 +22,7 @@ pub mod line_history;
 pub mod log;
 pub mod login;
 pub mod logout;
+pub mod message_history;
 pub mod personal_dashboard;
 pub mod prompt_picker;
 pub mod prompts_db;
