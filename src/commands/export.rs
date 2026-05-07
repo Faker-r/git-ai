@@ -202,6 +202,7 @@ fn render_html(repo: &Repository, spec: &str, entries: &[CommitAuthorship]) -> S
             ("Commits", entries.len().to_string()),
         ],
     );
+    render_message_filter_bar(&mut body);
 
     if entries.is_empty() {
         body.push_str("<p class=\"empty\">No authorship data found for this revision.</p>");
@@ -497,6 +498,19 @@ fn render_message_line_item(
         id = id_html,
         ts = ts_html,
         body = body_html,
+    );
+}
+
+fn render_message_filter_bar(out: &mut String) {
+    out.push_str(
+        r#"<div class="msg-filter" role="group" aria-label="Message type filter">
+        <span class="msg-filter-label">Show messages:</span>
+        <label><input type="checkbox" class="msg-filter-cb" data-type="user" checked> User</label>
+        <label><input type="checkbox" class="msg-filter-cb" data-type="assistant" checked> Assistant</label>
+        <label><input type="checkbox" class="msg-filter-cb" data-type="tool" checked> Tool</label>
+        <label><input type="checkbox" class="msg-filter-cb" data-type="thinking" checked> Thinking</label>
+        <label><input type="checkbox" class="msg-filter-cb" data-type="plan" checked> Plan</label>
+        </div>"#,
     );
 }
 
@@ -846,10 +860,32 @@ table.diff-table tr.del td.sign, table.diff-table tr.del td.content {{ color: #6
 .che-files {{ margin: 0.35rem 0 0.6rem; padding-left: 1rem; border-left: 2px solid rgba(127,127,127,0.28); }}
 .che-files .che-file {{ margin-left: 0; }}
 .kind {{ text-transform: uppercase; font-size: 0.8em; letter-spacing: 0.05em; color: #2563eb; }}
+/* Message-type filter bar (sticky so it stays visible while scrolling). */
+.msg-filter {{ position: sticky; top: 0; z-index: 10; display: flex; flex-wrap: wrap; gap: 0.4rem 0.9rem; align-items: center; margin: 0.5rem 0 0.75rem; padding: 0.5rem 0.75rem; background: rgba(255,255,255,0.92); backdrop-filter: blur(4px); border: 1px solid rgba(127,127,127,0.25); border-radius: 6px; font-size: 0.9em; }}
+.msg-filter-label {{ font-weight: 600; color: #555; }}
+.msg-filter label {{ cursor: pointer; user-select: none; display: inline-flex; align-items: center; gap: 0.3rem; }}
+@media (prefers-color-scheme: dark) {{ .msg-filter {{ background: rgba(20,20,20,0.85); }} }}
+body.hide-user .msg-user {{ display: none; }}
+body.hide-assistant .msg-assistant {{ display: none; }}
+body.hide-tool .msg-tool {{ display: none; }}
+body.hide-thinking .msg-thinking {{ display: none; }}
+body.hide-plan .msg-plan {{ display: none; }}
 </style>
 </head>
 <body>
 {body}
+<script>
+(function () {{
+  var cbs = document.querySelectorAll('.msg-filter-cb');
+  function apply() {{
+    cbs.forEach(function (cb) {{
+      document.body.classList.toggle('hide-' + cb.dataset.type, !cb.checked);
+    }});
+  }}
+  cbs.forEach(function (cb) {{ cb.addEventListener('change', apply); }});
+  apply();
+}})();
+</script>
 </body>
 </html>
 "#,
