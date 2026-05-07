@@ -107,7 +107,7 @@ fn run_status(json: bool) -> Result<(), GitAiError> {
             .map(|a| format!("{} {}", capitalize(&a.tool), &a.model))
             .unwrap_or_else(|| default_user_name.clone());
 
-        let is_human = checkpoint.kind == CheckpointKind::Human;
+        let is_human = (checkpoint.kind == CheckpointKind::Human) || (checkpoint.kind == CheckpointKind::KnownHuman);
         checkpoint_infos.push(CheckpointInfo {
             time_ago: format_time_ago(checkpoint.timestamp),
             additions,
