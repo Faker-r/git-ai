@@ -22,7 +22,7 @@ from fastapi.responses import JSONResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
-from db import supabase, get_authenticated_client
+from db import supabase_admin, get_anon_client
 
 
 def _hash_device_code(code: str) -> str:
@@ -73,7 +73,7 @@ async def device_code():
     expires_at = datetime.now(timezone.utc) + timedelta(seconds=DEVICE_CODE_TTL_SECONDS)
 
     try:
-        supabase.table("device_codes").insert({
+        supabase_admin.table("device_codes").insert({
             "device_code_hash": _hash_device_code(device_code_val),
             "user_code": user_code,
             "status": "pending",
@@ -118,7 +118,7 @@ def _exchange_device_code(device_code_val: str | None):
     device_code_hash = _hash_device_code(device_code_val)
     try:
         resp = (
-            supabase.table("device_codes")
+            supabase_admin.table("device_codes")
             .select("*")
             .eq("device_code_hash", device_code_hash)
             .limit(1)
@@ -134,7 +134,7 @@ def _exchange_device_code(device_code_val: str | None):
     expires_at = datetime.fromisoformat(row["expires_at"])
     if datetime.now(timezone.utc) > expires_at:
         try:
-            supabase.table("device_codes").delete().eq("device_code_hash", device_code_hash).execute()
+            supabase_admin.table("device_codes").delete().eq("device_code_hash", device_code_hash).execute()
         except Exception:
             pass  # best-effort cleanup
         return _oauth_error("expired_token", "Device code expired")
@@ -153,7 +153,7 @@ def _exchange_device_code(device_code_val: str | None):
 
     # One-time use: delete row after handing out the tokens.
     try:
-        supabase.table("device_codes").delete().eq("device_code_hash", device_code_hash).execute()
+        supabase_admin.table("device_codes").delete().eq("device_code_hash", device_code_hash).execute()
     except Exception:
         pass  # best-effort cleanup; tokens are still valid
 
@@ -169,8 +169,10 @@ def _exchange_device_code(device_code_val: str | None):
 def _refresh(refresh_token: str | None):
     if not refresh_token:
         return _oauth_error("invalid_request", "Missing refresh_token")
+    # refresh_session mutates the calling client's stored session, so use a
+    # throwaway client to keep the long-lived globals clean.
     try:
-        result = supabase.auth.refresh_session(refresh_token)
+        result = get_anon_client().auth.refresh_session(refresh_token)
     except Exception as e:
         return _oauth_error("invalid_grant", str(e))
 
@@ -225,7 +227,7 @@ class ApproveRequest(BaseModel):
 @router.post("/device/approve")
 async def device_approve(req: ApproveRequest):
     try:
-        user_resp = supabase.auth.get_user(req.access_token)
+        user_resp = supabase_admin.auth.get_user(req.access_token)
     except Exception as e:
         raise HTTPException(status_code=401, detail=f"Invalid token: {e}")
 
@@ -238,9 +240,8 @@ async def device_approve(req: ApproveRequest):
     refresh_expires_at = now + timedelta(seconds=REFRESH_TOKEN_TTL_SECONDS)
 
     try:
-        authed_client = get_authenticated_client(req.access_token)
         result = (
-            authed_client.table("device_codes")
+            supabase_admin.table("device_codes")
             .update({
                 "status": "approved",
                 "supabase_access_token": req.access_token,
@@ -282,7 +283,7 @@ async def require_auth(request: Request):
     """
     token = _extract_token(request)
     try:
-        user_resp = supabase.auth.get_user(token)
+        user_resp = supabase_admin.auth.get_user(token)
     except Exception as e:
         raise HTTPException(status_code=401, detail=f"Invalid token: {e}")
     user = getattr(user_resp, "user", None)

@@ -6,7 +6,7 @@ from fastapi import Depends, FastAPI, Query, Request
 from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
 
-from db import supabase
+from db import supabase_admin
 from auth import router as auth_router, require_auth
 from models import (
     CasUploadRequest,
@@ -46,7 +46,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 async def health():
     db_ok = True
     try:
-        supabase.table("cas_objects").select("hash", count="exact").limit(0).execute()
+        supabase_admin.table("cas_objects").select("hash", count="exact").limit(0).execute()
     except Exception as e:
         logger.warning("Health check DB probe failed: %s", e)
         db_ok = False
