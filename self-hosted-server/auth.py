@@ -22,7 +22,7 @@ from fastapi.responses import JSONResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
-from db import supabase_admin, get_anon_client
+from db import supabase_admin, get_anon_client, get_authenticated_client
 
 
 def _hash_device_code(code: str) -> str:
